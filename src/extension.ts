@@ -4,6 +4,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { parseCoordinate, Coordinate } from './coordinateParser';
+import { BookmarkManager } from './bookmarkManager';
+import { MapBookmark, ViewState } from './bookmarkTypes';
 
 // Interface for configuration messages sent to the webview
 interface MapConfig {
@@ -115,8 +117,11 @@ export function activate(context: vscode.ExtensionContext) {
 	// Set the context variable for the toolbar icon
 	vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', coordinateSelectionEnabled);
 
+	// Initialize BookmarkManager with globalState for persistence
+	const bookmarkManager = new BookmarkManager(context.globalState);
+
 	// Register the Maps webview provider
-	const mapsViewProvider = new MapViewProvider(context.extensionUri);
+	const mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager);
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider('mapsView', mapsViewProvider)
@@ -193,6 +198,96 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+	// Register save view command - opens input box for name, saves current map view as bookmark
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.saveView', async () => {
+			// Get current view state from the webview
+			const viewState = await mapsViewProvider.getCurrentViewState();
+			
+			if (!viewState) {
+				vscode.window.showWarningMessage('Unable to get current map view. Please ensure the map is loaded.');
+				return;
+			}
+
+			// Show input box for bookmark name
+			const name = await vscode.window.showInputBox({
+				prompt: 'Enter a name for this bookmark',
+				placeHolder: 'e.g., Office Location',
+				validateInput: (value) => {
+					if (!value || value.trim().length === 0) {
+						return 'Name is required';
+					}
+					return null;
+				}
+			});
+
+			// User cancelled the input
+			if (!name) {
+				return;
+			}
+
+			// Check for duplicate name
+			const existingBookmark = bookmarkManager.findByName(name);
+			if (existingBookmark) {
+				const overwrite = await vscode.window.showWarningMessage(
+					`A bookmark named "${name}" already exists. Do you want to overwrite it?`,
+					'Overwrite',
+					'Cancel'
+				);
+				
+				if (overwrite !== 'Overwrite') {
+					return;
+				}
+				
+				// Delete existing bookmark before creating new one
+				await bookmarkManager.deleteBookmark(existingBookmark.id);
+			}
+
+			// Create and save the bookmark
+			try {
+				const bookmark = await bookmarkManager.createBookmark(name, viewState);
+				vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" saved successfully.`);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to save bookmark: ${error}`);
+			}
+		})
+	);
+
+	// Register load place command - opens QuickPick with all bookmarks
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.loadPlace', async () => {
+			const bookmarks = bookmarkManager.getAllBookmarks();
+			
+			if (bookmarks.length === 0) {
+				vscode.window.showInformationMessage('No bookmarks saved. Use "Save View" to create bookmarks.');
+				return;
+			}
+
+			// Create QuickPick items from bookmarks
+			const items = bookmarks.map(b => ({
+				label: b.name,
+				description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
+				detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
+				bookmark: b
+			}));
+
+			// Show QuickPick
+			const selected = await vscode.window.showQuickPick(items, {
+				placeHolder: 'Select a saved place to load',
+				matchOnDescription: true,
+				matchOnDetail: true
+			});
+
+			// User cancelled the selection
+			if (!selected) {
+				return;
+			}
+
+			// Fly to the selected bookmark
+			mapsViewProvider.flyToBookmark(selected.bookmark);
+		})
+	);
+
 	// Debounce timer for text selection listener
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -248,9 +343,11 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	public static readonly viewType = 'mapsView';
 
 	private _view?: vscode.WebviewView;
+	private _pendingViewStateResolve?: (state: ViewState | undefined) => void;
 
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
+		private readonly _bookmarkManager: BookmarkManager
 	) {}
 
 	public resolveWebviewView(
@@ -269,6 +366,15 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		};
 
 		webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+
+		// Handle messages from the webview
+		webviewView.webview.onDidReceiveMessage(
+			(message: any) => {
+				this.handleWebviewMessage(message);
+			},
+			undefined,
+			[]
+		);
 	}
 
 	/**
@@ -310,6 +416,169 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 				longitude: longitude
 			});
 		}
+	}
+
+	/**
+	 * Flies to a bookmark location on the map
+	 * @param bookmark The bookmark to fly to
+	 */
+	public flyToBookmark(bookmark: MapBookmark): void {
+		if (this._view) {
+			this._view.webview.postMessage({
+				type: 'flyToBookmark',
+				bookmark: bookmark
+			});
+		}
+	}
+
+	/**
+	 * Gets the current view state from the webview
+	 * @returns Promise resolving to the current view state, or undefined if unavailable
+	 */
+	public async getCurrentViewState(): Promise<ViewState | undefined> {
+		if (!this._view) {
+			return undefined;
+		}
+
+		return new Promise<ViewState | undefined>((resolve) => {
+			// Store the resolve function to be called when we receive the response
+			this._pendingViewStateResolve = resolve;
+			
+			// Request the view state from the webview
+			this._view?.webview.postMessage({ type: 'requestViewState' });
+			
+			// Set a timeout to resolve with undefined if no response
+			setTimeout(() => {
+				if (this._pendingViewStateResolve) {
+					this._pendingViewStateResolve = undefined;
+					resolve(undefined);
+				}
+			}, 5000);
+		});
+	}
+
+	/**
+	 * Handles messages from the webview
+	 * @param message The message from the webview
+	 */
+	public async handleWebviewMessage(message: any): Promise<void> {
+		switch (message.type) {
+			case 'viewStateChanged':
+				if (this._pendingViewStateResolve) {
+					this._pendingViewStateResolve({
+						center: {
+							latitude: message.center.lat || message.center.latitude,
+							longitude: message.center.lng || message.center.longitude
+						},
+						zoom: message.zoom,
+						bearing: message.bearing || 0,
+						pitch: message.pitch || 0
+					});
+					this._pendingViewStateResolve = undefined;
+				}
+				break;
+
+			case 'saveView':
+				await this.handleSaveView();
+				break;
+
+			case 'loadPlace':
+				await this.handleLoadPlace();
+				break;
+		}
+	}
+
+	/**
+	 * Handles the saveView message from the webview
+	 * Requests current view state, prompts for name, and saves bookmark
+	 */
+	private async handleSaveView(): Promise<void> {
+		// Get current view state from the webview
+		const viewState = await this.getCurrentViewState();
+
+		if (!viewState) {
+			vscode.window.showWarningMessage('Unable to get current map view. Please ensure the map is loaded.');
+			return;
+		}
+
+		// Show input box for bookmark name
+		const name = await vscode.window.showInputBox({
+			prompt: 'Enter a name for this bookmark',
+			placeHolder: 'e.g., Office Location',
+			validateInput: (value) => {
+				if (!value || value.trim().length === 0) {
+					return 'Name is required';
+				}
+				return null;
+			}
+		});
+
+		// User cancelled the input
+		if (!name) {
+			return;
+		}
+
+		// Check for duplicate name
+		const existingBookmark = this._bookmarkManager.findByName(name);
+		if (existingBookmark) {
+			const overwrite = await vscode.window.showWarningMessage(
+				`A bookmark named "${name}" already exists. Do you want to overwrite it?`,
+				'Yes',
+				'No'
+			);
+
+			if (overwrite !== 'Yes') {
+				return;
+			}
+
+			// Delete existing bookmark before creating new one
+			await this._bookmarkManager.deleteBookmark(existingBookmark.id);
+		}
+
+		// Create and save the bookmark
+		try {
+			const bookmark = await this._bookmarkManager.createBookmark(name, viewState);
+			vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" saved successfully.`);
+		} catch (error) {
+			vscode.window.showErrorMessage(`Failed to save bookmark: ${error}`);
+		}
+	}
+
+	/**
+	 * Handles the loadPlace message from the webview
+	 * Shows QuickPick with all bookmarks and flies to the selected one
+	 */
+	private async handleLoadPlace(): Promise<void> {
+		const bookmarks = this._bookmarkManager.getAllBookmarks();
+
+		if (bookmarks.length === 0) {
+			vscode.window.showInformationMessage('No bookmarks saved. Use "Save View" to create bookmarks.');
+			return;
+		}
+
+		// Create QuickPick items from bookmarks
+		const items = bookmarks.map(b => ({
+			label: b.name,
+			description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
+			detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
+			bookmark: b
+		}));
+
+		// Show QuickPick
+		const selected = await vscode.window.showQuickPick(items, {
+			placeHolder: 'Select a saved place to load',
+			matchOnDescription: true,
+			matchOnDetail: true
+		});
+
+		// User cancelled the selection
+		if (!selected) {
+			return;
+		}
+
+		// Fly to the selected bookmark
+		this.flyToBookmark(selected.bookmark);
+		vscode.window.showInformationMessage(`Loaded bookmark "${selected.bookmark.name}".`);
 	}
 
 	/**

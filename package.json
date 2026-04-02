@@ -65,6 +65,18 @@
         "title": "Open Map Settings",
         "category": "MapLibre Viewer",
         "icon": "$(gear)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.saveView",
+        "title": "Map: Save Current View",
+        "category": "MapLibre Viewer",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.loadPlace",
+        "title": "Map: Load Saved Place...",
+        "category": "MapLibre Viewer",
+        "icon": "$(arrow-right)"
       }
     ],
     "menus": {

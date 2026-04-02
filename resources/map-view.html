@@ -100,6 +100,55 @@
 			position: relative;
 			width: 100%;
 		}
+		/* Toolbar styles */
+		.toolbar-container {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 10px;
+			background: var(--vscode-editor-background, #fff);
+			border-bottom: 1px solid var(--vscode-input-border, #ccc);
+			font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+		}
+		.toolbar-container.hidden {
+			display: none;
+		}
+		.toolbar-btn {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+			padding: 6px 12px;
+			font-size: 13px;
+			font-family: inherit;
+			border: 1px solid var(--vscode-button-border, #ccc);
+			border-radius: 4px;
+			background: var(--vscode-button-background, #0078d4);
+			color: var(--vscode-button-foreground, #fff);
+			cursor: pointer;
+			transition: background-color 0.2s ease, border-color 0.2s ease;
+		}
+		.toolbar-btn:hover {
+			background: var(--vscode-button-hoverBackground, #106ebe);
+		}
+		.toolbar-btn:focus {
+			outline: 1px solid var(--vscode-focusBorder, #0078d4);
+			outline-offset: 1px;
+		}
+		.toolbar-btn:active {
+			transform: scale(0.98);
+		}
+		.toolbar-btn.secondary {
+			background: var(--vscode-button-secondaryBackground, #5a5a5a);
+			color: var(--vscode-button-secondaryForeground, #fff);
+			border-color: var(--vscode-button-secondaryBackground, #5a5a5a);
+		}
+		.toolbar-btn.secondary:hover {
+			background: var(--vscode-button-secondaryHoverBackground, #6b6b6b);
+		}
+		.toolbar-btn .icon {
+			font-size: 14px;
+		}
 		.search-input {
 			width: 100%;
 			padding: 8px 12px;
@@ -215,6 +264,17 @@
 				<button id="search-clear-btn" class="search-clear-btn" title="Clear search" style="display: none;">×</button>
 			</div>
 			<div id="search-results" class="search-results"></div>
+		</div>
+		<!-- Bookmark toolbar -->
+		<div id="toolbar-container" class="toolbar-container">
+			<button id="save-view-btn" class="toolbar-btn" title="Save current view as bookmark">
+				<span class="icon">🔖</span>
+				<span>Save View</span>
+			</button>
+			<button id="load-place-btn" class="toolbar-btn secondary" title="Load a saved place">
+				<span class="icon">📁</span>
+				<span>Load Place</span>
+			</button>
 		</div>
 		<!-- Map container fills remaining space -->
 		<div class="map-wrapper">
@@ -548,6 +608,61 @@
 			}, 10000);
 		}
 
+		// =====================
+		// Bookmark Functionality
+		// =====================
+
+		// Get the VS Code API for communication with the extension
+		var vscode = acquireVsCodeApi();
+
+		// Send current view state to the extension
+		function sendViewStateChanged() {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			var center = map.getCenter();
+			var viewState = {
+				center: {
+					lat: center.lat,
+					lng: center.lng
+				},
+				zoom: map.getZoom(),
+				bearing: map.getBearing(),
+				pitch: map.getPitch()
+			};
+
+			console.log('Sending view state:', viewState);
+			vscode.postMessage({
+				type: 'viewStateChanged',
+				viewState: viewState
+			});
+		}
+
+		// Fly to a bookmark location
+		function flyToBookmark(bookmark) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			if (!bookmark || !bookmark.center) {
+				console.warn('Invalid bookmark data');
+				return;
+			}
+
+			console.log('Flying to bookmark:', bookmark.name, bookmark);
+
+			map.flyTo({
+				center: [bookmark.center.longitude, bookmark.center.latitude],
+				zoom: bookmark.zoom || 14,
+				bearing: bookmark.bearing || 0,
+				pitch: bookmark.pitch || 0,
+				duration: 1500
+			});
+		}
+
 		// Handle messages from the extension
 		window.addEventListener('message', function(event) {
 			var message = event.data;
@@ -574,8 +689,52 @@
 						flyToLocation(message.latitude, message.longitude);
 					}
 					break;
+				case 'requestViewState':
+					console.log('Received requestViewState message');
+					sendViewStateChanged();
+					break;
+				case 'flyToBookmark':
+					console.log('Received flyToBookmark message:', message.bookmark);
+					if (message.bookmark) {
+						flyToBookmark(message.bookmark);
+					}
+					break;
+				case 'bookmarksUpdated':
+					console.log('Received bookmarksUpdated message:', message.bookmarks);
+					// Future use: update local bookmark list if needed
+					break;
 			}
 		});
+
+		// =====================
+		// Toolbar Button Handlers
+		// =====================
+
+		// Initialize toolbar buttons
+		function initializeToolbar() {
+			var saveViewBtn = document.getElementById('save-view-btn');
+			var loadPlaceBtn = document.getElementById('load-place-btn');
+
+			if (saveViewBtn) {
+				saveViewBtn.addEventListener('click', function() {
+					console.log('Save View button clicked');
+					// Request the extension to save current view as bookmark
+					vscode.postMessage({
+						type: 'saveView'
+					});
+				});
+			}
+
+			if (loadPlaceBtn) {
+				loadPlaceBtn.addEventListener('click', function() {
+					console.log('Load Place button clicked');
+					// Request the extension to show bookmark picker
+					vscode.postMessage({
+						type: 'loadPlace'
+					});
+				});
+			}
+		}
 
 		// =====================
 		// Search Functionality
@@ -854,7 +1013,10 @@
 		// Initialize search after map loads
 		document.addEventListener('DOMContentLoaded', function() {
 			// Small delay to ensure map container is ready
-			setTimeout(initializeSearch, 100);
+			setTimeout(function() {
+				initializeSearch();
+				initializeToolbar();
+			}, 100);
 		});
 	</script>
 </body>
