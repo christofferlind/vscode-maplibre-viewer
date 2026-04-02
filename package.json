@@ -42,12 +42,16 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run compile && npm run copy-assets",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "copy-assets": "node scripts/copy-maplibre-assets.js"
+  },
+  "dependencies": {
+    "maplibre-gl": "^4.7.1"
   },
   "devDependencies": {
     "@types/vscode": "^1.110.0",

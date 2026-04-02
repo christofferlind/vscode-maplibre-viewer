@@ -3,9 +3,9 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline' https://unpkg.com; script-src 'nonce-${nonce}' https://unpkg.com blob:; img-src ${cspSource} https: data: blob:; connect-src https: wss:; font-src ${cspSource} https: data:; worker-src blob:;">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${cspSource}; img-src ${cspSource} https: data: blob:; connect-src ${cspSource} https: wss: data: blob:; font-src ${cspSource} data:; worker-src ${cspSource} blob:;">
 	<title>MapLibre Map</title>
-	<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+	<link href="${maplibreCssUri}" rel="stylesheet" />
 	<style>
 		html, body {
 			margin: 0;
@@ -86,8 +86,17 @@
 		<div class="error-title">Map Load Error</div>
 		<div id="error-message" class="error-message"></div>
 	</div>
-	<script nonce="${nonce}" src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+	<script nonce="${nonce}" src="${maplibreJsUri}"></script>
 	<script nonce="${nonce}">
+		// Configure MapLibre to use inline worker (Blob URL) to avoid cross-origin issues in VS Code webview
+		(function() {
+			var workerBase64 = '${maplibreWorkerBase64}';
+			var workerCode = atob(workerBase64);
+			var workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+			var workerUrl = URL.createObjectURL(workerBlob);
+			maplibregl.setWorkerUrl(workerUrl);
+		})();
+		
 		var map = null;
 		var currentStyleUrl = '${mapStyleUrl}';
 

@@ -87,12 +87,30 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		};
 	}
 
+	/**
+	 * Gets the webview URI for a local resource file
+	 */
+	private _getUri(webview: vscode.Webview, ...pathSegments: string[]): vscode.Uri {
+		const fileUri = vscode.Uri.joinPath(this._extensionUri, ...pathSegments);
+		return webview.asWebviewUri(fileUri);
+	}
+
 	private _getHtmlForWebview(webview: vscode.Webview): string {
 		// Use a nonce to only allow specific scripts to be run
 		const nonce = getNonce();
 		
 		// Get the current configuration
 		const config = this.getConfiguration();
+
+		// Get webview URIs for local MapLibre assets
+		const maplibreJsUri = this._getUri(webview, 'resources', 'maplibre-gl', 'maplibre-gl.js');
+		const maplibreCssUri = this._getUri(webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
+
+		// Read the worker script and encode it as base64 for inline Blob URL
+		// This is needed because VS Code webviews have cross-origin restrictions for Workers
+		const workerPath = path.join(this._extensionUri.fsPath, 'resources', 'maplibre-gl', 'maplibre-gl-worker.js');
+		const workerContent = fs.readFileSync(workerPath, 'utf8');
+		const workerBase64 = Buffer.from(workerContent).toString('base64');
 
 		// Read the HTML template from the resources folder
 		const htmlPath = path.join(this._extensionUri.fsPath, 'resources', 'map-view.html');
@@ -102,6 +120,11 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		htmlContent = htmlContent.replace(/\$\{cspSource\}/g, webview.cspSource);
 		htmlContent = htmlContent.replace(/\$\{nonce\}/g, nonce);
 		htmlContent = htmlContent.replace(/\$\{mapStyleUrl\}/g, config.mapStyleUrl);
+		
+		// Replace MapLibre asset URIs
+		htmlContent = htmlContent.replace(/\$\{maplibreJsUri\}/g, maplibreJsUri.toString());
+		htmlContent = htmlContent.replace(/\$\{maplibreCssUri\}/g, maplibreCssUri.toString());
+		htmlContent = htmlContent.replace(/\$\{maplibreWorkerBase64\}/g, workerBase64);
 
 		return htmlContent;
 	}
