@@ -69,6 +69,16 @@
           "type": "string",
           "default": "https://demotiles.maplibre.org/style.json",
           "description": "URL to the MapLibre style.json file for the map display"
+        },
+        "vscodeMaplibreViewer.geocodingApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for geocoding service (MapTiler)"
+        },
+        "vscodeMaplibreViewer.enableSearch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable search functionality in the map view"
         }
       }
     }

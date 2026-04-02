@@ -7,6 +7,8 @@ import * as fs from 'fs';
 // Interface for configuration messages sent to the webview
 interface MapConfig {
 	mapStyleUrl: string;
+	geocodingApiKey: string;
+	enableSearch: boolean;
 }
 
 // Interface for language options in Quick Pick
@@ -216,7 +218,9 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	private getConfiguration(): MapConfig {
 		const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
 		return {
-			mapStyleUrl: config.get<string>('mapStyleUrl') || 'https://demotiles.maplibre.org/style.json'
+			mapStyleUrl: config.get<string>('mapStyleUrl') || 'https://demotiles.maplibre.org/style.json',
+			geocodingApiKey: config.get<string>('geocodingApiKey') || '',
+			enableSearch: config.get<boolean>('enableSearch') ?? true
 		};
 	}
 
@@ -253,6 +257,8 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		htmlContent = htmlContent.replace(/\$\{cspSource\}/g, webview.cspSource);
 		htmlContent = htmlContent.replace(/\$\{nonce\}/g, nonce);
 		htmlContent = htmlContent.replace(/\$\{mapStyleUrl\}/g, config.mapStyleUrl);
+		htmlContent = htmlContent.replace(/\$\{geocodingApiKey\}/g, config.geocodingApiKey);
+		htmlContent = htmlContent.replace(/\$\{enableSearch\}/g, String(config.enableSearch));
 		
 		// Replace MapLibre asset URIs
 		htmlContent = htmlContent.replace(/\$\{maplibreJsUri\}/g, maplibreJsUri.toString());

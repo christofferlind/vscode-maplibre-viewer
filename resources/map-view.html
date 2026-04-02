@@ -14,6 +14,28 @@
 			height: 100%;
 			overflow: hidden;
 		}
+		/* Main container with flexbox layout */
+		.main-container {
+			display: flex;
+			flex-direction: column;
+			width: 100%;
+			height: 100%;
+		}
+		/* Search container at the top - static positioning */
+		.search-container {
+			position: relative;
+			flex-shrink: 0;
+			padding: 10px;
+			background: var(--vscode-editor-background, #fff);
+			border-bottom: 1px solid var(--vscode-input-border, #ccc);
+			font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+		}
+		/* Map container fills remaining space */
+		.map-wrapper {
+			flex: 1;
+			position: relative;
+			min-height: 0;
+		}
 		#map {
 			width: 100%;
 			height: 100%;
@@ -74,17 +96,138 @@
 			max-width: 300px;
 			word-wrap: break-word;
 		}
+		.search-input-wrapper {
+			position: relative;
+			width: 100%;
+		}
+		.search-input {
+			width: 100%;
+			padding: 8px 12px;
+			padding-right: 30px;
+			font-size: 13px;
+			font-family: inherit;
+			border: 1px solid var(--vscode-input-border, #ccc);
+			border-radius: 4px;
+			background: var(--vscode-input-background, rgba(255, 255, 255, 0.9));
+			color: var(--vscode-input-foreground, #333);
+			outline: none;
+			box-sizing: border-box;
+			transition: border-color 0.2s ease, box-shadow 0.2s ease;
+		}
+		.search-input::placeholder {
+			color: var(--vscode-input-placeholderForeground, #999);
+		}
+		.search-input:focus {
+			border-color: var(--vscode-focusBorder, #0078d4);
+			box-shadow: 0 0 0 1px var(--vscode-focusBorder, #0078d4);
+		}
+		.search-clear-btn {
+			position: absolute;
+			right: 6px;
+			top: 50%;
+			transform: translateY(-50%);
+			background: none;
+			border: none;
+			padding: 4px;
+			cursor: pointer;
+			color: var(--vscode-input-foreground, #333);
+			opacity: 0.6;
+			font-size: 14px;
+			line-height: 1;
+		}
+		.search-clear-btn:hover {
+			opacity: 1;
+		}
+		.search-clear-btn:focus {
+			outline: 1px solid var(--vscode-focusBorder, #0078d4);
+			outline-offset: 1px;
+		}
+		.search-results {
+			position: absolute;
+			top: 100%;
+			left: 0;
+			right: 0;
+			margin-top: 2px;
+			background: var(--vscode-editor-background, rgba(255, 255, 255, 0.95));
+			border: 1px solid var(--vscode-input-border, #ccc);
+			border-radius: 4px;
+			max-height: 300px;
+			overflow-y: auto;
+			display: none;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+			z-index: 1000;
+		}
+		.search-results.visible {
+			display: block;
+		}
+		.search-result-item {
+			padding: 8px 12px;
+			cursor: pointer;
+			border-bottom: 1px solid var(--vscode-editorGroup-border, #eee);
+			transition: background-color 0.1s ease;
+		}
+		.search-result-item:last-child {
+			border-bottom: none;
+		}
+		.search-result-item.selected,
+		.search-result-item:hover {
+			background: var(--vscode-list-hoverBackground, rgba(0, 120, 212, 0.1));
+		}
+		.search-result-item.selected {
+			background: var(--vscode-list-activeSelectionBackground, rgba(0, 120, 212, 0.2));
+		}
+		.search-result-name {
+			font-size: 13px;
+			font-weight: 500;
+			color: var(--vscode-input-foreground, #333);
+			margin-bottom: 2px;
+		}
+		.search-result-type {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground, #666);
+		}
+		.search-loading {
+			padding: 12px;
+			text-align: center;
+			color: var(--vscode-descriptionForeground, #666);
+			font-size: 12px;
+		}
+		.search-error {
+			padding: 12px;
+			text-align: center;
+			color: var(--vscode-errorForeground, #c00);
+			font-size: 12px;
+		}
+		.search-no-results {
+			padding: 12px;
+			text-align: center;
+			color: var(--vscode-descriptionForeground, #666);
+			font-size: 12px;
+		}
 	</style>
 </head>
 <body>
-	<div id="map"></div>
-	<div id="loading-overlay" class="loading-overlay">
-		<span>Loading map...</span>
-	</div>
-	<div id="error-overlay" class="error-overlay">
-		<div class="error-icon">⚠️</div>
-		<div class="error-title">Map Load Error</div>
-		<div id="error-message" class="error-message"></div>
+	<div class="main-container">
+		<!-- Search container at the top - static positioning -->
+		<div id="search-container" class="search-container" style="display: none;">
+			<div class="search-input-wrapper">
+				<input type="text" id="search-input" class="search-input" placeholder="Search places..." autocomplete="off" />
+				<button id="search-clear-btn" class="search-clear-btn" title="Clear search" style="display: none;">×</button>
+			</div>
+			<div id="search-results" class="search-results"></div>
+		</div>
+		<!-- Map container fills remaining space -->
+		<div class="map-wrapper">
+			<div id="map"></div>
+			<div id="loading-overlay" class="loading-overlay">
+				<span>Loading map...</span>
+			</div>
+			<div id="error-overlay" class="error-overlay">
+				<div class="error-icon">⚠️</div>
+				<div class="error-title">Map Load Error</div>
+				<div id="error-message" class="error-message"></div>
+			</div>
+		</div>
 	</div>
 	<script nonce="${nonce}" src="${maplibreJsUri}"></script>
 	<script nonce="${nonce}">
@@ -99,6 +242,14 @@
 		
 		var map = null;
 		var currentStyleUrl = '${mapStyleUrl}';
+		var geocodingApiKey = '${geocodingApiKey}';
+		var enableSearch = ${enableSearch};
+
+		// Search functionality
+		var searchResults = [];
+		var selectedResultIndex = -1;
+		var searchDebounceTimer = null;
+		var isSearching = false;
 
 		// Show loading overlay
 		function showLoadingOverlay(message) {
@@ -379,8 +530,285 @@
 			}
 		});
 
+		// =====================
+		// Search Functionality
+		// =====================
+
+		// Initialize search when map is ready
+		function initializeSearch() {
+			var searchContainer = document.getElementById('search-container');
+			var searchInput = document.getElementById('search-input');
+			var searchResultsEl = document.getElementById('search-results');
+			var clearBtn = document.getElementById('search-clear-btn');
+
+			if (!searchContainer || !searchInput || !searchResultsEl) {
+				console.warn('Search elements not found');
+				return;
+			}
+
+			// Show search container if enabled
+			if (enableSearch) {
+				searchContainer.style.display = 'block';
+			}
+
+			// Debounced search function
+			function performSearch(query) {
+				if (isSearching) return;
+				
+				query = query.trim();
+				
+				if (query.length < 2) {
+					hideSearchResults();
+					return;
+				}
+
+				isSearching = true;
+				showSearchLoading();
+
+				// Use MapTiler Geocoding API if API key is configured, otherwise use Photon
+				var apiUrl;
+				if (geocodingApiKey && geocodingApiKey.length > 0) {
+					apiUrl = 'https://api.maptiler.com/geocoding/search.json?query=' + encodeURIComponent(query) + '&key=' + geocodingApiKey;
+				} else {
+					apiUrl = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query);
+				}
+
+				fetch(apiUrl)
+					.then(function(response) {
+						if (!response.ok) {
+							throw new Error('Geocoding API error: ' + response.status);
+						}
+						return response.json();
+					})
+					.then(function(data) {
+						isSearching = false;
+						
+						// Parse results based on API type
+						var results = [];
+						if (geocodingApiKey && geocodingApiKey.length > 0) {
+							// MapTiler format
+							if (data.features && data.features.length > 0) {
+								results = data.features.slice(0, 10).map(function(feature) {
+									return {
+										name: feature.text || feature.place_name,
+										type: feature.place_type ? feature.place_type[0] : 'place',
+										lng: feature.center[0],
+										lat: feature.center[1]
+									};
+								});
+							}
+						} else {
+							// Photon format
+							if (data.features && data.features.length > 0) {
+								results = data.features.slice(0, 10).map(function(feature) {
+									var name = feature.properties.name || feature.properties.city || feature.properties.state || 'Unknown';
+									var type = feature.properties.osm_value || feature.properties.osm_key || 'place';
+									return {
+										name: name,
+										type: type,
+										lng: feature.geometry.coordinates[0],
+										lat: feature.geometry.coordinates[1]
+									};
+								});
+							}
+						}
+
+						searchResults = results;
+						selectedResultIndex = -1;
+						renderSearchResults();
+					})
+					.catch(function(error) {
+						isSearching = false;
+						console.error('Search error:', error);
+						showSearchError('Search failed. Please try again.');
+					});
+			}
+
+			// Render search results
+			function renderSearchResults() {
+				if (searchResults.length === 0) {
+					showSearchNoResults();
+					return;
+				}
+
+				var html = '';
+				searchResults.forEach(function(result, index) {
+					var selectedClass = index === selectedResultIndex ? ' selected' : '';
+					html += '<div class="search-result-item' + selectedClass + '" data-index="' + index + '">';
+					html += '<div class="search-result-name">' + escapeHtml(result.name) + '</div>';
+					html += '<div class="search-result-type">' + escapeHtml(result.type) + '</div>';
+					html += '</div>';
+				});
+
+				searchResultsEl.innerHTML = html;
+				searchResultsEl.classList.add('visible');
+
+				// Add click handlers to results
+				var items = searchResultsEl.querySelectorAll('.search-result-item');
+				items.forEach(function(item) {
+					item.addEventListener('click', function() {
+						var index = parseInt(this.getAttribute('data-index'), 10);
+						selectSearchResult(index);
+					});
+				});
+			}
+
+			// Select a search result and fly to it
+			function selectSearchResult(index) {
+				if (index < 0 || index >= searchResults.length) return;
+
+				var result = searchResults[index];
+				flyToResult(result);
+				hideSearchResults();
+				searchInput.value = result.name;
+				updateClearButton();
+			}
+
+			// Fly to a result location
+			function flyToResult(result) {
+				if (!map) return;
+
+				map.flyTo({
+					center: [result.lng, result.lat],
+					zoom: 14,
+					duration: 1500
+				});
+			}
+
+			// Navigate to result by index (for keyboard navigation)
+			function navigateToResult(index) {
+				if (index < 0 || index >= searchResults.length) return;
+				
+				var result = searchResults[index];
+				flyToResult(result);
+			}
+
+			// Show loading state
+			function showSearchLoading() {
+				searchResultsEl.innerHTML = '<div class="search-loading">Searching...</div>';
+				searchResultsEl.classList.add('visible');
+			}
+
+			// Show error state
+			function showSearchError(message) {
+				searchResultsEl.innerHTML = '<div class="search-error">' + escapeHtml(message) + '</div>';
+				searchResultsEl.classList.add('visible');
+			}
+
+			// Show no results state
+			function showSearchNoResults() {
+				searchResultsEl.innerHTML = '<div class="search-no-results">No results found</div>';
+				searchResultsEl.classList.add('visible');
+			}
+
+			// Hide search results
+			function hideSearchResults() {
+				searchResultsEl.classList.remove('visible');
+				searchResultsEl.innerHTML = '';
+			}
+
+			// Update clear button visibility
+			function updateClearButton() {
+				if (searchInput.value.length > 0) {
+					clearBtn.style.display = 'block';
+				} else {
+					clearBtn.style.display = 'none';
+				}
+			}
+
+			// Escape HTML to prevent XSS
+			function escapeHtml(text) {
+				var div = document.createElement('div');
+				div.textContent = text;
+				return div.innerHTML;
+			}
+
+			// Input event handler with debounce
+			searchInput.addEventListener('input', function() {
+				updateClearButton();
+				
+				// Clear previous timer
+				if (searchDebounceTimer) {
+					clearTimeout(searchDebounceTimer);
+				}
+
+				var query = searchInput.value;
+				
+				if (query.length < 2) {
+					hideSearchResults();
+					return;
+				}
+
+				// Debounce search
+				searchDebounceTimer = setTimeout(function() {
+					performSearch(query);
+				}, 300);
+			});
+
+			// Keyboard navigation
+			searchInput.addEventListener('keydown', function(e) {
+				if (!searchResultsEl.classList.contains('visible') || searchResults.length === 0) {
+					return;
+				}
+
+				switch (e.key) {
+					case 'ArrowDown':
+						e.preventDefault();
+						selectedResultIndex = Math.min(selectedResultIndex + 1, searchResults.length - 1);
+						renderSearchResults();
+						navigateToResult(selectedResultIndex);
+						break;
+					case 'ArrowUp':
+						e.preventDefault();
+						selectedResultIndex = Math.max(selectedResultIndex - 1, 0);
+						renderSearchResults();
+						navigateToResult(selectedResultIndex);
+						break;
+					case 'Enter':
+						e.preventDefault();
+						if (selectedResultIndex >= 0 && selectedResultIndex < searchResults.length) {
+							selectSearchResult(selectedResultIndex);
+						}
+						break;
+					case 'Escape':
+						e.preventDefault();
+						hideSearchResults();
+						break;
+				}
+			});
+
+			// Clear button handler
+			clearBtn.addEventListener('click', function() {
+				searchInput.value = '';
+				updateClearButton();
+				hideSearchResults();
+				searchInput.focus();
+			});
+
+			// Hide results when clicking outside
+			document.addEventListener('click', function(e) {
+				if (!searchContainer.contains(e.target)) {
+					hideSearchResults();
+				}
+			});
+
+			// Focus input when pressing '/' key
+			document.addEventListener('keydown', function(e) {
+				if (e.key === '/' && document.activeElement !== searchInput) {
+					e.preventDefault();
+					searchInput.focus();
+				}
+			});
+		}
+
 		// Initialize the map when the page loads
 		initializeMap();
+
+		// Initialize search after map loads
+		document.addEventListener('DOMContentLoaded', function() {
+			// Small delay to ensure map container is ready
+			setTimeout(initializeSearch, 100);
+		});
 	</script>
 </body>
 </html>
