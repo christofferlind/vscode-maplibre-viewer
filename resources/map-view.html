@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline' https://unpkg.com; script-src 'nonce-${nonce}' https://unpkg.com blob:; img-src ${cspSource} https: data: blob:; connect-src https: wss:; font-src ${cspSource} https: data:; worker-src blob:;">
+	<title>MapLibre Map</title>
+	<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+	<style>
+		html, body {
+			margin: 0;
+			padding: 0;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+		}
+		#map {
+			width: 100%;
+			height: 100%;
+		}
+		.loading-overlay {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(255, 255, 255, 0.8);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			font-size: 14px;
+			color: #333;
+			z-index: 1000;
+			opacity: 0;
+			transition: opacity 0.2s ease;
+			pointer-events: none;
+		}
+		.loading-overlay.visible {
+			opacity: 1;
+			pointer-events: auto;
+		}
+		.error-overlay {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(255, 240, 240, 0.95);
+			display: none;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			font-size: 14px;
+			color: #c00;
+			z-index: 1001;
+			padding: 20px;
+			text-align: center;
+		}
+		.error-overlay.visible {
+			display: flex;
+		}
+		.error-overlay .error-icon {
+			font-size: 48px;
+			margin-bottom: 16px;
+		}
+		.error-overlay .error-title {
+			font-weight: bold;
+			font-size: 16px;
+			margin-bottom: 8px;
+		}
+		.error-overlay .error-message {
+			max-width: 300px;
+			word-wrap: break-word;
+		}
+	</style>
+</head>
+<body>
+	<div id="map"></div>
+	<div id="loading-overlay" class="loading-overlay">
+		<span>Loading map...</span>
+	</div>
+	<div id="error-overlay" class="error-overlay">
+		<div class="error-icon">⚠️</div>
+		<div class="error-title">Map Load Error</div>
+		<div id="error-message" class="error-message"></div>
+	</div>
+	<script nonce="${nonce}" src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+	<script nonce="${nonce}">
+		var map = null;
+		var currentStyleUrl = '${mapStyleUrl}';
+
+		// Show loading overlay
+		function showLoadingOverlay(message) {
+			var overlay = document.getElementById('loading-overlay');
+			var span = overlay ? overlay.querySelector('span') : null;
+			if (span) {
+				span.textContent = message || 'Loading map...';
+			}
+			if (overlay) {
+				overlay.classList.add('visible');
+			}
+		}
+
+		// Hide loading overlay
+		function hideLoadingOverlay() {
+			var overlay = document.getElementById('loading-overlay');
+			if (overlay) {
+				overlay.classList.remove('visible');
+			}
+		}
+
+		// Show error overlay
+		function showErrorOverlay(message) {
+			var overlay = document.getElementById('error-overlay');
+			var messageEl = document.getElementById('error-message');
+			if (messageEl) {
+				messageEl.textContent = message;
+			}
+			if (overlay) {
+				overlay.classList.add('visible');
+			}
+			hideLoadingOverlay();
+		}
+
+		// Hide error overlay
+		function hideErrorOverlay() {
+			var overlay = document.getElementById('error-overlay');
+			if (overlay) {
+				overlay.classList.remove('visible');
+			}
+		}
+
+		// Initialize the map
+		function initializeMap() {
+			hideErrorOverlay();
+			showLoadingOverlay('Initializing map...');
+
+			try {
+				map = new maplibregl.Map({
+					container: 'map',
+					style: currentStyleUrl,
+					center: [0, 0],
+					zoom: 1
+				});
+
+				map.addControl(new maplibregl.NavigationControl({
+					visualizePitch: true,
+					showZoom: true,
+					showCompass: true
+				}));
+
+				map.on('error', function(e) {
+					console.error('MapLibre error:', e.error);
+					var errorMsg = 'Unknown error occurred';
+					if (e.error) {
+						if (e.error.message) {
+							errorMsg = e.error.message;
+						} else if (typeof e.error === 'string') {
+							errorMsg = e.error;
+						}
+					}
+					showErrorOverlay('Failed to load map: ' + errorMsg);
+				});
+
+				map.on('load', function() {
+					console.log('Map loaded successfully');
+					hideLoadingOverlay();
+					hideErrorOverlay();
+				});
+			} catch (e) {
+				console.error('Error initializing map:', e);
+				showErrorOverlay('Failed to initialize map: ' + (e.message || e));
+			}
+		}
+
+		// Update map style dynamically
+		function updateMapStyle(newStyleUrl) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			if (newStyleUrl === currentStyleUrl) {
+				console.log('Style URL unchanged, skipping update');
+				return;
+			}
+
+			console.log('Updating map style to:', newStyleUrl);
+			showLoadingOverlay();
+
+			currentStyleUrl = newStyleUrl;
+
+			// Store current view state
+			var currentCenter = map.getCenter();
+			var currentZoom = map.getZoom();
+			var currentBearing = map.getBearing();
+			var currentPitch = map.getPitch();
+
+			// Update the style
+			map.setStyle(newStyleUrl, {
+				transformStyle: function(previousStyle, nextStyle) {
+					// Return the new style as-is, or apply custom transformations here
+					return nextStyle;
+				}
+			});
+
+			// Restore view state after style loads
+			map.once('style.load', function() {
+				map.jumpTo({
+					center: currentCenter,
+					zoom: currentZoom,
+					bearing: currentBearing,
+					pitch: currentPitch
+				});
+				hideLoadingOverlay();
+				console.log('Map style updated successfully');
+			});
+
+			map.once('error', function(e) {
+				console.error('Error updating map style:', e.error);
+				hideLoadingOverlay();
+			});
+		}
+
+		// Handle messages from the extension
+		window.addEventListener('message', function(event) {
+			var message = event.data;
+
+			switch (message.type) {
+				case 'configUpdate':
+					console.log('Received configuration update:', message.config);
+					if (message.config && message.config.mapStyleUrl) {
+						updateMapStyle(message.config.mapStyleUrl);
+					}
+					break;
+			}
+		});
+
+		// Initialize the map when the page loads
+		initializeMap();
+	</script>
+</body>
+</html>

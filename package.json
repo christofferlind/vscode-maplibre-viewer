@@ -12,12 +12,34 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "vscode-maplibre-viewer.helloWorld",
-        "title": "Hello World"
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "maps-container",
+          "title": "Maps",
+          "icon": "resources/map-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "maps-container": [
+        {
+          "id": "mapsView",
+          "name": "Maps",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MapLibre Viewer",
+      "properties": {
+        "vscodeMaplibreViewer.mapStyleUrl": {
+          "type": "string",
+          "default": "https://demotiles.maplibre.org/style.json",
+          "description": "URL to the MapLibre style.json file for the map display"
+        }
       }
-    ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
