@@ -9,7 +9,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:mapsView"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -49,12 +51,14 @@
       {
         "command": "vscodeMaplibreViewer.setLanguage",
         "title": "Map: Set Language...",
-        "category": "MapLibre Viewer"
+        "category": "MapLibre Viewer",
+        "icon": "$(inspect)"
       },
       {
         "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
-        "title": "Toggle Coordinate Selection",
-        "category": "MapLibre Viewer"
+        "title": "Listen for Coordinate Selection",
+        "category": "MapLibre Viewer",
+        "icon": "$(sync)"
       }
     ],
     "menus": {
@@ -62,20 +66,19 @@
         {
           "command": "vscodeMaplibreViewer.setLanguage",
           "when": "view == mapsView",
-          "group": "navigation@1",
-          "icon": "$(globe)"
+          "group": "navigation@1"
         },
         {
           "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
           "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == true",
           "group": "navigation@2",
-          "icon": "$(lock)"
+          "icon": "$(sync)"
         },
         {
           "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
           "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == false",
           "group": "navigation@2",
-          "icon": "$(lock-open)"
+          "icon": "$(sync-ignored)"
         }
       ]
     },

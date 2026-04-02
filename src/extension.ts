@@ -107,6 +107,13 @@ export function activate(context: vscode.ExtensionContext) {
 	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "vscode-maplibre-viewer" is now active!');
 
+	// Initialize coordinate selection state from globalState (default: true)
+	// MUST be set BEFORE registering the webview view provider
+	const coordinateSelectionEnabled = context.globalState.get<boolean>('coordinateSelectionEnabled', true);
+	
+	// Set the context variable for the toolbar icon
+	vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', coordinateSelectionEnabled);
+
 	// Register the Maps webview provider
 	const mapsViewProvider = new MapViewProvider(context.extensionUri);
 
@@ -155,12 +162,6 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		})
 	);
-
-	// Initialize coordinate selection state from globalState (default: true)
-	const coordinateSelectionEnabled = context.globalState.get<boolean>('coordinateSelectionEnabled', true);
-	
-	// Set the context variable for the toolbar icon
-	vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', coordinateSelectionEnabled);
 
 	// Register toggle coordinate selection command
 	context.subscriptions.push(
