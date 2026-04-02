@@ -29,6 +29,10 @@
           "id": "mapsView",
           "name": "Maps",
           "type": "webview"
+        },
+        {
+          "id": "bookmarksView",
+          "name": "Map Bookmarks"
         }
       ]
     },
@@ -67,16 +71,28 @@
         "icon": "$(gear)"
       },
       {
-        "command": "vscodeMaplibreViewer.saveView",
+        "command": "vscodeMaplibreViewer.saveBookmark",
         "title": "Map: Save Current View",
         "category": "MapLibre Viewer",
         "icon": "$(bookmark)"
       },
       {
-        "command": "vscodeMaplibreViewer.loadPlace",
+        "command": "vscodeMaplibreViewer.loadBookmark",
         "title": "Map: Load Saved Place...",
         "category": "MapLibre Viewer",
         "icon": "$(arrow-right)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.goToBookmark",
+        "title": "Go to Bookmark",
+        "category": "MapLibre Viewer",
+        "icon": "$(location)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.deleteBookmark",
+        "title": "Delete Bookmark",
+        "category": "MapLibre Viewer",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -102,6 +118,23 @@
           "command": "vscodeMaplibreViewer.openSettings",
           "when": "view == mapsView",
           "group": "navigation@3"
+        },
+        {
+          "command": "vscodeMaplibreViewer.saveBookmark",
+          "when": "view == mapsView",
+          "group": "navigation@4"
+        },
+        {
+          "command": "vscodeMaplibreViewer.loadBookmark",
+          "when": "view == mapsView",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "vscodeMaplibreViewer.deleteBookmark",
+          "when": "view == bookmarksView && viewItem == bookmark",
+          "group": "bookmarkActions"
         }
       ]
     },
