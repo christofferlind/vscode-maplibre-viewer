@@ -30,6 +30,38 @@
         }
       ]
     },
+    "commands": [
+      {
+        "command": "vscodeMaplibreViewer.setLanguageNative",
+        "title": "Map: Set Language to Native",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageEnglish",
+        "title": "Map: Set Language to English",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageGerman",
+        "title": "Map: Set Language to German",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguage",
+        "title": "Map: Set Language...",
+        "category": "MapLibre Viewer"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "vscodeMaplibreViewer.setLanguage",
+          "when": "view == mapsView",
+          "group": "navigation@1",
+          "icon": "$(globe)"
+        }
+      ]
+    },
     "configuration": {
       "title": "MapLibre Viewer",
       "properties": {

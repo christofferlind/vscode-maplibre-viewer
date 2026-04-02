@@ -154,6 +154,7 @@
 					zoom: 1
 				});
 
+//				map.addControl(new maplibregl.GlobeControl());
 				map.addControl(new maplibregl.NavigationControl({
 					visualizePitch: true,
 					showZoom: true,
@@ -233,6 +234,83 @@
 			});
 		}
 
+		// Change map language for labels
+		function changeMapLanguage(language) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Changing map language to:', language);
+
+			// Determine the text-field expression based on language
+			var textField;
+			if (language === 'native') {
+				// Use native/local names
+				textField = ['get', 'name'];
+			} else {
+				// Use specific language
+				textField = ['get', 'name:' + language];
+			}
+
+			// List of label layers to update
+			// These are common layer names in OpenMapTiles and similar styles
+			var labelLayers = [
+				'label_country_1',
+				'label_country_2',
+				'label_country_3',
+				'label_place',
+				'label_city',
+				'label_town',
+				'label_village',
+				'label_suburb',
+				'label_neighbourhood',
+				'label_housenumber',
+				'label_waterway',
+				'label_water',
+				'label_airport',
+				'label_road',
+				'label_road_major',
+				'label_road_minor',
+				'label_transit',
+				'label_poi',
+				'label_marine',
+				'label_continent',
+				'label_admin',
+				'label_state',
+				'label_county',
+				'label_district',
+				'label_settlement',
+				'label_settlement_major',
+				'label_settlement_minor'
+			];
+
+			// Get all layers in the current style
+			var style = map.getStyle();
+			if (!style || !style.layers) {
+				console.warn('Could not get style layers');
+				return;
+			}
+
+			// Update each label layer that exists in the style
+			var updatedCount = 0;
+			style.layers.forEach(function(layer) {
+				// Check if this is a label layer (has 'label' in the id and is a symbol layer)
+				if (layer.type === 'symbol' && layer.id &&
+					(layer.id.indexOf('label') !== -1 || layer.id.indexOf('place') !== -1)) {
+					try {
+						map.setLayoutProperty(layer.id, 'text-field', textField);
+						updatedCount++;
+					} catch (e) {
+						// Layer might not exist or might not support text-field
+						console.debug('Could not update layer', layer.id, e.message);
+					}
+				}
+			});
+
+			console.log('Updated', updatedCount, 'label layers to language:', language);
+		}
+
 		// Handle messages from the extension
 		window.addEventListener('message', function(event) {
 			var message = event.data;
@@ -243,6 +321,10 @@
 					if (message.config && message.config.mapStyleUrl) {
 						updateMapStyle(message.config.mapStyleUrl);
 					}
+					break;
+				case 'languageChange':
+					console.log('Received language change request:', message.language);
+					changeMapLanguage(message.language);
 					break;
 			}
 		});
