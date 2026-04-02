@@ -244,6 +244,7 @@
 		var currentStyleUrl = '${mapStyleUrl}';
 		var geocodingApiKey = '${geocodingApiKey}';
 		var enableSearch = ${enableSearch};
+		var flyToDuration = ${flyToDuration};
 
 		// Search functionality
 		var searchResults = [];
@@ -530,7 +531,7 @@
 			map.flyTo({
 				center: [longitude, latitude],
 				zoom: 14,
-				duration: 500
+				duration: flyToDuration
 			});
 
 			// Add a temporary marker at the location
@@ -554,8 +555,13 @@
 			switch (message.type) {
 				case 'configUpdate':
 					console.log('Received configuration update:', message.config);
-					if (message.config && message.config.mapStyleUrl) {
-						updateMapStyle(message.config.mapStyleUrl);
+					if (message.config) {
+						if (message.config.mapStyleUrl) {
+							updateMapStyle(message.config.mapStyleUrl);
+						}
+						if (message.config.flyToDuration !== undefined) {
+							flyToDuration = message.config.flyToDuration;
+						}
 					}
 					break;
 				case 'languageChange':
@@ -712,7 +718,7 @@
 				map.flyTo({
 					center: [result.lng, result.lat],
 					zoom: 14,
-					duration: 500
+					duration: flyToDuration
 				});
 			}
 

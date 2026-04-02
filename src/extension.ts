@@ -10,6 +10,7 @@ interface MapConfig {
 	mapStyleUrl: string;
 	geocodingApiKey: string;
 	enableSearch: boolean;
+	flyToDuration: number;
 }
 
 // Interface for language options in Quick Pick
@@ -319,7 +320,8 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		return {
 			mapStyleUrl: config.get<string>('mapStyleUrl') || 'https://demotiles.maplibre.org/style.json',
 			geocodingApiKey: config.get<string>('geocodingApiKey') || '',
-			enableSearch: config.get<boolean>('enableSearch') ?? true
+			enableSearch: config.get<boolean>('enableSearch') ?? true,
+			flyToDuration: config.get<number>('flyToDuration') ?? 500
 		};
 	}
 
@@ -358,6 +360,7 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		htmlContent = htmlContent.replace(/\$\{mapStyleUrl\}/g, config.mapStyleUrl);
 		htmlContent = htmlContent.replace(/\$\{geocodingApiKey\}/g, config.geocodingApiKey);
 		htmlContent = htmlContent.replace(/\$\{enableSearch\}/g, String(config.enableSearch));
+		htmlContent = htmlContent.replace(/\$\{flyToDuration\}/g, String(config.flyToDuration));
 		
 		// Replace MapLibre asset URIs
 		htmlContent = htmlContent.replace(/\$\{maplibreJsUri\}/g, maplibreJsUri.toString());
