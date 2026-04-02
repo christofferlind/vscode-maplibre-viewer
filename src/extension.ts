@@ -182,6 +182,16 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+	// Register open settings command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.openSettings', () => {
+			vscode.commands.executeCommand(
+				'workbench.action.openSettings',
+				'vscodeMaplibreViewer'
+			);
+		})
+	);
+
 	// Debounce timer for text selection listener
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 

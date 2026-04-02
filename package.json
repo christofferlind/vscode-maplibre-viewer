@@ -59,6 +59,12 @@
         "title": "Listen for Coordinate Selection",
         "category": "MapLibre Viewer",
         "icon": "$(sync)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.openSettings",
+        "title": "Open Map Settings",
+        "category": "MapLibre Viewer",
+        "icon": "$(gear)"
       }
     ],
     "menus": {
@@ -79,6 +85,11 @@
           "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == false",
           "group": "navigation@2",
           "icon": "$(sync-ignored)"
+        },
+        {
+          "command": "vscodeMaplibreViewer.openSettings",
+          "when": "view == mapsView",
+          "group": "navigation@3"
         }
       ]
     },
@@ -113,16 +124,16 @@
     "copy-assets": "node scripts/copy-maplibre-assets.js"
   },
   "dependencies": {
-    "maplibre-gl": "^4.7.1"
+    "maplibre-gl": "^4.7.1",
+    "typescript": "^6.0.2"
   },
   "devDependencies": {
-    "@types/vscode": "^1.110.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.56.1",
-    "eslint": "^9.39.3",
-    "typescript": "^5.9.3",
+    "@types/vscode": "^1.110.0",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.3",
+    "typescript-eslint": "^8.56.1"
   }
 }
