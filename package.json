@@ -50,6 +50,11 @@
         "command": "vscodeMaplibreViewer.setLanguage",
         "title": "Map: Set Language...",
         "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
+        "title": "Toggle Coordinate Selection",
+        "category": "MapLibre Viewer"
       }
     ],
     "menus": {
@@ -59,6 +64,18 @@
           "when": "view == mapsView",
           "group": "navigation@1",
           "icon": "$(globe)"
+        },
+        {
+          "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
+          "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == true",
+          "group": "navigation@2",
+          "icon": "$(lock)"
+        },
+        {
+          "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
+          "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == false",
+          "group": "navigation@2",
+          "icon": "$(lock-open)"
         }
       ]
     },

@@ -3,6 +3,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { parseCoordinate, Coordinate } from './coordinateParser';
 
 // Interface for configuration messages sent to the webview
 interface MapConfig {
@@ -154,6 +155,78 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		})
 	);
+
+	// Initialize coordinate selection state from globalState (default: true)
+	const coordinateSelectionEnabled = context.globalState.get<boolean>('coordinateSelectionEnabled', true);
+	
+	// Set the context variable for the toolbar icon
+	vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', coordinateSelectionEnabled);
+
+	// Register toggle coordinate selection command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.toggleCoordinateSelection', async () => {
+			const currentState = context.globalState.get<boolean>('coordinateSelectionEnabled', true);
+			const newState = !currentState;
+			
+			// Update the state
+			await context.globalState.update('coordinateSelectionEnabled', newState);
+			
+			// Update the context variable for the toolbar icon
+			vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', newState);
+			
+			// Show a message to the user
+			vscode.window.showInformationMessage(
+				`Coordinate selection ${newState ? 'enabled' : 'disabled'}`
+			);
+		})
+	);
+
+	// Debounce timer for text selection listener
+	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// Register text selection listener for coordinate parsing
+	const selectionListener = vscode.window.onDidChangeTextEditorSelection((event) => {
+		// Check if coordinate selection is enabled
+		const isEnabled = context.globalState.get<boolean>('coordinateSelectionEnabled', true);
+		if (!isEnabled) {
+			return;
+		}
+
+		// Clear previous timer
+		if (debounceTimer) {
+			clearTimeout(debounceTimer);
+		}
+
+		// Debounce the handler (300ms)
+		debounceTimer = setTimeout(() => {
+			// Get the active editor
+			const editor = vscode.window.activeTextEditor;
+			if (!editor) {
+				return;
+			}
+
+			// Get the selected text
+			const selection = editor.selection;
+			if (selection.isEmpty) {
+				return;
+			}
+
+			const selectedText = editor.document.getText(selection);
+			if (!selectedText || selectedText.trim().length === 0) {
+				return;
+			}
+
+			// Try to parse the selected text as a coordinate
+			const coordinate = parseCoordinate(selectedText);
+			if (coordinate) {
+				// Send the coordinate to the webview
+				mapsViewProvider.flyToLocation(coordinate.latitude, coordinate.longitude);
+			}
+		}, 300);
+	});
+
+	// Clean up the listener when the extension is deactivated
+	context.subscriptions.push(selectionListener);
 }
 
 // This method is called when your extension is deactivated
@@ -208,6 +281,21 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 			this._view.webview.postMessage({
 				type: 'languageChange',
 				language: languageCode
+			});
+		}
+	}
+
+	/**
+	 * Flies to a specific location on the map
+	 * @param latitude The latitude coordinate
+	 * @param longitude The longitude coordinate
+	 */
+	public flyToLocation(latitude: number, longitude: number): void {
+		if (this._view) {
+			this._view.webview.postMessage({
+				type: 'flyToLocation',
+				latitude: latitude,
+				longitude: longitude
 			});
 		}
 	}

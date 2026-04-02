@@ -512,6 +512,41 @@
 			console.log('Updated', updatedCount, 'label layers to language:', language);
 		}
 
+		// Fly to a specific location on the map
+		function flyToLocation(latitude, longitude) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Flying to location:', latitude, longitude);
+
+			// Remove any existing temporary marker
+			if (window.temporaryMarker) {
+				window.temporaryMarker.remove();
+			}
+
+			// Fly to the location
+			map.flyTo({
+				center: [longitude, latitude],
+				zoom: 14,
+				duration: 500
+			});
+
+			// Add a temporary marker at the location
+			window.temporaryMarker = new maplibregl.Marker()
+				.setLngLat([longitude, latitude])
+				.addTo(map);
+
+			// Remove the marker after 10 seconds
+			setTimeout(function() {
+				if (window.temporaryMarker) {
+					window.temporaryMarker.remove();
+					window.temporaryMarker = null;
+				}
+			}, 10000);
+		}
+
 		// Handle messages from the extension
 		window.addEventListener('message', function(event) {
 			var message = event.data;
@@ -526,6 +561,12 @@
 				case 'languageChange':
 					console.log('Received language change request:', message.language);
 					changeMapLanguage(message.language);
+					break;
+				case 'flyToLocation':
+					console.log('Received flyToLocation request:', message.latitude, message.longitude);
+					if (message.latitude !== undefined && message.longitude !== undefined) {
+						flyToLocation(message.latitude, message.longitude);
+					}
 					break;
 			}
 		});
@@ -671,7 +712,7 @@
 				map.flyTo({
 					center: [result.lng, result.lat],
 					zoom: 14,
-					duration: 1500
+					duration: 500
 				});
 			}
 
