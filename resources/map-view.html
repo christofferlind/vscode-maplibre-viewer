@@ -522,10 +522,8 @@
 
 			console.log('Flying to location:', latitude, longitude);
 
-			// Remove any existing temporary marker
-			if (window.temporaryMarker) {
-				window.temporaryMarker.remove();
-			}
+			// Remove any existing temporary markers
+			clearTemporaryMarkers();
 
 			// Fly to the location
 			map.flyTo({
@@ -535,16 +533,68 @@
 			});
 
 			// Add a temporary marker at the location
-			window.temporaryMarker = new maplibregl.Marker()
+			window.temporaryMarkers = window.temporaryMarkers || [];
+			var marker = new maplibregl.Marker()
 				.setLngLat([longitude, latitude])
 				.addTo(map);
+			window.temporaryMarkers.push(marker);
 
-			// Remove the marker after 10 seconds
+			// Remove the markers after 10 seconds
 			setTimeout(function() {
-				if (window.temporaryMarker) {
-					window.temporaryMarker.remove();
-					window.temporaryMarker = null;
+				clearTemporaryMarkers();
+			}, 10000);
+		}
+
+		// Clear all temporary markers
+		function clearTemporaryMarkers() {
+			if (window.temporaryMarkers && window.temporaryMarkers.length > 0) {
+				window.temporaryMarkers.forEach(function(marker) {
+					marker.remove();
+				});
+				window.temporaryMarkers = [];
+			}
+		}
+
+		// Fit map to show all coordinates within a bounding box
+		function fitBoundingBox(coordinates, boundingBox) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Fitting to bounding box:', coordinates.length, 'coordinates', boundingBox);
+
+			// Clear any existing temporary markers
+			clearTemporaryMarkers();
+
+			// Add markers for all coordinates
+			window.temporaryMarkers = window.temporaryMarkers || [];
+			coordinates.forEach(function(coord) {
+				var marker = new maplibregl.Marker()
+					.setLngLat([coord.longitude, coord.latitude])
+					.addTo(map);
+				window.temporaryMarkers.push(marker);
+			});
+
+			// Calculate padding based on number of points
+			var padding = Math.max(50, Math.min(100, 200 / coordinates.length));
+
+			// Fit the map to the bounding box
+			map.fitBounds(
+				[
+					[boundingBox.southwest.longitude, boundingBox.southwest.latitude],
+					[boundingBox.northeast.longitude, boundingBox.northeast.latitude]
+				],
+				{
+					padding: padding,
+					duration: flyToDuration,
+					maxZoom: 16
 				}
+			);
+
+			// Remove the markers after 10 seconds
+			setTimeout(function() {
+				clearTemporaryMarkers();
 			}, 10000);
 		}
 
@@ -627,6 +677,12 @@
 					console.log('Received flyToLocation request:', message.latitude, message.longitude);
 					if (message.latitude !== undefined && message.longitude !== undefined) {
 						flyToLocation(message.latitude, message.longitude);
+					}
+					break;
+				case 'fitBoundingBox':
+					console.log('Received fitBoundingBox request:', message.coordinates, message.boundingBox);
+					if (message.coordinates && message.boundingBox) {
+						fitBoundingBox(message.coordinates, message.boundingBox);
 					}
 					break;
 				case 'requestViewState':

@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { parseCoordinate, Coordinate } from './coordinateParser';
+import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, Coordinate } from './coordinateParser';
 import { BookmarkManager } from './bookmarkManager';
 import { MapBookmark, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
@@ -407,11 +407,24 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			// Try to parse the selected text as a coordinate
-			const coordinate = parseCoordinate(selectedText);
-			if (coordinate) {
-				// Send the coordinate to the webview
-				mapsViewProvider.flyToLocation(coordinate.latitude, coordinate.longitude);
+			// Try to parse multiple coordinates from the selected text
+			const coordinates = parseMultipleCoordinates(selectedText);
+			
+			if (coordinates.length > 1) {
+				// Multiple coordinates found - calculate bounding box and fit all
+				const bbox = calculateBoundingBox(coordinates);
+				if (bbox) {
+					mapsViewProvider.fitBoundingBox(coordinates, bbox);
+				}
+			} else if (coordinates.length === 1) {
+				// Single coordinate - fly to it
+				mapsViewProvider.flyToLocation(coordinates[0].latitude, coordinates[0].longitude);
+			} else {
+				// Fallback: try single coordinate parsing for backward compatibility
+				const coordinate = parseCoordinate(selectedText);
+				if (coordinate) {
+					mapsViewProvider.flyToLocation(coordinate.latitude, coordinate.longitude);
+				}
 			}
 		}, 300);
 	});
@@ -498,6 +511,21 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 				type: 'flyToLocation',
 				latitude: latitude,
 				longitude: longitude
+			});
+		}
+	}
+
+	/**
+	 * Fits the map to show all coordinates within a bounding box
+	 * @param coordinates Array of coordinates to display
+	 * @param bbox The bounding box containing southwest and northeast corners
+	 */
+	public fitBoundingBox(coordinates: Coordinate[], bbox: { southwest: Coordinate; northeast: Coordinate }): void {
+		if (this._view) {
+			this._view.webview.postMessage({
+				type: 'fitBoundingBox',
+				coordinates: coordinates,
+				boundingBox: bbox
 			});
 		}
 	}

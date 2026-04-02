@@ -43,6 +43,206 @@ export function parseCoordinate(text: string): Coordinate | null {
 }
 
 /**
+ * Parses text and returns all found coordinates.
+ * This function scans the entire text for coordinate patterns.
+ * 
+ * @param text - The text to parse for coordinates
+ * @returns An array of Coordinate objects found in the text
+ */
+export function parseMultipleCoordinates(text: string): Coordinate[] {
+    const trimmed = text.trim();
+    
+    if (!trimmed) {
+        return [];
+    }
+    
+    const coordinates: Coordinate[] = [];
+    
+    // Try to find all coordinate patterns in the text
+    coordinates.push(...findGeoJSONCoordinates(trimmed));
+    coordinates.push(...findURLFormatCoordinates(trimmed));
+    coordinates.push(...findDMSCoordinates(trimmed));
+    coordinates.push(...findDecimalDegreeCoordinates(trimmed));
+    
+    // Remove duplicates (coordinates within 0.000001 degrees are considered the same)
+    return deduplicateCoordinates(coordinates);
+}
+
+/**
+ * Finds all GeoJSON array coordinates in text.
+ */
+function findGeoJSONCoordinates(text: string): Coordinate[] {
+    const coordinates: Coordinate[] = [];
+    const pattern = /\[\s*(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)\s*\]/g;
+    let match;
+    
+    while ((match = pattern.exec(text)) !== null) {
+        const lng = parseFloat(match[1]);
+        const lat = parseFloat(match[2]);
+        
+        if (isValidCoordinate(lat, lng)) {
+            coordinates.push({ latitude: lat, longitude: lng });
+        }
+    }
+    
+    return coordinates;
+}
+
+/**
+ * Finds all URL format coordinates in text.
+ */
+function findURLFormatCoordinates(text: string): Coordinate[] {
+    const coordinates: Coordinate[] = [];
+    const pattern = /@(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)/g;
+    let match;
+    
+    while ((match = pattern.exec(text)) !== null) {
+        const first = parseFloat(match[1]);
+        const second = parseFloat(match[2]);
+        
+        let lat: number;
+        let lng: number;
+        
+        if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
+            lng = first;
+            lat = second;
+        } else if (Math.abs(second) > 90 && Math.abs(first) <= 90) {
+            lat = first;
+            lng = second;
+        } else {
+            lat = first;
+            lng = second;
+        }
+        
+        if (isValidCoordinate(lat, lng)) {
+            coordinates.push({ latitude: lat, longitude: lng });
+        }
+    }
+    
+    return coordinates;
+}
+
+/**
+ * Finds all DMS format coordinates in text.
+ */
+function findDMSCoordinates(text: string): Coordinate[] {
+    const coordinates: Coordinate[] = [];
+    // Pattern for DMS format with various separators
+    const pattern = /(-?\d+)(?:°|\s)+(\d+)?(?:['\s])*(\d+\.?\d*)?(?:"|\s)*([NS])?\s*(-?\d+)(?:°|\s)+(\d+)?(?:['\s])*(\d+\.?\d*)?(?:"|\s)*([EW])?/gi;
+    let match;
+    
+    while ((match = pattern.exec(text)) !== null) {
+        const latDegrees = parseFloat(match[1]);
+        const latMinutes = match[2] ? parseFloat(match[2]) : 0;
+        const latSeconds = match[3] ? parseFloat(match[3]) : 0;
+        const latDirection = match[4] ? match[4].toUpperCase() : 'N';
+        
+        const lngDegrees = parseFloat(match[5]);
+        const lngMinutes = match[6] ? parseFloat(match[6]) : 0;
+        const lngSeconds = match[7] ? parseFloat(match[7]) : 0;
+        const lngDirection = match[8] ? match[8].toUpperCase() : 'E';
+        
+        const lat = dmsToDecimal(latDegrees, latMinutes, latSeconds, latDirection);
+        const lng = dmsToDecimal(lngDegrees, lngMinutes, lngSeconds, lngDirection);
+        
+        if (isValidCoordinate(lat, lng)) {
+            coordinates.push({ latitude: lat, longitude: lng });
+        }
+    }
+    
+    return coordinates;
+}
+
+/**
+ * Finds all decimal degree coordinates in text.
+ */
+function findDecimalDegreeCoordinates(text: string): Coordinate[] {
+    const coordinates: Coordinate[] = [];
+    // Match patterns like: 59.3293, 18.0686 or 59.3293 18.0686
+    const pattern = /(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)/g;
+    let match;
+    
+    while ((match = pattern.exec(text)) !== null) {
+        const first = parseFloat(match[1]);
+        const second = parseFloat(match[2]);
+        
+        let lat: number;
+        let lng: number;
+        
+        if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
+            lng = first;
+            lat = second;
+        } else if (Math.abs(second) > 90 && Math.abs(first) <= 90) {
+            lat = first;
+            lng = second;
+        } else {
+            lat = first;
+            lng = second;
+        }
+        
+        if (isValidCoordinate(lat, lng)) {
+            coordinates.push({ latitude: lat, longitude: lng });
+        }
+    }
+    
+    return coordinates;
+}
+
+/**
+ * Removes duplicate coordinates (within a small tolerance).
+ */
+function deduplicateCoordinates(coordinates: Coordinate[]): Coordinate[] {
+    const unique: Coordinate[] = [];
+    const tolerance = 0.000001;
+    
+    for (const coord of coordinates) {
+        const isDuplicate = unique.some(existing => 
+            Math.abs(existing.latitude - coord.latitude) < tolerance &&
+            Math.abs(existing.longitude - coord.longitude) < tolerance
+        );
+        
+        if (!isDuplicate) {
+            unique.push(coord);
+        }
+    }
+    
+    return unique;
+}
+
+/**
+ * Calculates a bounding box from an array of coordinates.
+ * Returns null if the array is empty.
+ * 
+ * @param coordinates - Array of coordinates
+ * @returns Bounding box with southwest and northeast corners, or null
+ */
+export function calculateBoundingBox(coordinates: Coordinate[]): { 
+    southwest: Coordinate; 
+    northeast: Coordinate;
+} | null {
+    if (coordinates.length === 0) {
+        return null;
+    }
+    
+    let minLat = coordinates[0].latitude;
+    let maxLat = coordinates[0].latitude;
+    let minLng = coordinates[0].longitude;
+    let maxLng = coordinates[0].longitude;
+    
+    for (const coord of coordinates) {
+        minLat = Math.min(minLat, coord.latitude);
+        maxLat = Math.max(maxLat, coord.latitude);
+        minLng = Math.min(minLng, coord.longitude);
+        maxLng = Math.max(maxLng, coord.longitude);
+    }
+    
+    return {
+        southwest: { latitude: minLat, longitude: minLng },
+        northeast: { latitude: maxLat, longitude: maxLng }
+    };
+}
+
+/**
  * Validates that coordinates are within valid ranges.
  * Latitude: -90 to 90
  * Longitude: -180 to 180
@@ -53,7 +253,7 @@ function isValidCoordinate(lat: number, lng: number): boolean {
 
 /**
  * Attempts to parse decimal degrees format.
- * Examples: "59.3293, 18.0686", "59.3293 18.0686", "-33.8688, 151.2093"
+ * Examples: "59.3293, 18.0686", "59.3293,18.0686", "59.3293 18.0686", "-33.8688, 151.2093"
  */
 function tryDecimalDegrees(text: string): Coordinate | null {
     // Match patterns like:
