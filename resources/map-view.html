@@ -243,8 +243,8 @@
 		var map = null;
 		var currentStyleUrl = '${mapStyleUrl}';
 		var geocodingApiKey = '${geocodingApiKey}';
-		var enableSearch = ${enableSearch};
-		var flyToDuration = ${flyToDuration};
+		var enableSearch = "${enableSearch}" === "true";
+		var flyToDuration = parseInt("${flyToDuration}", 10);
 
 		// Search functionality
 		var searchResults = [];
