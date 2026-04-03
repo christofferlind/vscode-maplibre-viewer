@@ -27,5 +27,26 @@
 		"titleBar.inactiveBackground": "#05312699",
 		"titleBar.inactiveForeground": "#e7e7e799"
 	},
+	"roo-cline.allowedCommands": [
+        "git log",
+        "git diff",
+        "git show",
+        "npm run compile",
+        "npm run test",
+        "npm run lint",
+        "grep",
+        "head",
+        "cat",
+        "echo",
+        "tail",
+        "cd",
+        "git stash",
+        "mkdir",
+        "npm install",
+        "ls",
+        "npm run",
+        "npx tsc --noEmit",
+        "git status"
+    ],
 	"peacock.color": "#053126"
 }
