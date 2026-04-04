@@ -599,6 +599,225 @@
 		}
 
 		// =====================
+		// Overlay Layer Management
+		// =====================
+
+		// Track added overlay layers by ID
+		var addedOverlayLayers = {};
+
+		// Update overlay layers on the map
+		function updateOverlayLayers(layers) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Updating overlay layers:', layers);
+
+			// Get current overlay layer IDs
+			var currentLayerIds = Object.keys(addedOverlayLayers);
+			var newLayerIds = layers.map(function(l) { return l.id; });
+
+			// Remove layers that are no longer in the list
+			currentLayerIds.forEach(function(layerId) {
+				if (newLayerIds.indexOf(layerId) === -1) {
+					removeOverlayLayer(layerId);
+				}
+			});
+
+			// Add or update layers
+			layers.forEach(function(layer) {
+				if (addedOverlayLayers[layer.id]) {
+					// Layer already exists, update visibility/opacity if needed
+					updateLayerVisibility(layer);
+				} else {
+					// Add new layer
+					addOverlayLayer(layer);
+				}
+			});
+		}
+
+		// Add a single overlay layer
+		function addOverlayLayer(layer) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Adding overlay layer:', layer.id, layer.name);
+
+			try {
+				// Add source if it doesn't exist
+				var sourceId = 'overlay-' + layer.id;
+				
+				if (layer.type === 'geojson') {
+					// GeoJSON source
+					var geojsonSource = {
+						type: 'geojson',
+						data: layer.source.data
+					};
+					map.addSource(sourceId, geojsonSource);
+
+					// Add a default layer for GeoJSON (points as circles, lines as lines, polygons as fills)
+					// First, we need to check what type of geometry the GeoJSON contains
+					// For simplicity, we'll add all three layer types
+					map.addLayer({
+						id: 'overlay-' + layer.id + '-circles',
+						type: 'circle',
+						source: sourceId,
+						paint: {
+							'circle-radius': 6,
+							'circle-color': '#FF0000',
+							'circle-opacity': (layer.opacity !== undefined ? layer.opacity : 1)
+						},
+						minzoom: layer.minzoom,
+						maxzoom: layer.maxzoom
+					});
+
+					map.addLayer({
+						id: 'overlay-' + layer.id + '-lines',
+						type: 'line',
+						source: sourceId,
+						paint: {
+							'line-color': '#FF0000',
+							'line-width': 2,
+							'line-opacity': (layer.opacity !== undefined ? layer.opacity : 1)
+						},
+						minzoom: layer.minzoom,
+						maxzoom: layer.maxzoom
+					});
+
+					map.addLayer({
+						id: 'overlay-' + layer.id + '-fills',
+						type: 'fill',
+						source: sourceId,
+						paint: {
+							'fill-color': '#FF0000',
+							'fill-opacity': (layer.opacity !== undefined ? layer.opacity * 0.5 : 0.5)
+						},
+						minzoom: layer.minzoom,
+						maxzoom: layer.maxzoom
+					});
+
+				} else if (layer.type === 'vector') {
+					// Vector tile source
+					var vectorSource = {
+						type: 'vector',
+						url: layer.source.url
+					};
+					map.addSource(sourceId, vectorSource);
+
+					// For vector tiles, we need to know the source-layer
+					// This is a simplified version - in practice, you'd need more configuration
+					console.warn('Vector tile layers require additional configuration for source-layer');
+
+				} else if (layer.type === 'raster') {
+					// Raster tile source
+					var rasterSource = {
+						type: 'raster',
+						url: layer.source.url,
+						tileSize: layer.source.tileSize || 256
+					};
+					map.addSource(sourceId, rasterSource);
+
+					map.addLayer({
+						id: 'overlay-' + layer.id,
+						type: 'raster',
+						source: sourceId,
+						paint: {
+							'raster-opacity': (layer.opacity !== undefined ? layer.opacity : 1)
+						},
+						minzoom: layer.minzoom,
+						maxzoom: layer.maxzoom
+					});
+				}
+
+				// Track the added layer
+				addedOverlayLayers[layer.id] = layer;
+				console.log('Successfully added overlay layer:', layer.id);
+
+			} catch (e) {
+				console.error('Error adding overlay layer:', e);
+			}
+		}
+
+		// Remove a single overlay layer
+		function removeOverlayLayer(layerId) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Removing overlay layer:', layerId);
+
+			var sourceId = 'overlay-' + layerId;
+
+			// Remove all layers associated with this overlay
+			var layersToRemove = [];
+			var style = map.getStyle();
+			if (style && style.layers) {
+				style.layers.forEach(function(layer) {
+					if (layer.id.indexOf('overlay-' + layerId) === 0) {
+						layersToRemove.push(layer.id);
+					}
+				});
+			}
+
+			// Remove layers
+			layersToRemove.forEach(function(layerIdToRemove) {
+				try {
+					if (map.getLayer(layerIdToRemove)) {
+						map.removeLayer(layerIdToRemove);
+					}
+				} catch (e) {
+					console.warn('Error removing layer:', layerIdToRemove, e);
+				}
+			});
+
+			// Remove source
+			try {
+				if (map.getSource(sourceId)) {
+					map.removeSource(sourceId);
+				}
+			} catch (e) {
+				console.warn('Error removing source:', sourceId, e);
+			}
+
+			// Remove from tracking
+			delete addedOverlayLayers[layerId];
+		}
+
+		// Update layer visibility
+		function updateLayerVisibility(layer) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			var layerId = layer.id;
+			var sourceId = 'overlay-' + layerId;
+
+			// Find all layers associated with this overlay
+			var style = map.getStyle();
+			if (style && style.layers) {
+				style.layers.forEach(function(mapLayer) {
+					if (mapLayer.id.indexOf('overlay-' + layerId) === 0) {
+						try {
+							if (map.getLayer(mapLayer.id)) {
+								map.setLayoutProperty(mapLayer.id, 'visibility', layer.visible ? 'visible' : 'none');
+							}
+						} catch (e) {
+							console.warn('Error updating layer visibility:', mapLayer.id, e);
+						}
+					}
+				});
+			}
+
+			// Update tracking
+			addedOverlayLayers[layerId] = layer;
+		}
+
+		// =====================
 		// Bookmark Functionality
 		// =====================
 
@@ -698,6 +917,18 @@
 				case 'bookmarksUpdated':
 					console.log('Received bookmarksUpdated message:', message.bookmarks);
 					// Future use: update local bookmark list if needed
+					break;
+				case 'setBaseMap':
+					console.log('Received setBaseMap message:', message.styleUrl, message.name);
+					if (message.styleUrl) {
+						updateMapStyle(message.styleUrl);
+					}
+					break;
+				case 'updateOverlayLayers':
+					console.log('Received updateOverlayLayers message:', message.layers);
+					if (message.layers) {
+						updateOverlayLayers(message.layers);
+					}
 					break;
 			}
 		});

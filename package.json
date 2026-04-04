@@ -31,6 +31,10 @@
           "type": "webview"
         },
         {
+          "id": "layersView",
+          "name": "Map Layers"
+        },
+        {
           "id": "bookmarksView",
           "name": "Map Bookmarks"
         }
@@ -93,6 +97,28 @@
         "title": "Delete Bookmark",
         "category": "MapLibre Viewer",
         "icon": "$(trash)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setBaseMap",
+        "title": "Set Active Base Map",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.toggleLayer",
+        "title": "Toggle Layer Visibility",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.addLayer",
+        "title": "Add Overlay Layer",
+        "category": "MapLibre Viewer",
+        "icon": "$(add)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.removeLayer",
+        "title": "Remove Layer",
+        "category": "MapLibre Viewer",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -128,6 +154,11 @@
           "command": "vscodeMaplibreViewer.loadBookmark",
           "when": "view == mapsView",
           "group": "navigation@5"
+        },
+        {
+          "command": "vscodeMaplibreViewer.addLayer",
+          "when": "view == layersView",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -135,6 +166,16 @@
           "command": "vscodeMaplibreViewer.deleteBookmark",
           "when": "view == bookmarksView && viewItem == bookmark",
           "group": "bookmarkActions"
+        },
+        {
+          "command": "vscodeMaplibreViewer.removeLayer",
+          "when": "view == layersView && viewItem == visibleOverlayLayer",
+          "group": "layerActions"
+        },
+        {
+          "command": "vscodeMaplibreViewer.removeLayer",
+          "when": "view == layersView && viewItem == overlayLayer",
+          "group": "layerActions"
         }
       ]
     },

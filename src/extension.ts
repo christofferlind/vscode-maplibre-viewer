@@ -7,6 +7,8 @@ import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, Coordi
 import { BookmarkManager } from './bookmarkManager';
 import { MapBookmark, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
+import { LayerTreeProvider } from './layerTreeProvider';
+import { BaseMapStyle, OverlayLayer } from './layerTypes';
 
 // Interface for configuration messages sent to the webview
 interface MapConfig {
@@ -133,6 +135,118 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('bookmarksView', bookmarkTreeProvider)
+	);
+
+	// Initialize and register the Layer Tree Provider
+	const layerTreeProvider = new LayerTreeProvider(context);
+
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('layersView', layerTreeProvider)
+	);
+
+	// Listen for layer changes and update the webview
+	layerTreeProvider.onDidChangeLayers((event) => {
+		if (event.type === 'baseMap') {
+			mapsViewProvider.setBaseMap(event.data as BaseMapStyle);
+		} else if (event.type === 'overlay') {
+			mapsViewProvider.updateOverlayLayers(layerTreeProvider.getVisibleOverlayLayers());
+		}
+	});
+
+	// Register command to set active base map
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.setBaseMap', async (baseMap: BaseMapStyle) => {
+			try {
+				await layerTreeProvider.setActiveBaseMap(baseMap.id);
+				vscode.window.showInformationMessage(`Base map changed to "${baseMap.name}"`);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to set base map: ${error}`);
+			}
+		})
+	);
+
+	// Register command to toggle layer visibility
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.toggleLayer', async (layer: OverlayLayer) => {
+			try {
+				await layerTreeProvider.toggleLayerVisibility(layer.id);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to toggle layer: ${error}`);
+			}
+		})
+	);
+
+	// Register command to add a new overlay layer
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.addLayer', async () => {
+			const layerType = await vscode.window.showQuickPick(
+				['GeoJSON URL', 'Vector Tiles URL'],
+				{ placeHolder: 'Select layer type' }
+			);
+
+			if (!layerType) {
+				return;
+			}
+
+			const name = await vscode.window.showInputBox({
+				prompt: 'Enter a name for this layer',
+				placeHolder: 'e.g., My Points of Interest'
+			});
+
+			if (!name) {
+				return;
+			}
+
+			const url = await vscode.window.showInputBox({
+				prompt: 'Enter the URL for this layer',
+				placeHolder: layerType === 'GeoJSON URL'
+					? 'https://example.com/data.geojson'
+					: 'https://example.com/tiles/{z}/{x}/{y}.pbf'
+			});
+
+			if (!url) {
+				return;
+			}
+
+			const newLayer: OverlayLayer = {
+				id: `layer-${Date.now()}`,
+				name,
+				type: layerType === 'GeoJSON URL' ? 'geojson' : 'vector',
+				source: {
+					type: layerType === 'GeoJSON URL' ? 'geojson' : 'vector',
+					data: layerType === 'GeoJSON URL' ? url : undefined,
+					url: layerType === 'Vector Tiles URL' ? url : undefined
+				},
+				visible: true
+			};
+
+			try {
+				await layerTreeProvider.addOverlayLayer(newLayer);
+				vscode.window.showInformationMessage(`Layer "${name}" added successfully`);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to add layer: ${error}`);
+			}
+		})
+	);
+
+	// Register command to remove an overlay layer
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.removeLayer', async (layer: OverlayLayer) => {
+			const confirm = await vscode.window.showWarningMessage(
+				`Are you sure you want to remove layer "${layer.name}"?`,
+				'Remove',
+				'Cancel'
+			);
+
+			if (confirm === 'Remove') {
+				try {
+					await layerTreeProvider.removeOverlayLayer(layer.id);
+					vscode.window.showInformationMessage(`Layer "${layer.name}" removed`);
+				} catch (error) {
+					vscode.window.showErrorMessage(`Failed to remove layer: ${error}`);
+				}
+			}
+		})
 	);
 
 	// Register command to navigate to a bookmark from the tree view
@@ -539,6 +653,33 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 			this._view.webview.postMessage({
 				type: 'flyToBookmark',
 				bookmark: bookmark
+			});
+		}
+	}
+
+	/**
+	 * Sets the base map style
+	 * @param baseMap The base map style to use
+	 */
+	public setBaseMap(baseMap: BaseMapStyle): void {
+		if (this._view) {
+			this._view.webview.postMessage({
+				type: 'setBaseMap',
+				styleUrl: baseMap.styleUrl,
+				name: baseMap.name
+			});
+		}
+	}
+
+	/**
+	 * Updates the overlay layers on the map
+	 * @param layers Array of visible overlay layers
+	 */
+	public updateOverlayLayers(layers: OverlayLayer[]): void {
+		if (this._view) {
+			this._view.webview.postMessage({
+				type: 'updateOverlayLayers',
+				layers: layers
 			});
 		}
 	}
