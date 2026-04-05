@@ -3,13 +3,14 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, Coordinate, addCoordinatePattern, clearCustomPatterns } from './coordinateParser';
+import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromGeoJson, Coordinate, addCoordinatePattern, clearCustomPatterns } from './coordinateParser';
 import { BookmarkManager } from './bookmarkManager';
 import { MapBookmark, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
 import { LayerTreeProvider } from './layerTreeProvider';
 import { BaseMapStyle, OverlayLayer } from './layerTypes';
-import { MapLibreViewerAPI, BasemapProvider } from './api';
+import { MapLibreViewerAPI, BasemapProvider, FileToGeoJsonAdapter } from './api';
+import { geojsonAdapter } from './adapters/geojsonAdapter';
 
 // Interface for configuration messages sent to the webview
 interface MapConfig {
@@ -631,6 +632,58 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	// Clean up the listener when the extension is deactivated
 	context.subscriptions.push(selectionListener);
 
+	// Register file selection listener for the navigator view
+	const fileSelectionListener = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+		if (!editor) {
+			return;
+		}
+		
+		const filePath = editor.document.uri.fsPath;
+		console.log(`File selected in navigator: ${filePath}`);
+
+		// Check if the "Selected file" layer is enabled
+		const selectedFileLayer = layerTreeProvider.getSelectedFileLayer();
+		if (selectedFileLayer && !selectedFileLayer.visible) {
+			console.log('Selected file layer is disabled, skipping file processing');
+			return;
+		}
+
+		await layerTreeProvider.updateSelectedFileLayer(null);
+
+		// Check all registered file-to-GeoJSON adapters
+		const fileExtension = path.extname(filePath).toLowerCase();
+		for (const adapter of fileToGeoJsonAdapters) {
+			if (adapter.canHandle(fileExtension)) {
+				console.log(`Adapter "${adapter.getName()}" can handle ${fileExtension} files`);
+				try {
+					const geojson = await adapter.toGeoJson(filePath);
+					
+					// Update the selected file layer through the layer tree provider
+					// This ensures the layer visibility state is properly managed
+					await layerTreeProvider.updateSelectedFileLayer(geojson);
+					
+					// Extract coordinates from GeoJSON and fit map to bounding box
+					// Use fitBoundsOnly to avoid creating blue markers - the GeoJSON layer already renders features
+					const coordinates = extractCoordinatesFromGeoJson(geojson);
+					if (coordinates.length > 0) {
+						const bbox = calculateBoundingBox(coordinates);
+						if (bbox) {
+							mapsViewProvider.fitBoundsOnly(bbox);
+						}
+					}
+					
+					vscode.window.showInformationMessage(`Loaded "${path.basename(filePath)}" using ${adapter.getName()} adapter`);
+					return; // Use the first adapter that can handle the file
+				} catch (error) {
+					console.error(`Error converting file with ${adapter.getName()} adapter:`, error);
+				}
+			}
+		}
+	});
+
+	// Clean up the file selection listener when the extension is deactivated
+	context.subscriptions.push(fileSelectionListener);
+
 	// Create an event emitter for active basemap changes (for external API)
 	const onDidChangeActiveBasemapEmitter = new vscode.EventEmitter<BaseMapStyle>();
 	
@@ -640,6 +693,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			onDidChangeActiveBasemapEmitter.fire(event.data as BaseMapStyle);
 		}
 	});
+
+	// Registry for file-to-GeoJSON adapters
+	const fileToGeoJsonAdapters: FileToGeoJsonAdapter[] = [];
+
+	// Register the built-in GeoJSON adapter
+	fileToGeoJsonAdapters.push(geojsonAdapter);
 
 	// Export the public API for external extensions
 	const api: MapLibreViewerAPI = {
@@ -655,7 +714,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		},
 		getBasemaps: () => layerTreeProvider.getBasemaps(),
 		getActiveBasemap: () => layerTreeProvider.getActiveBaseMap(),
-		onDidChangeActiveBasemap: onDidChangeActiveBasemapEmitter.event
+		onDidChangeActiveBasemap: onDidChangeActiveBasemapEmitter.event,
+		registerFileToGeoJsonAdapter: (adapter: FileToGeoJsonAdapter) => {
+			fileToGeoJsonAdapters.push(adapter);
+			return new vscode.Disposable(() => {
+				const index = fileToGeoJsonAdapters.indexOf(adapter);
+				if (index !== -1) {
+					fileToGeoJsonAdapters.splice(index, 1);
+				}
+			});
+		},
+		getFileToGeoJsonAdapters: () => [...fileToGeoJsonAdapters]
 	};
 
 	// Register the default basemap using our own API
@@ -782,6 +851,20 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	/**
+	 * Fits the map to show a bounding box without creating markers
+	 * Use this for GeoJSON file viewing where the layer already renders the features
+	 * @param bbox The bounding box containing southwest and northeast corners
+	 */
+	public fitBoundsOnly(bbox: { southwest: Coordinate; northeast: Coordinate }): void {
+		if (this._view) {
+			this._view.webview.postMessage({
+				type: 'fitBoundsOnly',
+				boundingBox: bbox
+			});
+		}
+	}
+
+	/**
 	 * Flies to a bookmark location on the map
 	 * @param bookmark The bookmark to fly to
 	 */
@@ -822,6 +905,19 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 			this._view.webview.postMessage({
 				type: 'updateOverlayLayers',
 				layers: layers
+			});
+		}
+	}
+
+	/**
+	 * Updates the "Selected file" layer with new GeoJSON data
+	 * @param geojson The GeoJSON data to display, or null to clear
+	 */
+	public updateSelectedFileLayer(geojson: object | null): void {
+		if (this._view) {
+			this._view.webview.postMessage({
+				type: 'updateSelectedFileLayer',
+				geojson: geojson
 			});
 		}
 	}

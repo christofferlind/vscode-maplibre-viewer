@@ -15,6 +15,19 @@ export interface Coordinate {
 }
 
 /**
+ * Represents a GeoJSON position (longitude, latitude order)
+ */
+export type GeoJsonPosition = [number, number];
+
+/**
+ * Represents a bounding box with southwest and northeast corners
+ */
+export interface BoundingBox {
+    southwest: Coordinate;
+    northeast: Coordinate;
+}
+
+/**
  * Registry for custom coordinate patterns.
  * Patterns must have named groups 'lat' and 'lng' for direct coordinate extraction,
  * or named groups for DMS components (latDegrees, latMinutes, latSeconds, latDirection,
@@ -192,14 +205,11 @@ function deduplicateCoordinates(coordinates: Coordinate[]): Coordinate[] {
 /**
  * Calculates a bounding box from an array of coordinates.
  * Returns null if the array is empty.
- * 
+ *
  * @param coordinates - Array of coordinates
  * @returns Bounding box with southwest and northeast corners, or null
  */
-export function calculateBoundingBox(coordinates: Coordinate[]): { 
-    southwest: Coordinate; 
-    northeast: Coordinate;
-} | null {
+export function calculateBoundingBox(coordinates: Coordinate[]): BoundingBox | null {
     if (coordinates.length === 0) {
         return null;
     }
@@ -220,6 +230,126 @@ export function calculateBoundingBox(coordinates: Coordinate[]): {
         southwest: { latitude: minLat, longitude: minLng },
         northeast: { latitude: maxLat, longitude: maxLng }
     };
+}
+
+/**
+ * Extracts all coordinates from a GeoJSON object.
+ * Handles all GeoJSON geometry types including Point, MultiPoint, LineString,
+ * MultiLineString, Polygon, MultiPolygon, and GeometryCollection.
+ *
+ * @param geojson - The GeoJSON object to extract coordinates from
+ * @returns An array of Coordinate objects (latitude/longitude format)
+ */
+export function extractCoordinatesFromGeoJson(geojson: any): Coordinate[] {
+    const coordinates: Coordinate[] = [];
+
+    if (!geojson) {
+        return coordinates;
+    }
+
+    function extractFromGeometry(geometry: any): void {
+        if (!geometry || !geometry.coordinates) {
+            return;
+        }
+
+        switch (geometry.type) {
+            case 'Point':
+                if (Array.isArray(geometry.coordinates) && geometry.coordinates.length >= 2) {
+                    coordinates.push({
+                        latitude: geometry.coordinates[1],
+                        longitude: geometry.coordinates[0]
+                    });
+                }
+                break;
+            case 'MultiPoint':
+            case 'LineString':
+                if (Array.isArray(geometry.coordinates)) {
+                    geometry.coordinates.forEach((coord: GeoJsonPosition) => {
+                        if (Array.isArray(coord) && coord.length >= 2) {
+                            coordinates.push({
+                                latitude: coord[1],
+                                longitude: coord[0]
+                            });
+                        }
+                    });
+                }
+                break;
+            case 'MultiLineString':
+            case 'Polygon':
+                if (Array.isArray(geometry.coordinates)) {
+                    geometry.coordinates.forEach((ring: GeoJsonPosition[]) => {
+                        if (Array.isArray(ring)) {
+                            ring.forEach((coord: GeoJsonPosition) => {
+                                if (Array.isArray(coord) && coord.length >= 2) {
+                                    coordinates.push({
+                                        latitude: coord[1],
+                                        longitude: coord[0]
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+                break;
+            case 'MultiPolygon':
+                if (Array.isArray(geometry.coordinates)) {
+                    geometry.coordinates.forEach((polygon: GeoJsonPosition[][]) => {
+                        if (Array.isArray(polygon)) {
+                            polygon.forEach((ring: GeoJsonPosition[]) => {
+                                if (Array.isArray(ring)) {
+                                    ring.forEach((coord: GeoJsonPosition) => {
+                                        if (Array.isArray(coord) && coord.length >= 2) {
+                                            coordinates.push({
+                                                latitude: coord[1],
+                                                longitude: coord[0]
+                                            });
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+                break;
+            case 'GeometryCollection':
+                if (Array.isArray(geometry.geometries)) {
+                    geometry.geometries.forEach((geom: any) => extractFromGeometry(geom));
+                }
+                break;
+        }
+    }
+
+    function extractFromFeature(feature: any): void {
+        if (feature.geometry) {
+            extractFromGeometry(feature.geometry);
+        }
+    }
+
+    // Process based on GeoJSON type
+    if (geojson.type === 'FeatureCollection') {
+        if (Array.isArray(geojson.features)) {
+            geojson.features.forEach((feature: any) => extractFromFeature(feature));
+        }
+    } else if (geojson.type === 'Feature') {
+        extractFromFeature(geojson);
+    } else {
+        // Direct geometry object
+        extractFromGeometry(geojson);
+    }
+
+    return coordinates;
+}
+
+/**
+ * Calculates a bounding box from a GeoJSON object.
+ * Convenience function that combines extractCoordinatesFromGeoJson and calculateBoundingBox.
+ *
+ * @param geojson - The GeoJSON object to calculate bounds for
+ * @returns Bounding box with southwest and northeast corners, or null if no coordinates found
+ */
+export function calculateBoundingBoxFromGeoJson(geojson: any): BoundingBox | null {
+    const coordinates = extractCoordinatesFromGeoJson(geojson);
+    return calculateBoundingBox(coordinates);
 }
 
 /**

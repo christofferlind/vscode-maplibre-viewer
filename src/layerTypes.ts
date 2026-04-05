@@ -72,5 +72,20 @@ export function isOverlayLayer(item: LayerTreeItem): item is OverlayLayer {
  * Default overlay layers
  */
 export const DEFAULT_OVERLAY_LAYERS: OverlayLayer[] = [
-    // Users can add their own layers via settings
+    {
+        id: 'selected-file',
+        name: 'Selected file',
+        description: 'Displays the currently selected file on the map',
+        type: 'geojson',
+        source: {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        },
+        visible: false
+    }
 ];
+
+/**
+ * Special layer ID for the selected file layer
+ */
+export const SELECTED_FILE_LAYER_ID = 'selected-file';

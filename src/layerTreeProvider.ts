@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BaseMapStyle, OverlayLayer, DEFAULT_OVERLAY_LAYERS } from './layerTypes';
+import { BaseMapStyle, OverlayLayer, DEFAULT_OVERLAY_LAYERS, SELECTED_FILE_LAYER_ID } from './layerTypes';
 
 /**
  * Tree item types for internal use
@@ -45,10 +45,34 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         this._overlayLayers = context.globalState.get<OverlayLayer[]>('overlayLayers')
             || [...DEFAULT_OVERLAY_LAYERS];
         
+        // Ensure the "Selected file" layer always exists
+        this._ensureSelectedFileLayer();
+        
         // Load active base map from globalState or use first one, or 'basic' as fallback
         this._activeBaseMapId = context.globalState.get<string>('activeBaseMapId')
             || this._baseMaps[0]?.id
             || 'basic';
+    }
+
+    /**
+     * Ensures the "Selected file" layer exists in the overlay layers
+     */
+    private _ensureSelectedFileLayer(): void {
+        const layerIndex = this._overlayLayers.findIndex(l => l.id === SELECTED_FILE_LAYER_ID);
+        if (layerIndex === -1) {
+            // Layer doesn't exist, create it
+            this._overlayLayers.push({
+                id: SELECTED_FILE_LAYER_ID,
+                name: 'Selected file',
+                description: 'Displays the currently selected file on the map',
+                type: 'geojson',
+                source: {
+                    type: 'geojson',
+                    data: { type: 'FeatureCollection', features: [] }
+                },
+                visible: false
+            });
+        }
     }
 
     /**
@@ -323,5 +347,61 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
      */
     getBasemaps(): readonly BaseMapStyle[] {
         return this._baseMaps;
+    }
+
+    /**
+     * Updates the "Selected file" layer with new GeoJSON data.
+     * The layer visibility is preserved - if the layer was disabled, it stays disabled.
+     * If data is null/empty, the layer data is cleared but visibility is preserved.
+     * @param geojson The GeoJSON data to display, or null/empty to clear
+     */
+    async updateSelectedFileLayer(geojson: object | null): Promise<void> {
+        const layerIndex = this._overlayLayers.findIndex(l => l.id === SELECTED_FILE_LAYER_ID);
+        
+        // Layer should always exist (created in constructor), but handle missing case gracefully
+        if (layerIndex === -1) {
+            console.error('Selected file layer not found - this should not happen');
+            return;
+        }
+
+        // Preserve current visibility
+        const currentVisibility = this._overlayLayers[layerIndex].visible;
+        
+        if (geojson && Object.keys(geojson).length > 0) {
+            // Update the layer with new data, preserve current visibility
+            this._overlayLayers[layerIndex] = {
+                ...this._overlayLayers[layerIndex],
+                source: {
+                    ...this._overlayLayers[layerIndex].source,
+                    data: geojson
+                },
+                visible: currentVisibility
+            };
+        } else {
+            // Clear the layer data, preserve visibility
+            this._overlayLayers[layerIndex] = {
+                ...this._overlayLayers[layerIndex],
+                source: {
+                    type: 'geojson',
+                    data: { type: 'FeatureCollection', features: [] }
+                },
+                visible: currentVisibility
+            };
+        }
+
+        // Persist the changes
+        await this._extensionContext.globalState.update('overlayLayers', this._overlayLayers);
+        
+        // Notify listeners
+        const layer = this._overlayLayers[layerIndex];
+        this._onDidChangeLayers.fire({ type: 'overlay', data: layer });
+        this.refresh();
+    }
+
+    /**
+     * Gets the "Selected file" layer
+     */
+    getSelectedFileLayer(): OverlayLayer | undefined {
+        return this._overlayLayers.find(l => l.id === SELECTED_FILE_LAYER_ID);
     }
 }

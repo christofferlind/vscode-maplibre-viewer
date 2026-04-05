@@ -241,6 +241,111 @@ The map view toolbar provides quick access to:
 3. Search for "MapLibre Viewer"
 4. Click Install
 
+## Usage Examples
+
+### Viewing GeoJSON Files
+
+The MapLibre Viewer extension can automatically render GeoJSON files on an interactive map. Here's how to use this feature:
+
+#### Step-by-Step Walkthrough
+
+1. **Create or open a GeoJSON file** in VS Code with a `.geojson` or `.json` extension
+2. **Select the file** in the editor or file explorer
+3. The extension will automatically detect compatible file types and render the data on the map
+4. The map viewport will automatically fit to the bounding box of all features
+
+#### Sample GeoJSON for Testing
+
+Copy this sample GeoJSON to a file (e.g., `sample.geojson`) to test the extension:
+
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Central Park",
+        "type": "park"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-73.9732, 40.7644],
+          [-73.9819, 40.7681],
+          [-73.9580, 40.8006],
+          [-73.9494, 40.7969],
+          [-73.9732, 40.7644]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Brooklyn Bridge",
+        "type": "landmark"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.9969, 40.7061],
+          [-73.9903, 40.7024],
+          [-73.9834, 40.6997]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Empire State Building",
+        "type": "landmark"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.9857, 40.7484]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Statue of Liberty",
+        "type": "monument"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-74.0445, 40.6892]
+      }
+    }
+  ]
+}
+```
+
+#### Automatic Bounding Box Fitting
+
+When a GeoJSON file is loaded, the extension automatically:
+
+1. **Extracts all coordinates** from every feature in the collection (supports Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, and GeometryCollection)
+2. **Calculates the bounding box** using the `calculateBoundingBox` function to determine the geographic extent
+3. **Fits the map viewport** to show all features using `fitMapToGeoJSON`, ensuring the entire dataset is visible with appropriate padding
+
+This means you don't need to manually pan or zoom—the map will automatically center on your data.
+
+#### Supported File Extensions
+
+The extension supports GeoJSON files through the built-in adapter for:
+
+- `.geojson` - Standard GeoJSON files
+- `.json` - JSON files containing GeoJSON data
+
+Additional file formats (KML, GPX, Shapefile, etc.) can be supported by installing extensions that register custom `FileToGeoJsonAdapter` implementations.
+
+#### Tips for Best Results
+
+- **Valid GeoJSON**: Ensure your file contains valid GeoJSON following [RFC 7946](https://tools.ietf.org/html/rfc7946)
+- **Coordinate Order**: Remember GeoJSON uses `[longitude, latitude]` order (x, y)
+- **Feature Properties**: Add meaningful properties to your features for future identification
+- **Large Files**: For large datasets, consider splitting into smaller files for faster rendering
+
 ## Usage
 
 1. Click the **Maps** icon in the activity bar (left sidebar)
@@ -296,7 +401,7 @@ npm run copy-assets
 
 ## Extension API
 
-The MapLibre Viewer extension exposes a public API that allows other VS Code extensions to register custom basemaps.
+The MapLibre Viewer extension exposes a public API that allows other VS Code extensions to register custom basemaps and file adapters.
 
 ### Accessing the API
 
@@ -344,7 +449,22 @@ Get the currently active basemap.
 
 Event that fires when the active basemap changes.
 
-### Example Extension
+#### `registerFileToGeoJsonAdapter(adapter: FileToGeoJsonAdapter): Disposable`
+
+Register a custom file-to-GeoJSON adapter from an external extension. This allows other extensions to add support for additional file formats (KML, GPX, Shapefile, etc.).
+
+**FileToGeoJsonAdapter interface:**
+- `getName(): string` - Returns the display name of the adapter
+- `canHandle(fileExtension: string): boolean` - Checks if the adapter can handle the given file extension (e.g., `.kml`, `.gpx`)
+- `toGeoJson(filePath: string): Promise<object>` - Converts the file at the given path to a GeoJSON object
+
+Returns a `Disposable` that removes the adapter when disposed.
+
+#### `getFileToGeoJsonAdapters(): readonly FileToGeoJsonAdapter[]`
+
+Get all registered file-to-GeoJSON adapters.
+
+### Example: Custom Basemap Extension
 
 ```typescript
 import * as vscode from 'vscode';
@@ -383,6 +503,62 @@ export function activate(context: vscode.ExtensionContext) {
     }
 }
 ```
+
+### Example: Custom File Adapter Extension
+
+This example shows how to create an extension that adds support for KML files:
+
+```typescript
+import * as vscode from 'vscode';
+import { MapLibreViewerAPI, FileToGeoJsonAdapter } from 'vscode-maplibre-viewer';
+import * as fs from 'fs';
+
+// Example KML to GeoJSON converter (simplified)
+async function convertKmlToGeoJson(filePath: string): Promise<object> {
+    const kmlContent = fs.readFileSync(filePath, 'utf-8');
+    // Implement your KML parsing logic here
+    // This is a simplified example - use a proper KML parser library
+    const geojson = {
+        type: 'FeatureCollection',
+        features: [] // Parse KML and populate features
+    };
+    return geojson;
+}
+
+export function activate(context: vscode.ExtensionContext) {
+    const maplibreExt = vscode.extensions.getExtension<MapLibreViewerAPI>(
+        'publisher.vscode-maplibre-viewer'
+    );
+    
+    if (!maplibreExt?.exports) {
+        console.warn('MapLibre Viewer extension not found');
+        return;
+    }
+    
+    const api = maplibreExt.exports;
+    
+    // Register KML file adapter
+    const kmlAdapter: FileToGeoJsonAdapter = {
+        getName: () => 'KML Adapter',
+        canHandle: (fileExtension: string) => {
+            return fileExtension.toLowerCase() === '.kml';
+        },
+        toGeoJson: async (filePath: string) => {
+            return convertKmlToGeoJson(filePath);
+        }
+    };
+    
+    const disposable = api.registerFileToGeoJsonAdapter(kmlAdapter);
+    context.subscriptions.push(disposable);
+}
+```
+
+When a user opens a `.kml` file in VS Code, the MapLibre Viewer extension will:
+1. Check all registered adapters via `canHandle()`
+2. Find the KML adapter that handles `.kml` files
+3. Call `toGeoJson()` to convert the file
+4. Display the resulting GeoJSON on the map
+5. Automatically fit the map viewport to show all features
 
 ## Requirements
 

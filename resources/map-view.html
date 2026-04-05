@@ -595,6 +595,29 @@
 			}, 10000);
 		}
 
+		// Fit map to bounding box only (no markers) - used for GeoJSON file viewing
+		function fitBoundsOnly(boundingBox) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Fitting to bounding box (no markers):', boundingBox);
+
+			// Fit the map to the bounding box
+			map.fitBounds(
+				[
+					[boundingBox.southwest.longitude, boundingBox.southwest.latitude],
+					[boundingBox.northeast.longitude, boundingBox.northeast.latitude]
+				],
+				{
+					padding: 50,
+					duration: flyToDuration,
+					maxZoom: 16
+				}
+			);
+		}
+
 		// =====================
 		// Overlay Layer Management
 		// =====================
@@ -658,7 +681,7 @@
 					// Add a default layer for GeoJSON (points as circles, lines as lines, polygons as fills)
 					// First, we need to check what type of geometry the GeoJSON contains
 					// For simplicity, we'll add all three layer types
-					map.addLayer({
+					var circleLayer = {
 						id: 'overlay-' + layer.id + '-circles',
 						type: 'circle',
 						source: sourceId,
@@ -666,12 +689,13 @@
 							'circle-radius': 6,
 							'circle-color': '#FF0000',
 							'circle-opacity': (layer.opacity !== undefined ? layer.opacity : 1)
-						},
-						minzoom: layer.minzoom,
-						maxzoom: layer.maxzoom
-					});
-
-					map.addLayer({
+						}
+					};
+					if (layer.minzoom !== undefined) circleLayer.minzoom = layer.minzoom;
+					if (layer.maxzoom !== undefined) circleLayer.maxzoom = layer.maxzoom;
+					map.addLayer(circleLayer);
+	
+					var lineLayer = {
 						id: 'overlay-' + layer.id + '-lines',
 						type: 'line',
 						source: sourceId,
@@ -679,22 +703,24 @@
 							'line-color': '#FF0000',
 							'line-width': 2,
 							'line-opacity': (layer.opacity !== undefined ? layer.opacity : 1)
-						},
-						minzoom: layer.minzoom,
-						maxzoom: layer.maxzoom
-					});
-
-					map.addLayer({
+						}
+					};
+					if (layer.minzoom !== undefined) lineLayer.minzoom = layer.minzoom;
+					if (layer.maxzoom !== undefined) lineLayer.maxzoom = layer.maxzoom;
+					map.addLayer(lineLayer);
+	
+					var fillLayer = {
 						id: 'overlay-' + layer.id + '-fills',
 						type: 'fill',
 						source: sourceId,
 						paint: {
 							'fill-color': '#FF0000',
 							'fill-opacity': (layer.opacity !== undefined ? layer.opacity * 0.5 : 0.5)
-						},
-						minzoom: layer.minzoom,
-						maxzoom: layer.maxzoom
-					});
+						}
+					};
+					if (layer.minzoom !== undefined) fillLayer.minzoom = layer.minzoom;
+					if (layer.maxzoom !== undefined) fillLayer.maxzoom = layer.maxzoom;
+					map.addLayer(fillLayer);
 
 				} else if (layer.type === 'vector') {
 					// Vector tile source
@@ -717,16 +743,17 @@
 					};
 					map.addSource(sourceId, rasterSource);
 
-					map.addLayer({
+					var rasterLayer = {
 						id: 'overlay-' + layer.id,
 						type: 'raster',
 						source: sourceId,
 						paint: {
 							'raster-opacity': (layer.opacity !== undefined ? layer.opacity : 1)
-						},
-						minzoom: layer.minzoom,
-						maxzoom: layer.maxzoom
-					});
+						}
+					};
+					if (layer.minzoom !== undefined) rasterLayer.minzoom = layer.minzoom;
+					if (layer.maxzoom !== undefined) rasterLayer.maxzoom = layer.maxzoom;
+					map.addLayer(rasterLayer);
 				}
 
 				// Track the added layer
@@ -784,7 +811,7 @@
 			delete addedOverlayLayers[layerId];
 		}
 
-		// Update layer visibility
+		// Update layer visibility and data
 		function updateLayerVisibility(layer) {
 			if (!map) {
 				console.warn('Map not initialized');
@@ -793,6 +820,14 @@
 
 			var layerId = layer.id;
 			var sourceId = 'overlay-' + layerId;
+
+			// For GeoJSON layers, update the source data if provided
+			if (layer.type === 'geojson' && layer.source && layer.source.data) {
+				var source = map.getSource(sourceId);
+				if (source) {
+					source.setData(layer.source.data);
+				}
+			}
 
 			// Find all layers associated with this overlay
 			var style = map.getStyle();
@@ -812,6 +847,87 @@
 
 			// Update tracking
 			addedOverlayLayers[layerId] = layer;
+		}
+
+		// =====================
+		// Selected File Layer Management
+		// =====================
+
+		// Selected file layer ID constant
+		var SELECTED_FILE_LAYER_ID = 'selected-file';
+
+		// Update the selected file layer's GeoJSON source data
+		function updateSelectedFileLayerSource(geojson) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Updating selected file layer with GeoJSON data');
+
+			var sourceId = 'overlay-' + SELECTED_FILE_LAYER_ID;
+			var source = map.getSource(sourceId);
+
+			// Check if the layer is currently visible (default to true if not tracked)
+			var isVisible = true;
+			if (addedOverlayLayers[SELECTED_FILE_LAYER_ID]) {
+				isVisible = addedOverlayLayers[SELECTED_FILE_LAYER_ID].visible !== false;
+			}
+
+			if (source) {
+				// Source exists, update the data
+				source.setData(geojson);
+				
+				// Set layer visibility based on current state
+				['circles', 'lines', 'fills'].forEach(function(layerType) {
+					var layerId = 'overlay-' + SELECTED_FILE_LAYER_ID + '-' + layerType;
+					if (map.getLayer(layerId)) {
+						map.setLayoutProperty(layerId, 'visibility', isVisible ? 'visible' : 'none');
+					}
+				});
+			} else {
+				// Source doesn't exist yet, create the layer
+				var layer = {
+					id: SELECTED_FILE_LAYER_ID,
+					name: 'Selected file',
+					type: 'geojson',
+					source: {
+						type: 'geojson',
+						data: geojson
+					},
+					visible: isVisible
+				};
+				addOverlayLayer(layer);
+			}
+
+			// Note: Map fitting is handled by the extension via fitBoundingBox message
+			// No need to fit here as the extension already calculates and sends the bounds
+		}
+
+		// Clear the selected file layer
+		function clearSelectedFileLayer() {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Clearing selected file layer');
+
+			var sourceId = 'overlay-' + SELECTED_FILE_LAYER_ID;
+			var source = map.getSource(sourceId);
+
+			if (source) {
+				// Clear the data
+				source.setData({ type: 'FeatureCollection', features: [] });
+				
+				// Hide the layers
+				['circles', 'lines', 'fills'].forEach(function(layerType) {
+					var layerId = 'overlay-' + SELECTED_FILE_LAYER_ID + '-' + layerType;
+					if (map.getLayer(layerId)) {
+						map.setLayoutProperty(layerId, 'visibility', 'none');
+					}
+				});
+			}
 		}
 
 		// =====================
@@ -898,6 +1014,12 @@
 						fitBoundingBox(message.coordinates, message.boundingBox);
 					}
 					break;
+				case 'fitBoundsOnly':
+					console.log('Received fitBoundsOnly request:', message.boundingBox);
+					if (message.boundingBox) {
+						fitBoundsOnly(message.boundingBox);
+					}
+					break;
 				case 'requestViewState':
 					console.log('Received requestViewState message');
 					sendViewStateChanged();
@@ -924,6 +1046,14 @@
 					console.log('Received updateOverlayLayers message:', message.layers);
 					if (message.layers) {
 						updateOverlayLayers(message.layers);
+					}
+					break;
+				case 'updateSelectedFileLayer':
+					console.log('Received updateSelectedFileLayer message');
+					if (message.geojson) {
+						updateSelectedFileLayerSource(message.geojson);
+					} else {
+						clearSelectedFileLayer();
 					}
 					break;
 			}
