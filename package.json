@@ -2,7 +2,11 @@
   "name": "vscode-maplibre-viewer",
   "displayName": "vscode-maplibre-viewer",
   "description": "MapLibre Viewer",
-  "version": "0.0.1",
+  "version": "0.5.0",
+  "repository": {
+    "type": "github",
+    "url": "https://github.com/christofferlind/vscode-maplibre-viewer"
+  },
   "engines": {
     "vscode": "^1.110.0"
   },
@@ -292,7 +296,8 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
-    "copy-assets": "node scripts/copy-maplibre-assets.js"
+    "copy-assets": "node scripts/copy-maplibre-assets.js",
+    "package": "vsce package"
   },
   "dependencies": {
     "maplibre-gl": "^4.7.1",
@@ -304,6 +309,7 @@
     "@types/vscode": "^1.110.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.0.0",
     "eslint": "^9.39.3",
     "typescript-eslint": "^8.56.1"
   }
