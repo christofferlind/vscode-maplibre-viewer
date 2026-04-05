@@ -16,6 +16,16 @@ interface MapConfig {
 	geocodingApiKey: string;
 	enableSearch: boolean;
 	flyToDuration: number;
+	initialViewState?: ViewState;
+}
+
+// Interface for view state stored in settings
+interface StoredViewState {
+	center: { lat: number; lng: number };
+	zoom: number;
+	bearing: number;
+	pitch: number;
+	baseMapId?: string;
 }
 
 // Interface for language options in Quick Pick
@@ -138,7 +148,7 @@ function loadCustomCoordinatePatterns(): void {
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext): MapLibreViewerAPI {
+export async function activate(context: vscode.ExtensionContext): Promise<MapLibreViewerAPI> {
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
@@ -167,9 +177,22 @@ export function activate(context: vscode.ExtensionContext): MapLibreViewerAPI {
 	// Initialize and register the Layer Tree Provider
 	const layerTreeProvider = new LayerTreeProvider(context);
 
+	// Check if there's a saved baseMapId in settings and apply it
+	const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+	const savedViewState = config.get<StoredViewState>('lastViewState');
+	if (savedViewState?.baseMapId) {
+		// Try to set the saved base map (will fall back if not found)
+		try {
+			await layerTreeProvider.setActiveBaseMap(savedViewState.baseMapId);
+		} catch {
+			// Base map not found, will use default
+			console.log('Saved base map not found, using default');
+		}
+	}
+
 	// Register the Maps webview provider with the initial active basemap
 	const initialBaseMap = layerTreeProvider.getActiveBaseMap();
-	const mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl);
+	const mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider('mapsView', mapsViewProvider)
@@ -657,15 +680,21 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	private _view?: vscode.WebviewView;
 	private _pendingViewStateResolve?: (state: ViewState | undefined) => void;
 	private _currentBaseMapStyleUrl?: string;
+	private _currentBaseMapId?: string;
 
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
 		private readonly _bookmarkManager: BookmarkManager,
-		initialStyleUrl?: string
+		initialStyleUrl?: string,
+		initialBaseMapId?: string
 	) {
 		// Store the initial style URL if provided
 		if (initialStyleUrl) {
 			this._currentBaseMapStyleUrl = initialStyleUrl;
+		}
+		// Store the initial base map ID if provided
+		if (initialBaseMapId) {
+			this._currentBaseMapId = initialBaseMapId;
 		}
 	}
 
@@ -770,8 +799,9 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	 * @param baseMap The base map style to use
 	 */
 	public setBaseMap(baseMap: BaseMapStyle): void {
-		// Store the current style URL for when the webview is created
+		// Store the current style URL and ID
 		this._currentBaseMapStyleUrl = baseMap.styleUrl;
+		this._currentBaseMapId = baseMap.id;
 		
 		if (this._view) {
 			// Send message to webview to update style while preserving view state
@@ -829,21 +859,28 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	public async handleWebviewMessage(message: any): Promise<void> {
 		switch (message.type) {
 			case 'viewStateChanged':
-				if (this._pendingViewStateResolve) {
-					const viewState = message.viewState;
-					if (viewState && viewState.center) {
-						this._pendingViewStateResolve({
-							center: {
-								latitude: viewState.center.lat || viewState.center.latitude,
-								longitude: viewState.center.lng || viewState.center.longitude
-							},
-							zoom: viewState.zoom,
-							bearing: viewState.bearing || 0,
-							pitch: viewState.pitch || 0
-						});
-					} else {
-						this._pendingViewStateResolve(undefined);
+				const viewState = message.viewState;
+				if (viewState && viewState.center) {
+					const state: ViewState = {
+						center: {
+							latitude: viewState.center.lat || viewState.center.latitude,
+							longitude: viewState.center.lng || viewState.center.longitude
+						},
+						zoom: viewState.zoom,
+						bearing: viewState.bearing || 0,
+						pitch: viewState.pitch || 0
+					};
+					
+					// If this is a response to a pending request, resolve it
+					if (this._pendingViewStateResolve) {
+						this._pendingViewStateResolve(state);
+						this._pendingViewStateResolve = undefined;
 					}
+					
+					// Save the view state to settings (debounced in webview)
+					await this.saveViewState(state);
+				} else if (this._pendingViewStateResolve) {
+					this._pendingViewStateResolve(undefined);
 					this._pendingViewStateResolve = undefined;
 				}
 				break;
@@ -855,11 +892,45 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	 */
 	private getConfiguration(): MapConfig {
 		const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+		const lastViewState = config.get<StoredViewState>('lastViewState');
+		
 		return {
 			geocodingApiKey: config.get<string>('geocodingApiKey') || '',
 			enableSearch: config.get<boolean>('enableSearch') ?? true,
-			flyToDuration: config.get<number>('flyToDuration') ?? 500
+			flyToDuration: config.get<number>('flyToDuration') ?? 500,
+			initialViewState: lastViewState ? {
+				center: {
+					latitude: lastViewState.center.lat,
+					longitude: lastViewState.center.lng
+				},
+				zoom: lastViewState.zoom,
+				bearing: lastViewState.bearing || 0,
+				pitch: lastViewState.pitch || 0
+			} : undefined
 		};
+	}
+
+	/**
+	 * Saves the current view state to VS Code settings
+	 */
+	private async saveViewState(viewState: ViewState): Promise<void> {
+		const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+		const stateToStore: StoredViewState = {
+			center: {
+				lat: viewState.center.latitude,
+				lng: viewState.center.longitude
+			},
+			zoom: viewState.zoom,
+			bearing: viewState.bearing || 0,
+			pitch: viewState.pitch || 0,
+			baseMapId: this._currentBaseMapId
+		};
+		
+		try {
+			await config.update('lastViewState', stateToStore, vscode.ConfigurationTarget.Global);
+		} catch (error) {
+			console.error('Failed to save view state:', error);
+		}
 	}
 
 	/**
@@ -901,6 +972,15 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		htmlContent = htmlContent.replace(/\$\{geocodingApiKey\}/g, config.geocodingApiKey);
 		htmlContent = htmlContent.replace(/\$\{enableSearch\}/g, String(config.enableSearch));
 		htmlContent = htmlContent.replace(/\$\{flyToDuration\}/g, String(config.flyToDuration));
+		
+		// Replace initial view state placeholder
+		const initialViewStateJson = config.initialViewState
+			? JSON.stringify(config.initialViewState)
+			: 'null';
+		htmlContent = htmlContent.replace(
+			/var initialViewState = null;/g,
+			`var initialViewState = ${initialViewStateJson};`
+		);
 		
 		// Replace MapLibre asset URIs
 		htmlContent = htmlContent.replace(/\$\{maplibreJsUri\}/g, maplibreJsUri.toString());

@@ -245,6 +245,9 @@
 		var geocodingApiKey = '${geocodingApiKey}';
 		var enableSearch = "${enableSearch}" === "true";
 		var flyToDuration = parseInt("${flyToDuration}", 10);
+		
+		// Initial view state from settings (will be replaced by extension)
+		var initialViewState = null;
 
 		// Search functionality
 		var searchResults = [];
@@ -293,17 +296,30 @@
 			}
 		}
 
+		// Debounce timer for view state updates
+		var viewStateDebounceTimer = null;
+		
 		// Initialize the map
 		function initializeMap() {
 			hideErrorOverlay();
 			showLoadingOverlay('Initializing map...');
 
 			try {
+				// Use initial view state if available, otherwise use defaults
+				var initialCenter = initialViewState ?
+					[initialViewState.center.longitude, initialViewState.center.latitude] :
+					[0, 0];
+				var initialZoom = initialViewState ? initialViewState.zoom : 1;
+				var initialBearing = initialViewState ? (initialViewState.bearing || 0) : 0;
+				var initialPitch = initialViewState ? (initialViewState.pitch || 0) : 0;
+
 				map = new maplibregl.Map({
 					container: 'map',
 					style: currentStyleUrl,
-					center: [0, 0],
-					zoom: 1,
+					center: initialCenter,
+					zoom: initialZoom,
+					bearing: initialBearing,
+					pitch: initialPitch,
 					canvasContextAttributes: {antialias: true}
 				});
 
@@ -331,12 +347,45 @@
 					console.log('Map loaded successfully');
 					hideLoadingOverlay();
 					hideErrorOverlay();
+				});
 
+				// Listen for map move events and save view state
+				map.on('moveend', function() {
+					// Debounce the view state update
+					if (viewStateDebounceTimer) {
+						clearTimeout(viewStateDebounceTimer);
+					}
+					viewStateDebounceTimer = setTimeout(function() {
+						saveViewStateToExtension();
+					}, 500);
 				});
 			} catch (e) {
 				console.error('Error initializing map:', e);
 				showErrorOverlay('Failed to initialize map: ' + (e.message || e));
 			}
+		}
+
+		// Save view state to extension
+		function saveViewStateToExtension() {
+			if (!map) {
+				return;
+			}
+
+			var center = map.getCenter();
+			var viewState = {
+				center: {
+					lat: center.lat,
+					lng: center.lng
+				},
+				zoom: map.getZoom(),
+				bearing: map.getBearing(),
+				pitch: map.getPitch()
+			};
+
+			vscode.postMessage({
+				type: 'viewStateChanged',
+				viewState: viewState
+			});
 		}
 
 		// Update map style dynamically

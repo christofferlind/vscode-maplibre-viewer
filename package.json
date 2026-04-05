@@ -254,6 +254,33 @@
             },
             "required": ["name", "pattern"]
           }
+        },
+        "vscodeMaplibreViewer.lastViewState": {
+          "type": "object",
+          "default": {
+            "center": { "lat": 0, "lng": 0 },
+            "zoom": 1,
+            "bearing": 0,
+            "pitch": 0,
+            "baseMapId": "maplibre-demotiles"
+          },
+          "description": "Last saved map view state (center, zoom, bearing, pitch, baseMapId). Automatically updated when the map view changes.",
+          "properties": {
+            "center": {
+              "type": "object",
+              "properties": {
+                "lat": { "type": "number" },
+                "lng": { "type": "number" }
+              }
+            },
+            "zoom": { "type": "number" },
+            "bearing": { "type": "number" },
+            "pitch": { "type": "number" },
+            "baseMapId": {
+              "type": "string",
+              "description": "ID of the last selected base map"
+            }
+          }
         }
       }
     }
