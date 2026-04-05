@@ -339,6 +339,24 @@ export function activate(context: vscode.ExtensionContext): MapLibreViewerAPI {
 		})
 	);
 
+	// Register enable coordinate selection command (for toolbar icon when disabled)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.enableCoordinateSelection', async () => {
+			await context.globalState.update('coordinateSelectionEnabled', true);
+			vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', true);
+			vscode.window.showInformationMessage('Coordinate selection enabled');
+		})
+	);
+
+	// Register disable coordinate selection command (for toolbar icon when enabled)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.disableCoordinateSelection', async () => {
+			await context.globalState.update('coordinateSelectionEnabled', false);
+			vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', false);
+			vscode.window.showInformationMessage('Coordinate selection disabled');
+		})
+	);
+
 	// Register open settings command
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscodeMaplibreViewer.openSettings', () => {

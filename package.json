@@ -64,9 +64,20 @@
       },
       {
         "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
-        "title": "Listen for Coordinate Selection",
+        "title": "Toggle Coordinate Selection",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.enableCoordinateSelection",
+        "title": "Enable Coordinate Selection",
         "category": "MapLibre Viewer",
         "icon": "$(sync)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.disableCoordinateSelection",
+        "title": "Disable Coordinate Selection",
+        "category": "MapLibre Viewer",
+        "icon": "$(sync-ignored)"
       },
       {
         "command": "vscodeMaplibreViewer.openSettings",
@@ -125,29 +136,27 @@
         {
           "command": "vscodeMaplibreViewer.setLanguage",
           "when": "view == mapsView",
-          "group": "navigation@1"
+          "group": "1_languages"
         },
         {
-          "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
-          "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == true",
-          "group": "navigation@2",
-          "icon": "$(sync)"
-        },
-        {
-          "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
+          "command": "vscodeMaplibreViewer.enableCoordinateSelection",
           "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == false",
-          "group": "navigation@2",
-          "icon": "$(sync-ignored)"
+          "group": "2_coordinates"
         },
         {
-          "command": "vscodeMaplibreViewer.openSettings",
-          "when": "view == mapsView",
-          "group": "navigation@3"
+          "command": "vscodeMaplibreViewer.disableCoordinateSelection",
+          "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == true",
+          "group": "2_coordinates"
         },
         {
           "command": "vscodeMaplibreViewer.saveBookmark",
           "when": "view == mapsView",
-          "group": "navigation@4"
+          "group": "navigation@1"
+        },
+        {
+          "command": "vscodeMaplibreViewer.openSettings",
+          "when": "view == mapsView",
+          "group": "navigation@2"
         },
         {
           "command": "vscodeMaplibreViewer.addLayer",
