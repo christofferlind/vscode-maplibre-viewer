@@ -76,15 +76,14 @@
       },
       {
         "command": "vscodeMaplibreViewer.saveBookmark",
-        "title": "Map: Save Current View",
+        "title": "Map: Bookmark Current View",
         "category": "MapLibre Viewer",
         "icon": "$(bookmark)"
       },
       {
         "command": "vscodeMaplibreViewer.loadBookmark",
-        "title": "Map: Load Saved Place...",
-        "category": "MapLibre Viewer",
-        "icon": "$(arrow-right)"
+        "title": "Map: Load Bookmark...",
+        "category": "MapLibre Viewer"
       },
       {
         "command": "vscodeMaplibreViewer.goToBookmark",
@@ -149,11 +148,6 @@
           "command": "vscodeMaplibreViewer.saveBookmark",
           "when": "view == mapsView",
           "group": "navigation@4"
-        },
-        {
-          "command": "vscodeMaplibreViewer.loadBookmark",
-          "when": "view == mapsView",
-          "group": "navigation@5"
         },
         {
           "command": "vscodeMaplibreViewer.addLayer",
