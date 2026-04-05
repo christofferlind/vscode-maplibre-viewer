@@ -26,6 +26,106 @@ The coordinate parser intelligently handles:
 - Negative coordinates
 - Coordinate validation
 
+#### Custom Coordinate Patterns
+
+You can extend the coordinate parser with custom patterns to detect coordinate formats specific to your workflow or data sources. This is useful for proprietary formats, regional coordinate systems, or specialized notation.
+
+##### Adding Patterns via VS Code Settings
+
+1. Open VS Code Settings (`Ctrl+,` / `Cmd+,`)
+2. Search for "MapLibre Viewer" or navigate to **Extensions > MapLibre Viewer**
+3. Find the **Coordinate Patterns** setting
+4. Click **Edit in settings.json** to add your patterns
+
+Alternatively, edit your `settings.json` directly:
+
+```json
+{
+  "vscodeMaplibreViewer.coordinatePatterns": [
+    {
+      "name": "Swedish Grid (SWEREF99 TM)",
+      "pattern": "X:\\s*(?<lng>\\d+)\\s*,\\s*Y:\\s*(?<lat>\\d+)",
+      "flags": "g"
+    },
+    {
+      "name": "UTM Coordinates",
+      "pattern": "UTM\\s*\\d+[NS]\\s*(?<lng>\\d+)\\s*(?<?<lat>\\d+)",
+      "flags": "gi"
+    },
+    {
+      "name": "British National Grid",
+      "pattern": "Easting:\\s*(?<lng>\\d+)\\s*Northing:\\s*(?<lat>\\d+)",
+      "flags": "g"
+    }
+  ]
+}
+```
+
+**Pattern Properties:**
+- `name` (required): A descriptive name for the pattern (shown in logs and error messages)
+- `pattern` (required): The regex pattern string with named capture groups
+- `flags` (optional): Regex flags (default: `g`). Common flags:
+  - `g` - Global (find all matches, required)
+  - `i` - Case-insensitive matching
+  - `m` - Multiline mode
+
+##### Adding Patterns Programmatically
+
+For extension developers or advanced use cases, you can add patterns via the API:
+
+```typescript
+import { addCoordinatePattern, clearCustomPatterns, getCoordinatePatterns } from 'vscode-maplibre-viewer';
+
+// Example 1: Swedish SWEREF99 TM coordinates
+// Format: "X: 123456, Y: 6543210"
+addCoordinatePattern(/X:\s*(?<lng>\d+)\s*,\s*Y:\s*(?<lat>\d+)/g);
+
+// Example 2: UTM coordinates with zone
+// Format: "UTM 33N 123456 6543210"
+addCoordinatePattern(/UTM\s*\d+[NS]\s*(?<lng>\d+)\s*(?<lat>\d+)/gi);
+
+// Example 3: British National Grid
+// Format: "Easting: 123456 Northing: 6543210"
+addCoordinatePattern(/Easting:\s*(?<lng>\d+)\s*Northing:\s*(?<lat>\d+)/g);
+
+// Example 4: Custom format with labels
+// Format: "LAT: 59.3293 LON: 18.0686"
+addCoordinatePattern(/LAT:\s*(?<lat>-?\d+\.?\d*)\s+LON:\s*(?<lng>-?\d+\.?\d*)/gi);
+
+// Get all registered patterns (default + custom)
+const allPatterns = getCoordinatePatterns();
+
+// Clear all custom patterns (keeps default patterns)
+clearCustomPatterns();
+```
+
+##### Pattern Requirements
+
+**Named Groups:**
+- For simple coordinates: Use `(?<lat>...)` and `(?<lng>...)` named groups
+- For DMS (Degrees Minutes Seconds) format: Use these named groups:
+  - `latDegrees`, `latMinutes`, `latSeconds`, `latDirection`
+  - `lngDegrees`, `lngMinutes`, `lngSeconds`, `lngDirection`
+
+**Regex Flags:**
+- Always include the `g` (global) flag to find all matches in the text
+- Use `i` flag for case-insensitive matching (e.g., `LAT`/`lat`/`Lat`)
+
+**Escaping in JSON:**
+When writing patterns in `settings.json`, remember to double-escape backslashes:
+- `\d` becomes `\\d`
+- `\s` becomes `\\s`
+- `\.` becomes `\\.`
+
+##### Testing Your Patterns
+
+You can test your custom patterns by:
+1. Adding them to settings
+2. Selecting text containing coordinates in your format
+3. The map should automatically navigate to the detected coordinates
+
+If a pattern fails to load, check the **Output** panel (View > Output) for error messages.
+
 ### 🌐 Multi-Language Map Labels
 
 Support for 60+ languages for map labels:

@@ -1,8 +1,9 @@
 /**
  * Coordinate Parser Module
- * 
+ *
  * Parses various coordinate formats from text strings.
  * Supports decimal degrees, DMS format, GeoJSON arrays, and URL formats.
+ * Additional patterns can be registered via addCoordinatePattern().
  */
 
 /**
@@ -11,6 +12,57 @@
 export interface Coordinate {
     latitude: number;
     longitude: number;
+}
+
+/**
+ * Registry for custom coordinate patterns.
+ * Patterns must have named groups 'lat' and 'lng' for direct coordinate extraction,
+ * or named groups for DMS components (latDegrees, latMinutes, latSeconds, latDirection,
+ * lngDegrees, lngMinutes, lngSeconds, lngDirection).
+ */
+const customPatterns: RegExp[] = [];
+
+/**
+ * Default coordinate patterns built into the parser.
+ */
+const defaultPatterns: RegExp[] = [
+    // GeoJSON format: [lng, lat]
+    /\[\s*(?<lng>-?\d+\.?\d*)\s*[,\s]\s*(?<lat>-?\d+\.?\d*)\s*\]/g,
+    // URL format: @lat,lng or @lat lng
+    /@(?<lat>-?\d+\.?\d*)\s*[,\s]\s*(?<lng>-?\d+\.?\d*)/g,
+    // DMS format: 59°19'45.5"N 18°4'7.0"E
+    /(?<latDegrees>-?\d+)(?:°|\s)+(?<latMinutes>\d+)?(?:['\s])*(?<latSeconds>\d+\.?\d*)?(?:"|\s)*(?<latDirection>[NS])?\s*(?<lngDegrees>-?\d+)(?:°|\s)+(?<lngMinutes>\d+)?(?:['\s])*(?<lngSeconds>\d+\.?\d*)?(?:"|\s)*(?<lngDirection>[EW])?/gi,
+    // Decimal degrees: lat,lng or lat lng
+    /(?<lat>-?\d+\.?\d*)\s*[,\s]\s*(?<lng>-?\d+\.?\d*)/g
+];
+
+/**
+ * Adds a custom coordinate pattern to the registry.
+ * Patterns must have named groups 'lat' and 'lng' for direct coordinate extraction,
+ * or named groups for DMS components.
+ *
+ * @param pattern - RegExp pattern with named groups for coordinate extraction
+ * @example
+ * // Add a pattern for MGRS format
+ * addCoordinatePattern(/(?<lat>\d+\.\d+).*?(?<lng>\d+\.\d+)/g);
+ */
+export function addCoordinatePattern(pattern: RegExp): void {
+    customPatterns.push(pattern);
+}
+
+/**
+ * Removes all custom coordinate patterns from the registry.
+ */
+export function clearCustomPatterns(): void {
+    customPatterns.length = 0;
+}
+
+/**
+ * Gets all registered patterns (default + custom).
+ * @returns Array of all registered regex patterns
+ */
+export function getCoordinatePatterns(): RegExp[] {
+    return [...defaultPatterns, ...customPatterns];
 }
 
 /**
@@ -32,14 +84,9 @@ export function parseCoordinate(text: string): Coordinate | null {
         return null;
     }
     
-    // Try each format in order of specificity
-    const result = 
-        tryGeoJSON(trimmed) ||
-        tryURLFormat(trimmed) ||
-        tryDMS(trimmed) ||
-        tryDecimalDegrees(trimmed);
-    
-    return result;
+    // Parse coordinates from the text and return the first match
+    const coordinates = parseMultipleCoordinates(trimmed);
+    return coordinates.length > 0 ? coordinates[0] : null;
 }
 
 /**
@@ -56,132 +103,65 @@ export function parseMultipleCoordinates(text: string): Coordinate[] {
         return [];
     }
     
-    const coordinates: Coordinate[] = [];
+    // Get all patterns (default + custom)
+    const patterns = getCoordinatePatterns();
     
-    // Try to find all coordinate patterns in the text
-    coordinates.push(...findGeoJSONCoordinates(trimmed));
-    coordinates.push(...findURLFormatCoordinates(trimmed));
-    coordinates.push(...findDMSCoordinates(trimmed));
-    coordinates.push(...findDecimalDegreeCoordinates(trimmed));
+    // Find all coordinates using all patterns
+    const coordinates = findCoordinatesRegex(trimmed, patterns);
     
     // Remove duplicates (coordinates within 0.000001 degrees are considered the same)
     return deduplicateCoordinates(coordinates);
 }
 
 /**
- * Finds all GeoJSON array coordinates in text.
+ * Finds all coordinates in text using a list of regex patterns.
+ * Each regex must have named groups 'lat' and 'lng' for direct coordinate extraction,
+ * or named groups for DMS components (latDegrees, latMinutes, latSeconds, latDirection,
+ * lngDegrees, lngMinutes, lngSeconds, lngDirection).
+ *
+ * @param text - The text to search for coordinates
+ * @param patterns - Array of regex patterns with named groups
+ * @returns An array of Coordinate objects found in the text
  */
-function findGeoJSONCoordinates(text: string): Coordinate[] {
+function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordinate[] {
     const coordinates: Coordinate[] = [];
-    const pattern = /\[\s*(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)\s*\]/g;
-    let match;
     
-    while ((match = pattern.exec(text)) !== null) {
-        const lng = parseFloat(match[1]);
-        const lat = parseFloat(match[2]);
+    for (const pattern of patterns) {
+        // Reset lastIndex for global patterns
+        pattern.lastIndex = 0;
         
-        if (isValidCoordinate(lat, lng)) {
-            coordinates.push({ latitude: lat, longitude: lng });
-        }
-    }
-    
-    return coordinates;
-}
-
-/**
- * Finds all URL format coordinates in text.
- */
-function findURLFormatCoordinates(text: string): Coordinate[] {
-    const coordinates: Coordinate[] = [];
-    const pattern = /@(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)/g;
-    let match;
-    
-    while ((match = pattern.exec(text)) !== null) {
-        const first = parseFloat(match[1]);
-        const second = parseFloat(match[2]);
-        
-        let lat: number;
-        let lng: number;
-        
-        if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
-            lng = first;
-            lat = second;
-        } else if (Math.abs(second) > 90 && Math.abs(first) <= 90) {
-            lat = first;
-            lng = second;
-        } else {
-            lat = first;
-            lng = second;
-        }
-        
-        if (isValidCoordinate(lat, lng)) {
-            coordinates.push({ latitude: lat, longitude: lng });
-        }
-    }
-    
-    return coordinates;
-}
-
-/**
- * Finds all DMS format coordinates in text.
- */
-function findDMSCoordinates(text: string): Coordinate[] {
-    const coordinates: Coordinate[] = [];
-    // Pattern for DMS format with various separators
-    const pattern = /(-?\d+)(?:°|\s)+(\d+)?(?:['\s])*(\d+\.?\d*)?(?:"|\s)*([NS])?\s*(-?\d+)(?:°|\s)+(\d+)?(?:['\s])*(\d+\.?\d*)?(?:"|\s)*([EW])?/gi;
-    let match;
-    
-    while ((match = pattern.exec(text)) !== null) {
-        const latDegrees = parseFloat(match[1]);
-        const latMinutes = match[2] ? parseFloat(match[2]) : 0;
-        const latSeconds = match[3] ? parseFloat(match[3]) : 0;
-        const latDirection = match[4] ? match[4].toUpperCase() : 'N';
-        
-        const lngDegrees = parseFloat(match[5]);
-        const lngMinutes = match[6] ? parseFloat(match[6]) : 0;
-        const lngSeconds = match[7] ? parseFloat(match[7]) : 0;
-        const lngDirection = match[8] ? match[8].toUpperCase() : 'E';
-        
-        const lat = dmsToDecimal(latDegrees, latMinutes, latSeconds, latDirection);
-        const lng = dmsToDecimal(lngDegrees, lngMinutes, lngSeconds, lngDirection);
-        
-        if (isValidCoordinate(lat, lng)) {
-            coordinates.push({ latitude: lat, longitude: lng });
-        }
-    }
-    
-    return coordinates;
-}
-
-/**
- * Finds all decimal degree coordinates in text.
- */
-function findDecimalDegreeCoordinates(text: string): Coordinate[] {
-    const coordinates: Coordinate[] = [];
-    // Match patterns like: 59.3293, 18.0686 or 59.3293 18.0686
-    const pattern = /(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)/g;
-    let match;
-    
-    while ((match = pattern.exec(text)) !== null) {
-        const first = parseFloat(match[1]);
-        const second = parseFloat(match[2]);
-        
-        let lat: number;
-        let lng: number;
-        
-        if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
-            lng = first;
-            lat = second;
-        } else if (Math.abs(second) > 90 && Math.abs(first) <= 90) {
-            lat = first;
-            lng = second;
-        } else {
-            lat = first;
-            lng = second;
-        }
-        
-        if (isValidCoordinate(lat, lng)) {
-            coordinates.push({ latitude: lat, longitude: lng });
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+            const groups = match.groups;
+            if (!groups) continue;
+            
+            let lat: number | null = null;
+            let lng: number | null = null;
+            
+            // Check for direct lat/lng groups
+            if ('lat' in groups && 'lng' in groups) {
+                lat = parseFloat(groups.lat);
+                lng = parseFloat(groups.lng);
+            }
+            // Check for DMS format groups
+            else if ('latDegrees' in groups && 'lngDegrees' in groups) {
+                const latDegrees = parseFloat(groups.latDegrees);
+                const latMinutes = groups.latMinutes ? parseFloat(groups.latMinutes) : 0;
+                const latSeconds = groups.latSeconds ? parseFloat(groups.latSeconds) : 0;
+                const latDirection = groups.latDirection ? groups.latDirection.toUpperCase() : 'N';
+                
+                const lngDegrees = parseFloat(groups.lngDegrees);
+                const lngMinutes = groups.lngMinutes ? parseFloat(groups.lngMinutes) : 0;
+                const lngSeconds = groups.lngSeconds ? parseFloat(groups.lngSeconds) : 0;
+                const lngDirection = groups.lngDirection ? groups.lngDirection.toUpperCase() : 'E';
+                
+                lat = dmsToDecimal(latDegrees, latMinutes, latSeconds, latDirection);
+                lng = dmsToDecimal(lngDegrees, lngMinutes, lngSeconds, lngDirection);
+            }
+            
+            if (lat !== null && lng !== null && isValidCoordinate(lat, lng)) {
+                coordinates.push({ latitude: lat, longitude: lng });
+            }
         }
     }
     
@@ -252,90 +232,6 @@ function isValidCoordinate(lat: number, lng: number): boolean {
 }
 
 /**
- * Attempts to parse decimal degrees format.
- * Examples: "59.3293, 18.0686", "59.3293,18.0686", "59.3293 18.0686", "-33.8688, 151.2093"
- */
-function tryDecimalDegrees(text: string): Coordinate | null {
-    // Match patterns like:
-    // 59.3293, 18.0686
-    // 59.3293,18.0686
-    // 59.3293 18.0686
-    // -33.8688, 151.2093
-    const pattern = /^(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)$/;
-    const match = text.match(pattern);
-    
-    if (!match) {
-        return null;
-    }
-    
-    const first = parseFloat(match[1]);
-    const second = parseFloat(match[2]);
-    
-    // Determine which is latitude and which is longitude
-    // Convention: first value is typically latitude
-    // Exception: if one value is > 90 or < -90, it must be longitude
-    let lat: number;
-    let lng: number;
-    
-    if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
-        // First value is longitude (out of latitude range)
-        lng = first;
-        lat = second;
-    } else if (Math.abs(second) > 90 && Math.abs(first) <= 90) {
-        // Second value is longitude (out of latitude range)
-        lat = first;
-        lng = second;
-    } else {
-        // Both values could be valid latitude - use standard convention
-        lat = first;
-        lng = second;
-    }
-    
-    if (!isValidCoordinate(lat, lng)) {
-        return null;
-    }
-    
-    return { latitude: lat, longitude: lng };
-}
-
-/**
- * Attempts to parse DMS (Degrees Minutes Seconds) format.
- * Examples: "59°19'45.5\"N 18°4'7.0\"E", "59 19 45.5 N 18 4 7.0 E"
- */
-function tryDMS(text: string): Coordinate | null {
-    // Pattern for DMS format with various separators
-    // Matches: 59°19'45.5"N 18°4'7.0"E or 59 19 45.5 N 18 4 7.0 E
-    const pattern = /(-?\d+)(?:°|\s)+(\d+)?(?:['\s])*(\d+\.?\d*)?(?:"|\s)*([NS])?\s*(-?\d+)(?:°|\s)+(\d+)?(?:['\s])*(\d+\.?\d*)?(?:"|\s)*([EW])?/i;
-    const match = text.match(pattern);
-    
-    if (!match) {
-        return null;
-    }
-    
-    // Parse first coordinate (latitude)
-    const latDegrees = parseFloat(match[1]);
-    const latMinutes = match[2] ? parseFloat(match[2]) : 0;
-    const latSeconds = match[3] ? parseFloat(match[3]) : 0;
-    const latDirection = match[4] ? match[4].toUpperCase() : 'N';
-    
-    // Parse second coordinate (longitude)
-    const lngDegrees = parseFloat(match[5]);
-    const lngMinutes = match[6] ? parseFloat(match[6]) : 0;
-    const lngSeconds = match[7] ? parseFloat(match[7]) : 0;
-    const lngDirection = match[8] ? match[8].toUpperCase() : 'E';
-    
-    // Convert DMS to decimal degrees
-    let lat = dmsToDecimal(latDegrees, latMinutes, latSeconds, latDirection);
-    let lng = dmsToDecimal(lngDegrees, lngMinutes, lngSeconds, lngDirection);
-    
-    if (!isValidCoordinate(lat, lng)) {
-        return null;
-    }
-    
-    return { latitude: lat, longitude: lng };
-}
-
-/**
  * Converts DMS (Degrees Minutes Seconds) to decimal degrees.
  */
 function dmsToDecimal(degrees: number, minutes: number, seconds: number, direction: string): number {
@@ -347,68 +243,4 @@ function dmsToDecimal(degrees: number, minutes: number, seconds: number, directi
     
     // Round to 6 decimal places for precision
     return Math.round(decimal * 1000000) / 1000000;
-}
-
-/**
- * Attempts to parse GeoJSON array format.
- * Note: GeoJSON uses [longitude, latitude] order.
- * Example: "[18.0686, 59.3293]"
- */
-function tryGeoJSON(text: string): Coordinate | null {
-    // Match patterns like: [18.0686, 59.3293] or [ 18.0686, 59.3293 ]
-    const pattern = /\[\s*(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)\s*\]/;
-    const match = text.match(pattern);
-    
-    if (!match) {
-        return null;
-    }
-    
-    // GeoJSON order is [longitude, latitude]
-    const lng = parseFloat(match[1]);
-    const lat = parseFloat(match[2]);
-    
-    if (!isValidCoordinate(lat, lng)) {
-        return null;
-    }
-    
-    return { latitude: lat, longitude: lng };
-}
-
-/**
- * Attempts to parse URL format coordinates.
- * Example: "@59.3293,18.0686" (common in mapping URLs)
- */
-function tryURLFormat(text: string): Coordinate | null {
-    // Match patterns like: @59.3293,18.0686 or @59.3293 18.0686
-    const pattern = /@(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)/;
-    const match = text.match(pattern);
-    
-    if (!match) {
-        return null;
-    }
-    
-    const first = parseFloat(match[1]);
-    const second = parseFloat(match[2]);
-    
-    // URL format typically has latitude first
-    let lat: number;
-    let lng: number;
-    
-    if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
-        lng = first;
-        lat = second;
-    } else if (Math.abs(second) > 90 && Math.abs(first) <= 90) {
-        lat = first;
-        lng = second;
-    } else {
-        // Standard convention: latitude first in URL format
-        lat = first;
-        lng = second;
-    }
-    
-    if (!isValidCoordinate(lat, lng)) {
-        return null;
-    }
-    
-    return { latitude: lat, longitude: lng };
 }

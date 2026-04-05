@@ -230,6 +230,30 @@
             },
             "required": ["id", "name", "styleUrl"]
           }
+        },
+        "vscodeMaplibreViewer.coordinatePatterns": {
+          "type": "array",
+          "default": [],
+          "description": "Custom regex patterns for coordinate detection. Each pattern must have named groups 'lat' and 'lng' for direct coordinate extraction, or DMS component groups (latDegrees, latMinutes, latSeconds, latDirection, lngDegrees, lngMinutes, lngSeconds, lngDirection).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "A descriptive name for the pattern (e.g., 'Swedish Grid')"
+              },
+              "pattern": {
+                "type": "string",
+                "description": "The regex pattern string. Must include named groups 'lat' and 'lng'. Example: 'X:\\s*(?<lng>\\d+)\\s*,\\s*Y:\\s*(?<lat>\\d+)'"
+              },
+              "flags": {
+                "type": "string",
+                "default": "g",
+                "description": "Regex flags (e.g., 'g' for global, 'i' for case-insensitive). Default is 'g'."
+              }
+            },
+            "required": ["name", "pattern"]
+          }
         }
       }
     }

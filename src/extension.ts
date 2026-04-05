@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, Coordinate } from './coordinateParser';
+import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, Coordinate, addCoordinatePattern, clearCustomPatterns } from './coordinateParser';
 import { BookmarkManager } from './bookmarkManager';
 import { MapBookmark, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
@@ -105,6 +105,37 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
 	{ label: 'Xhosa', description: 'isiXhosa', languageCode: 'xh' }
 ];
 
+/**
+ * Loads custom coordinate patterns from VS Code settings
+ */
+function loadCustomCoordinatePatterns(): void {
+	// Clear any existing custom patterns
+	clearCustomPatterns();
+	
+	// Get custom patterns from configuration
+	const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+	const patterns = config.get<Array<{name: string; pattern: string; flags?: string}>>('coordinatePatterns');
+	
+	if (!patterns || patterns.length === 0) {
+		return;
+	}
+	
+	// Add each custom pattern
+	for (const patternConfig of patterns) {
+		try {
+			const flags = patternConfig.flags || 'g';
+			const regex = new RegExp(patternConfig.pattern, flags);
+			addCoordinatePattern(regex);
+			console.log(`Loaded custom coordinate pattern: ${patternConfig.name}`);
+		} catch (error) {
+			console.error(`Failed to load custom coordinate pattern "${patternConfig.name}": ${error}`);
+			vscode.window.showWarningMessage(
+				`Invalid coordinate pattern "${patternConfig.name}": ${error instanceof Error ? error.message : String(error)}`
+			);
+		}
+	}
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext): MapLibreViewerAPI {
@@ -112,6 +143,9 @@ export function activate(context: vscode.ExtensionContext): MapLibreViewerAPI {
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "vscode-maplibre-viewer" is now active!');
+
+	// Load custom coordinate patterns from settings
+	loadCustomCoordinatePatterns();
 
 	// Initialize coordinate selection state from globalState (default: true)
 	// MUST be set BEFORE registering the webview view provider
@@ -283,6 +317,11 @@ export function activate(context: vscode.ExtensionContext): MapLibreViewerAPI {
 			// Rebuild basemaps when the baseMaps setting changes
 			if (e.affectsConfiguration('vscodeMaplibreViewer.baseMaps')) {
 				layerTreeProvider.rebuildBaseMaps();
+			}
+			// Reload custom coordinate patterns when the setting changes
+			if (e.affectsConfiguration('vscodeMaplibreViewer.coordinatePatterns')) {
+				loadCustomCoordinatePatterns();
+				vscode.window.showInformationMessage('Custom coordinate patterns reloaded.');
 			}
 		})
 	);
