@@ -511,13 +511,16 @@
 		}
 
 		// Fly to a specific location on the map
-		function flyToLocation(latitude, longitude) {
+		function flyToLocation(latitude, longitude, zoom) {
 			if (!map) {
 				console.warn('Map not initialized');
 				return;
 			}
 
-			console.log('Flying to location:', latitude, longitude);
+			// Use provided zoom or default to 14
+			var zoomLevel = zoom !== undefined ? zoom : 14;
+			
+			console.log('Flying to location:', latitude, longitude, 'at zoom:', zoomLevel);
 
 			// Remove any existing temporary markers
 			clearTemporaryMarkers();
@@ -525,7 +528,7 @@
 			// Fly to the location
 			map.flyTo({
 				center: [longitude, latitude],
-				zoom: 14,
+				zoom: zoomLevel,
 				duration: flyToDuration
 			});
 
@@ -1003,11 +1006,11 @@
 					changeMapLanguage(message.language);
 					break;
 				case 'flyToLocation':
-					console.log('Received flyToLocation request:', message.latitude, message.longitude);
-					if (message.latitude !== undefined && message.longitude !== undefined) {
-						flyToLocation(message.latitude, message.longitude);
-					}
-					break;
+						console.log('Received flyToLocation request:', message.latitude, message.longitude, message.zoom);
+						if (message.latitude !== undefined && message.longitude !== undefined) {
+							flyToLocation(message.latitude, message.longitude, message.zoom);
+						}
+						break;
 				case 'fitBoundingBox':
 					console.log('Received fitBoundingBox request:', message.coordinates, message.boundingBox);
 					if (message.coordinates && message.boundingBox) {

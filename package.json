@@ -204,6 +204,11 @@
           "default": 500,
           "description": "Duration in milliseconds for flyTo animations when navigating to coordinates"
         },
+        "vscodeMaplibreViewer.singlePointZoom": {
+          "type": "number",
+          "default": 10,
+          "description": "Zoom level to use when flying to a single coordinate point"
+        },
         "vscodeMaplibreViewer.baseMaps": {
           "type": "array",
           "default": [],

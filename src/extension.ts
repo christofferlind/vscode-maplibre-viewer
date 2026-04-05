@@ -617,8 +617,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 					mapsViewProvider.fitBoundingBox(coordinates, bbox);
 				}
 			} else if (coordinates.length === 1) {
-				// Single coordinate - fly to it
-				mapsViewProvider.flyToLocation(coordinates[0].latitude, coordinates[0].longitude);
+				// Single coordinate - fly to it with configured zoom level
+				const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+				const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
+				mapsViewProvider.flyToLocation(coordinates[0].latitude, coordinates[0].longitude, singlePointZoom);
 			} else {
 				// Fallback: try single coordinate parsing for backward compatibility
 				const coordinate = parseCoordinate(selectedText);
@@ -827,13 +829,20 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	 * Flies to a specific location on the map
 	 * @param latitude The latitude coordinate
 	 * @param longitude The longitude coordinate
+	 * @param zoom Optional zoom level (defaults to configuration setting)
 	 */
-	public flyToLocation(latitude: number, longitude: number): void {
+	public flyToLocation(latitude: number, longitude: number, zoom?: number): void {
 		if (this._view) {
+			// Get the zoom level from parameter or configuration
+			const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+			const defaultZoom = config.get<number>('singlePointZoom') ?? 14;
+			const zoomLevel = zoom ?? defaultZoom;
+			
 			this._view.webview.postMessage({
 				type: 'flyToLocation',
 				latitude: latitude,
-				longitude: longitude
+				longitude: longitude,
+				zoom: zoomLevel
 			});
 		}
 	}
