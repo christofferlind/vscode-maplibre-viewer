@@ -641,14 +641,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		const filePath = editor.document.uri.fsPath;
 		console.log(`File selected in navigator: ${filePath}`);
 
+		// Only clear the layer if it has content
+		if (!layerTreeProvider.isSelectedFileLayerEmpty()) {
+			await layerTreeProvider.updateSelectedFileLayer(null);
+		}
+
 		// Check if the "Selected file" layer is enabled
 		const selectedFileLayer = layerTreeProvider.getSelectedFileLayer();
 		if (selectedFileLayer && !selectedFileLayer.visible) {
 			console.log('Selected file layer is disabled, skipping file processing');
 			return;
 		}
-
-		await layerTreeProvider.updateSelectedFileLayer(null);
 
 		// Check all registered file-to-GeoJSON adapters
 		const fileExtension = path.extname(filePath).toLowerCase();

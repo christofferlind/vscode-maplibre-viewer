@@ -404,4 +404,18 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     getSelectedFileLayer(): OverlayLayer | undefined {
         return this._overlayLayers.find(l => l.id === SELECTED_FILE_LAYER_ID);
     }
+
+    /**
+     * Checks if the "Selected file" layer has no features (is empty).
+     * @returns true if the layer has no features, false otherwise
+     */
+    isSelectedFileLayerEmpty(): boolean {
+        const layer = this.getSelectedFileLayer();
+        if (!layer || !layer.source || !layer.source.data) {
+            return true;
+        }
+
+        const data = layer.source.data as { type: string; features: unknown[] };
+        return !data.features || data.features.length === 0;
+    }
 }
