@@ -63,10 +63,53 @@ Customize the extension via VS Code settings:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `vscodeMaplibreViewer.mapStyleUrl` | URL to MapLibre style.json | `https://demotiles.maplibre.org/style.json` |
 | `vscodeMaplibreViewer.geocodingApiKey` | API key for geocoding service | `""` (empty) |
 | `vscodeMaplibreViewer.enableSearch` | Enable search functionality | `true` |
 | `vscodeMaplibreViewer.flyToDuration` | Animation duration in ms | `500` |
+| `vscodeMaplibreViewer.baseMaps` | Custom basemap styles | `[]` (empty) |
+
+### 🗺️ Custom Basemaps
+
+You can contribute custom basemaps in two ways:
+
+#### Via Configuration (settings.json)
+
+Add custom basemaps in your VS Code settings:
+
+```json
+{
+  "vscodeMaplibreViewer.baseMaps": [
+    {
+      "id": "osm-standard",
+      "name": "OpenStreetMap",
+      "styleUrl": "https://demotiles.maplibre.org/style.json",
+      "description": "OpenStreetMap default style"
+    },
+    {
+      "id": "maptiler-streets",
+      "name": "MapTiler Streets",
+      "styleUrl": "https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY",
+      "description": "MapTiler streets style"
+    },
+    {
+      "id": "custom-satellite",
+      "name": "My Satellite",
+      "styleUrl": "https://my-server.com/styles/satellite/style.json"
+    }
+  ]
+}
+```
+
+**Basemap Properties:**
+- `id` (required): Unique identifier for the basemap
+- `name` (required): Display name shown in the Layers View
+- `styleUrl` (required): URL to the MapLibre style JSON
+- `description` (optional): Description shown in tooltips
+- `thumbnail` (optional): Thumbnail image URL for the basemap
+
+#### Via Extension API
+
+Other VS Code extensions can register basemaps programmatically. See the [Extension API](#extension-api) section for details.
 
 ### 🎯 Commands
 
@@ -150,6 +193,96 @@ npm run copy-assets
 | `npm run lint` | Run ESLint |
 | `npm run test` | Run tests |
 | `npm run copy-assets` | Copy MapLibre GL assets |
+
+## Extension API
+
+The MapLibre Viewer extension exposes a public API that allows other VS Code extensions to register custom basemaps.
+
+### Accessing the API
+
+```typescript
+const extension = vscode.extensions.getExtension<MapLibreViewerAPI>('your-publisher.vscode-maplibre-viewer');
+const api = extension?.exports;
+
+if (api) {
+    // Register a custom basemap
+    const disposable = api.registerBasemap({
+        id: 'my-custom-basemap',
+        name: 'My Custom Basemap',
+        styleUrl: 'https://my-server.com/style.json',
+        description: 'A custom basemap from my server'
+    });
+    
+    // Clean up when done
+    context.subscriptions.push(disposable);
+}
+```
+
+### API Reference
+
+#### `registerBasemap(provider: BasemapProvider): Disposable`
+
+Register a custom basemap from an external extension.
+
+**BasemapProvider interface:**
+- `id` (string, required): Unique identifier for the basemap
+- `name` (string, required): Display name shown in the Layers View
+- `styleUrl` (string, required): URL to the MapLibre style JSON
+- `description` (string, optional): Description shown in tooltips
+
+Returns a `Disposable` that removes the basemap when disposed.
+
+#### `getBasemaps(): readonly BaseMapStyle[]`
+
+Get all registered basemaps (both built-in and external).
+
+#### `getActiveBasemap(): BaseMapStyle | undefined`
+
+Get the currently active basemap.
+
+#### `onDidChangeActiveBasemap: Event<BaseMapStyle>`
+
+Event that fires when the active basemap changes.
+
+### Example Extension
+
+```typescript
+import * as vscode from 'vscode';
+import { MapLibreViewerAPI, BasemapProvider } from 'vscode-maplibre-viewer';
+
+export function activate(context: vscode.ExtensionContext) {
+    const maplibreExt = vscode.extensions.getExtension<MapLibreViewerAPI>(
+        'publisher.vscode-maplibre-viewer'
+    );
+    
+    if (!maplibreExt?.exports) {
+        console.warn('MapLibre Viewer extension not found');
+        return;
+    }
+    
+    const api = maplibreExt.exports;
+    
+    // Register custom basemaps
+    const basemaps: BasemapProvider[] = [
+        {
+            id: 'my-company.streets',
+            name: 'Company Streets',
+            styleUrl: 'https://tiles.mycompany.com/styles/streets.json',
+            description: 'Company internal street map'
+        },
+        {
+            id: 'my-company.satellite',
+            name: 'Company Satellite',
+            styleUrl: 'https://tiles.mycompany.com/styles/satellite.json'
+        }
+    ];
+    
+    for (const basemap of basemaps) {
+        const disposable = api.registerBasemap(basemap);
+        context.subscriptions.push(disposable);
+    }
+}
+```
 
 ## Requirements
 

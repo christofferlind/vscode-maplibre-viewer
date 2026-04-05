@@ -182,11 +182,6 @@
     "configuration": {
       "title": "MapLibre Viewer",
       "properties": {
-        "vscodeMaplibreViewer.mapStyleUrl": {
-          "type": "string",
-          "default": "https://demotiles.maplibre.org/style.json",
-          "description": "URL to the MapLibre style.json file for the map display"
-        },
         "vscodeMaplibreViewer.geocodingApiKey": {
           "type": "string",
           "default": "",
@@ -201,6 +196,37 @@
           "type": "number",
           "default": 500,
           "description": "Duration in milliseconds for flyTo animations when navigating to coordinates"
+        },
+        "vscodeMaplibreViewer.baseMaps": {
+          "type": "array",
+          "default": [],
+          "description": "Custom basemap styles available in the layer selector. Each basemap requires an id, name, and styleUrl.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique identifier for the basemap"
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name shown in the layer selector"
+              },
+              "styleUrl": {
+                "type": "string",
+                "description": "URL to the MapLibre style JSON"
+              },
+              "description": {
+                "type": "string",
+                "description": "Optional description of the basemap"
+              },
+              "thumbnail": {
+                "type": "string",
+                "description": "Optional thumbnail image URL for the basemap"
+              }
+            },
+            "required": ["id", "name", "styleUrl"]
+          }
         }
       }
     }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BaseMapStyle, OverlayLayer, DEFAULT_BASE_MAPS, DEFAULT_OVERLAY_LAYERS } from './layerTypes';
+import { BaseMapStyle, OverlayLayer, DEFAULT_OVERLAY_LAYERS } from './layerTypes';
 
 /**
  * Tree item types for internal use
@@ -17,6 +17,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         this._onDidChangeTreeData.event;
 
     private _baseMaps: BaseMapStyle[];
+    private _externalBasemaps: Map<string, BaseMapStyle> = new Map();
     private _overlayLayers: OverlayLayer[];
     private _activeBaseMapId: string;
     private _extensionContext: vscode.ExtensionContext;
@@ -36,21 +37,18 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     constructor(context: vscode.ExtensionContext) {
         this._extensionContext = context;
         
-        // Load base maps from settings or use defaults
-        const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-        const customBaseMaps = config.get<BaseMapStyle[]>('baseMaps');
-        this._baseMaps = customBaseMaps && customBaseMaps.length > 0 
-            ? customBaseMaps 
-            : [...DEFAULT_BASE_MAPS];
+        // Initialize base maps from configuration and external registrations
+        this._baseMaps = [];
+        this._rebuildBaseMaps();
         
         // Load overlay layers from globalState or use defaults
-        this._overlayLayers = context.globalState.get<OverlayLayer[]>('overlayLayers') 
+        this._overlayLayers = context.globalState.get<OverlayLayer[]>('overlayLayers')
             || [...DEFAULT_OVERLAY_LAYERS];
         
-        // Load active base map from globalState or use first one
-        this._activeBaseMapId = context.globalState.get<string>('activeBaseMapId') 
-            || this._baseMaps[0]?.id 
-            || 'maplibre-demo';
+        // Load active base map from globalState or use first one, or 'basic' as fallback
+        this._activeBaseMapId = context.globalState.get<string>('activeBaseMapId')
+            || this._baseMaps[0]?.id
+            || 'basic';
     }
 
     /**
@@ -245,5 +243,85 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
      */
     private isOverlayLayer(item: TreeItem): item is OverlayLayer {
         return typeof item === 'object' && item !== null && 'visible' in item;
+    }
+
+    /**
+     * Register a basemap from an external extension.
+     * @param basemap The basemap to register
+     * @returns A Disposable that removes the basemap when disposed
+     */
+    registerBasemap(basemap: BaseMapStyle): vscode.Disposable {
+        // Validate required fields
+        if (!basemap.id || !basemap.name || !basemap.styleUrl) {
+            throw new Error('Basemap must have id, name, and styleUrl');
+        }
+        
+        // Check for duplicate ID
+        if (this._baseMaps.some(bm => bm.id === basemap.id)) {
+            console.warn(`Basemap '${basemap.id}' already exists, replacing`);
+        }
+        
+        // Add to external basemaps map
+        this._externalBasemaps.set(basemap.id, basemap);
+        
+        // Rebuild baseMaps array (defaults + external)
+        this._rebuildBaseMaps();
+        
+        // Refresh the tree
+        this._onDidChangeTreeData.fire(undefined);
+        
+        // Return disposable for cleanup
+        return new vscode.Disposable(() => {
+            this._externalBasemaps.delete(basemap.id);
+            this._rebuildBaseMaps();
+            this._onDidChangeTreeData.fire(undefined);
+        });
+    }
+
+    /**
+     * Rebuild the baseMaps array from configuration and external registrations
+     */
+    private _rebuildBaseMaps(): void {
+        // Get basemaps from configuration
+        const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+        const configBaseMaps = config.get<BaseMapStyle[]>('baseMaps') || [];
+        
+        // Start with configured basemaps (no defaults)
+        this._baseMaps = [...configBaseMaps];
+        
+        // Append external basemaps
+        for (const basemap of this._externalBasemaps.values()) {
+            // Remove any existing basemap with same ID (in case of replacement)
+            this._baseMaps = this._baseMaps.filter(bm => bm.id !== basemap.id);
+            this._baseMaps.push(basemap);
+        }
+    }
+
+    /**
+     * Public method to rebuild basemaps when configuration changes
+     */
+    rebuildBaseMaps(): void {
+        this._rebuildBaseMaps();
+        
+        // If the currently active basemap no longer exists, switch to the first available
+        if (this._baseMaps.length > 0 && !this._baseMaps.find(bm => bm.id === this._activeBaseMapId)) {
+            this._activeBaseMapId = this._baseMaps[0].id;
+            this._extensionContext.globalState.update('activeBaseMapId', this._activeBaseMapId);
+        }
+        
+        // Notify listeners of the change
+        const activeBaseMap = this.getActiveBaseMap();
+        if (activeBaseMap) {
+            this._onDidChangeLayers.fire({ type: 'baseMap', data: activeBaseMap });
+        }
+        
+        this.refresh();
+    }
+
+    /**
+     * Get all registered basemaps (both built-in and external)
+     */
+    getBasemaps(): readonly BaseMapStyle[] {
+        return this._baseMaps;
     }
 }

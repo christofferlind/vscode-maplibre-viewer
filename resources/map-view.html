@@ -332,54 +332,6 @@
 					hideLoadingOverlay();
 					hideErrorOverlay();
 
-					// Find the first symbol layer (label layer) to insert 3D buildings behind
-					var layers = map.getStyle().layers;
-					var labelLayerId;
-					for (var i = 0; i < layers.length; i++) {
-						if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']) {
-							labelLayerId = layers[i].id;
-							break;
-						}
-					}
-
-					// Add 3D buildings layer using existing vector source from style
-					var buildingLayer = {
-						'id': '3d-buildings',
-						'source': 'openmaptiles',
-						'source-layer': 'building',
-						'type': 'fill-extrusion',
-						'minzoom': 15,
-						'filter': ['!=', ['get', 'hide_3d'], true],
-						'paint': {
-							'fill-extrusion-color': [
-								'interpolate',
-								['linear'],
-								['get', 'render_height'],
-								0, 'lightgray',
-								200, 'royalblue',
-								400, 'lightblue'
-							],
-							'fill-extrusion-height': [
-								'interpolate',
-								['linear'],
-								['zoom'],
-								15, 0,
-								16, ['get', 'render_height']
-							],
-							'fill-extrusion-base': [
-								'case',
-								['>=', ['get', 'zoom'], 16],
-								['get', 'render_min_height'],
-								0
-							]
-						}
-					};
-
-					if (labelLayerId) {
-						map.addLayer(buildingLayer, labelLayerId);
-					} else {
-						map.addLayer(buildingLayer);
-					}
 				});
 			} catch (e) {
 				console.error('Error initializing map:', e);
@@ -880,9 +832,6 @@
 				case 'configUpdate':
 					console.log('Received configuration update:', message.config);
 					if (message.config) {
-						if (message.config.mapStyleUrl) {
-							updateMapStyle(message.config.mapStyleUrl);
-						}
 						if (message.config.flyToDuration !== undefined) {
 							flyToDuration = message.config.flyToDuration;
 						}

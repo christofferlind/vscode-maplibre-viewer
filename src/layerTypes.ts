@@ -69,42 +69,6 @@ export function isOverlayLayer(item: LayerTreeItem): item is OverlayLayer {
 }
 
 /**
- * Default base maps available in the extension
- */
-export const DEFAULT_BASE_MAPS: BaseMapStyle[] = [
-    {
-        id: 'maplibre-demo',
-        name: 'MapLibre Demo',
-        description: 'MapLibre GL demo tiles',
-        styleUrl: 'https://demotiles.maplibre.org/style.json'
-    },
-    {
-        id: 'osm-liberty',
-        name: 'OSM Liberty',
-        description: 'A free Maptiler GL basemap style',
-        styleUrl: 'https://api.maptiler.com/maps/libre/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL'
-    },
-    {
-        id: 'positron',
-        name: 'Positron',
-        description: 'CartoDB Positron style',
-        styleUrl: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
-    },
-    {
-        id: 'voyager',
-        name: 'Voyager',
-        description: 'CartoDB Voyager style',
-        styleUrl: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
-    },
-    {
-        id: 'dark-matter',
-        name: 'Dark Matter',
-        description: 'CartoDB Dark Matter style',
-        styleUrl: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-    }
-];
-
-/**
  * Default overlay layers
  */
 export const DEFAULT_OVERLAY_LAYERS: OverlayLayer[] = [

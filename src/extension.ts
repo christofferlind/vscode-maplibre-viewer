@@ -9,10 +9,10 @@ import { MapBookmark, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
 import { LayerTreeProvider } from './layerTreeProvider';
 import { BaseMapStyle, OverlayLayer } from './layerTypes';
+import { MapLibreViewerAPI, BasemapProvider } from './api';
 
 // Interface for configuration messages sent to the webview
 interface MapConfig {
-	mapStyleUrl: string;
 	geocodingApiKey: string;
 	enableSearch: boolean;
 	flyToDuration: number;
@@ -107,7 +107,7 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+export function activate(context: vscode.ExtensionContext): MapLibreViewerAPI {
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
@@ -123,13 +123,6 @@ export function activate(context: vscode.ExtensionContext) {
 	// Initialize BookmarkManager with globalState for persistence
 	const bookmarkManager = new BookmarkManager(context.globalState);
 
-	// Register the Maps webview provider
-	const mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager);
-
-	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider('mapsView', mapsViewProvider)
-	);
-
 	// Initialize and register the Bookmark Tree Provider
 	const bookmarkTreeProvider = new BookmarkTreeProvider(bookmarkManager);
 
@@ -139,6 +132,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Initialize and register the Layer Tree Provider
 	const layerTreeProvider = new LayerTreeProvider(context);
+
+	// Register the Maps webview provider with the initial active basemap
+	const initialBaseMap = layerTreeProvider.getActiveBaseMap();
+	const mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl);
+
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider('mapsView', mapsViewProvider)
+	);
 
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('layersView', layerTreeProvider)
@@ -278,6 +279,10 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('vscodeMaplibreViewer')) {
 				mapsViewProvider.updateConfiguration();
+			}
+			// Rebuild basemaps when the baseMaps setting changes
+			if (e.affectsConfiguration('vscodeMaplibreViewer.baseMaps')) {
+				layerTreeProvider.rebuildBaseMaps();
 			}
 		})
 	);
@@ -545,6 +550,45 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Clean up the listener when the extension is deactivated
 	context.subscriptions.push(selectionListener);
+
+	// Create an event emitter for active basemap changes (for external API)
+	const onDidChangeActiveBasemapEmitter = new vscode.EventEmitter<BaseMapStyle>();
+	
+	// Listen to layer changes and forward only basemap changes
+	layerTreeProvider.onDidChangeLayers((event) => {
+		if (event.type === 'baseMap') {
+			onDidChangeActiveBasemapEmitter.fire(event.data as BaseMapStyle);
+		}
+	});
+
+	// Export the public API for external extensions
+	const api: MapLibreViewerAPI = {
+		registerBasemap: (provider: BasemapProvider) => {
+			// Convert BasemapProvider to BaseMapStyle
+			const basemap: BaseMapStyle = {
+				id: provider.id,
+				name: provider.name,
+				styleUrl: provider.styleUrl,
+				description: provider.description
+			};
+			return layerTreeProvider.registerBasemap(basemap);
+		},
+		getBasemaps: () => layerTreeProvider.getBasemaps(),
+		getActiveBasemap: () => layerTreeProvider.getActiveBaseMap(),
+		onDidChangeActiveBasemap: onDidChangeActiveBasemapEmitter.event
+	};
+
+	// Register the default basemap using our own API
+	const defaultBasemap: BasemapProvider = {
+		id: 'maplibre-demotiles',
+		name: 'Demotiles',
+		styleUrl: 'https://demotiles.maplibre.org/style.json'
+	};
+	const defaultBasemapDisposable = api.registerBasemap(defaultBasemap);
+	context.subscriptions.push(defaultBasemapDisposable);
+
+	// Return the API for other extensions to consume
+	return api;
 }
 
 // This method is called when your extension is deactivated
@@ -555,11 +599,18 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 
 	private _view?: vscode.WebviewView;
 	private _pendingViewStateResolve?: (state: ViewState | undefined) => void;
+	private _currentBaseMapStyleUrl?: string;
 
 	constructor(
 		private readonly _extensionUri: vscode.Uri,
-		private readonly _bookmarkManager: BookmarkManager
-	) {}
+		private readonly _bookmarkManager: BookmarkManager,
+		initialStyleUrl?: string
+	) {
+		// Store the initial style URL if provided
+		if (initialStyleUrl) {
+			this._currentBaseMapStyleUrl = initialStyleUrl;
+		}
+	}
 
 	public resolveWebviewView(
 		webviewView: vscode.WebviewView,
@@ -662,12 +713,12 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	 * @param baseMap The base map style to use
 	 */
 	public setBaseMap(baseMap: BaseMapStyle): void {
+		// Store the current style URL for when the webview is created
+		this._currentBaseMapStyleUrl = baseMap.styleUrl;
+		
 		if (this._view) {
-			this._view.webview.postMessage({
-				type: 'setBaseMap',
-				styleUrl: baseMap.styleUrl,
-				name: baseMap.name
-			});
+			// Reload the webview with the new style URL
+			this._view.webview.html = this._getHtmlForWebview(this._view.webview);
 		}
 	}
 
@@ -744,7 +795,6 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	private getConfiguration(): MapConfig {
 		const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
 		return {
-			mapStyleUrl: config.get<string>('mapStyleUrl') || 'https://demotiles.maplibre.org/style.json',
 			geocodingApiKey: config.get<string>('geocodingApiKey') || '',
 			enableSearch: config.get<boolean>('enableSearch') ?? true,
 			flyToDuration: config.get<number>('flyToDuration') ?? 500
@@ -766,6 +816,9 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		// Get the current configuration
 		const config = this.getConfiguration();
 
+		// Use the stored base map style URL if available, otherwise use default
+		const styleUrl = this._currentBaseMapStyleUrl || 'https://demotiles.maplibre.org/style.json';
+
 		// Get webview URIs for local MapLibre assets
 		const maplibreJsUri = this._getUri(webview, 'resources', 'maplibre-gl', 'maplibre-gl.js');
 		const maplibreCssUri = this._getUri(webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
@@ -783,7 +836,7 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		// Replace the placeholders with actual values
 		htmlContent = htmlContent.replace(/\$\{cspSource\}/g, webview.cspSource);
 		htmlContent = htmlContent.replace(/\$\{nonce\}/g, nonce);
-		htmlContent = htmlContent.replace(/\$\{mapStyleUrl\}/g, config.mapStyleUrl);
+		htmlContent = htmlContent.replace(/\$\{mapStyleUrl\}/g, styleUrl);
 		htmlContent = htmlContent.replace(/\$\{geocodingApiKey\}/g, config.geocodingApiKey);
 		htmlContent = htmlContent.replace(/\$\{enableSearch\}/g, String(config.enableSearch));
 		htmlContent = htmlContent.replace(/\$\{flyToDuration\}/g, String(config.flyToDuration));
