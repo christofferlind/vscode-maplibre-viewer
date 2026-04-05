@@ -35,18 +35,18 @@ export interface BoundingBox {
  */
 const customPatterns: RegExp[] = [];
 
+// DMS format: 59°19'45.5"N 18°4'7.0"E
+export const regexDMS = /(?<latDegrees>-?\d+)(?:°|\s)+(?<latMinutes>\d+)?(?:['\s])*(?<latSeconds>\d+\.?\d*)?(?:"|\s)*(?<latDirection>[NS])?\s*(?<lngDegrees>-?\d+)(?:°|\s)+(?<lngMinutes>\d+)?(?:['\s])*(?<lngSeconds>\d+\.?\d*)?(?:"|\s)*(?<lngDirection>[EW])?/gi;
+
+// Decimal degrees: lat,lng or lat lng
+export const regexWGS84 = /(?<lat>-?\d+\.?\d*)\s*[,\s]\s*(?<lng>-?\d+\.?\d*)/g;
+
 /**
  * Default coordinate patterns built into the parser.
  */
 const defaultPatterns: RegExp[] = [
-    // GeoJSON format: [lng, lat]
-    /\[\s*(?<lng>-?\d+\.?\d*)\s*[,\s]\s*(?<lat>-?\d+\.?\d*)\s*\]/g,
-    // URL format: @lat,lng or @lat lng
-    /@(?<lat>-?\d+\.?\d*)\s*[,\s]\s*(?<lng>-?\d+\.?\d*)/g,
-    // DMS format: 59°19'45.5"N 18°4'7.0"E
-    /(?<latDegrees>-?\d+)(?:°|\s)+(?<latMinutes>\d+)?(?:['\s])*(?<latSeconds>\d+\.?\d*)?(?:"|\s)*(?<latDirection>[NS])?\s*(?<lngDegrees>-?\d+)(?:°|\s)+(?<lngMinutes>\d+)?(?:['\s])*(?<lngSeconds>\d+\.?\d*)?(?:"|\s)*(?<lngDirection>[EW])?/gi,
-    // Decimal degrees: lat,lng or lat lng
-    /(?<lat>-?\d+\.?\d*)\s*[,\s]\s*(?<lng>-?\d+\.?\d*)/g
+    regexDMS,
+    regexWGS84
 ];
 
 /**
@@ -136,7 +136,7 @@ export function parseMultipleCoordinates(text: string): Coordinate[] {
  * @param patterns - Array of regex patterns with named groups
  * @returns An array of Coordinate objects found in the text
  */
-function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordinate[] {
+export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordinate[] {
     const coordinates: Coordinate[] = [];
     
     for (const pattern of patterns) {
