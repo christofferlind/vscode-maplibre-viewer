@@ -41,10 +41,14 @@ export const regexDMS = /(?<latDegrees>-?\d+)(?:°|\s)+(?<latMinutes>\d+)?(?:['\
 // Decimal degrees: lat,lng or lat lng
 export const regexWGS84 = /(?<lat>-?\d+\.?\d*)\s*[,\s]\s*(?<lng>-?\d+\.?\d*)/g;
 
+// GeoJSON array format: [lng, lat] - first value is longitude, second is latitude
+export const regexGeoJSON = /\[\s*(?<lng>-?\d+\.?\d*)\s*(,|\s)\s*(?<lat>-?\d+\.?\d*)\s*\]/g;
+
 /**
  * Default coordinate patterns built into the parser.
  */
 const defaultPatterns: RegExp[] = [
+    regexGeoJSON,
     regexDMS,
     regexWGS84
 ];
@@ -175,6 +179,10 @@ export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordina
             if (lat !== null && lng !== null && isValidCoordinate(lat, lng)) {
                 coordinates.push({ latitude: lat, longitude: lng });
             }
+        }
+
+        if(coordinates.length > 0) {
+            return coordinates;
         }
     }
     
