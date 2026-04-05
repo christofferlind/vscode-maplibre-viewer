@@ -717,8 +717,12 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		this._currentBaseMapStyleUrl = baseMap.styleUrl;
 		
 		if (this._view) {
-			// Reload the webview with the new style URL
-			this._view.webview.html = this._getHtmlForWebview(this._view.webview);
+			// Send message to webview to update style while preserving view state
+			this._view.webview.postMessage({
+				type: 'setBaseMap',
+				styleUrl: baseMap.styleUrl,
+				name: baseMap.name
+			});
 		}
 	}
 

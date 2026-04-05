@@ -352,7 +352,7 @@
 			}
 
 			console.log('Updating map style to:', newStyleUrl);
-			showLoadingOverlay();
+			showLoadingOverlay('Updating style...');
 
 			currentStyleUrl = newStyleUrl;
 
@@ -370,21 +370,17 @@
 				}
 			});
 
-			// Restore view state after style loads
-			map.once('style.load', function() {
-				map.jumpTo({
-					center: currentCenter,
-					zoom: currentZoom,
-					bearing: currentBearing,
-					pitch: currentPitch
-				});
-				hideLoadingOverlay();
-				console.log('Map style updated successfully');
+			map.jumpTo({
+				center: currentCenter,
+				zoom: currentZoom,
+				bearing: currentBearing,
+				pitch: currentPitch
 			});
+
+			hideLoadingOverlay();
 
 			map.once('error', function(e) {
 				console.error('Error updating map style:', e.error);
-				hideLoadingOverlay();
 			});
 		}
 
@@ -870,6 +866,8 @@
 				case 'setBaseMap':
 					console.log('Received setBaseMap message:', message.styleUrl, message.name);
 					if (message.styleUrl) {
+						// Hide loading overlay first to prevent stale state
+						hideLoadingOverlay();
 						updateMapStyle(message.styleUrl);
 					}
 					break;
