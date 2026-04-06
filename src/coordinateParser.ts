@@ -15,6 +15,14 @@ export interface Coordinate {
 }
 
 /**
+ * Represents a coordinate with its position in the source text
+ */
+export interface CoordinateWithPosition extends Coordinate {
+    startIndex: number;
+    endIndex: number;
+}
+
+/**
  * Represents a GeoJSON position (longitude, latitude order)
  */
 export type GeoJsonPosition = [number, number];
@@ -33,10 +41,11 @@ export interface BoundingBox {
  * or named groups for DMS components (latDegrees, latMinutes, latSeconds, latDirection,
  * lngDegrees, lngMinutes, lngSeconds, lngDirection).
  */
-const customPatterns: RegExp[] = [];
+export const customPatterns: RegExp[] = [];
 
 // DMS format: 59°19'45.5"N 18°4'7.0"E
-export const regexDMS = /(?<latDegrees>-?\d+)(?:°|\s)+(?<latMinutes>\d+)?(?:['\s])*(?<latSeconds>\d+\.?\d*)?(?:"|\s)*(?<latDirection>[NS])?\s*(?<lngDegrees>-?\d+)(?:°|\s)+(?<lngMinutes>\d+)?(?:['\s])*(?<lngSeconds>\d+\.?\d*)?(?:"|\s)*(?<lngDirection>[EW])?/gi;
+// Stricter regex that requires degree symbol (°), minute ('), second ("), and direction
+export const regexDMS = /(?<latDegrees>\d+)°(?<latMinutes>\d+)?'(?<latSeconds>\d+\.?\d*)?"(?<latDirection>[NS])\s+(?<lngDegrees>\d+)°(?<lngMinutes>\d+)?'(?<lngSeconds>\d+\.?\d*)?"(?<lngDirection>[EW])/gi;
 
 // Decimal degrees: lat,lng or lat lng
 export const regexWGS84 = /(?<lat>-?\d+\.?\d*)\s*[,\s]\s*(?<lng>-?\d+\.?\d*)/g;
@@ -143,12 +152,31 @@ export function parseMultipleCoordinates(text: string): Coordinate[] {
 export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordinate[] {
     const coordinates: Coordinate[] = [];
     
+    // Track occupied ranges to skip overlapping matches
+    const occupiedRanges: { start: number; end: number }[] = [];
+    
     for (const pattern of patterns) {
         // Reset lastIndex for global patterns
         pattern.lastIndex = 0;
         
         let match;
         while ((match = pattern.exec(text)) !== null) {
+            const startIndex = match.index;
+            const endIndex = startIndex + match[0].length;
+            
+            // Check if this match overlaps with any previously stored match
+            const overlaps = occupiedRanges.some(range =>
+                startIndex < range.end && endIndex > range.start
+            );
+            
+            if (overlaps) {
+                continue;
+            }
+            
+            // Store the range first to mark this text position as occupied
+            // This ensures any subsequent match within this range is skipped
+            occupiedRanges.push({ start: startIndex, end: endIndex });
+            
             const groups = match.groups;
             if (!groups) continue;
             
@@ -181,9 +209,6 @@ export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordina
             }
         }
 
-        if(coordinates.length > 0) {
-            return coordinates;
-        }
     }
     
     return coordinates;

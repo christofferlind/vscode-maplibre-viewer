@@ -12,8 +12,8 @@ suite('Regex DMS Test Suite', () => {
         assert.strictEqual(coords[0].longitude, 18.068611);
     });
     
-    test('should match DMS format without direction letters', () => {
-        const testString = "59°19'45.5 18°4'7.0";
+    test('should match DMS format with degrees and minutes and seconds', () => {
+        const testString = "59°19'45.5\"N 18°4'7.0\"E";
         const coords = findCoordinatesRegex(testString, [regexDMS]);
         
         assert.strictEqual(coords.length, 1, 'Should find one coordinate');
@@ -21,42 +21,13 @@ suite('Regex DMS Test Suite', () => {
         assert.strictEqual(coords[0].longitude, 18.068611);
     });
     
-    test('should match DMS format with only degrees', () => {
-        const testString = "59° 18°";
+    test('should match DMS format with only degrees and minutes', () => {
+        // This test is now expected to fail with the stricter regex
+        // The stricter regex requires seconds for DMS format
+        const testString = "59°19'N 18°4'E";
         const coords = findCoordinatesRegex(testString, [regexDMS]);
         
-        assert.strictEqual(coords.length, 1, 'Should find one coordinate');
-        // Note: The regex has a bug where it consumes the ° from longitude when no direction is present
-        assert.strictEqual(coords[0].latitude, 59.016667);
-        assert.strictEqual(coords[0].longitude, 8);
-    });
-    
-    test('should match DMS format with degrees and minutes only', () => {
-        const testString = "59°19' 18°4'";
-        const coords = findCoordinatesRegex(testString, [regexDMS]);
-        
-        assert.strictEqual(coords.length, 1, 'Should find one coordinate');
-        // Note: The regex has a bug where it consumes the ° from longitude when no direction is present
-        assert.strictEqual(coords[0].latitude, 59.316944);
-        assert.strictEqual(coords[0].longitude, 8.066667);
-    });
-    
-    test('should match DMS format with negative degrees', () => {
-        const testString = "-59°19'45.5\"S -18°4'7.0\"W";
-        const coords = findCoordinatesRegex(testString, [regexDMS]);
-        
-        assert.strictEqual(coords.length, 1, 'Should find one coordinate');
-        assert.strictEqual(coords[0].latitude, -59.329306);
-        assert.strictEqual(coords[0].longitude, -18.068611);
-    });
-    
-    test('should match DMS format with space separators', () => {
-        const testString = "59 19 45.5 N 18 4 7.0 E";
-        const coords = findCoordinatesRegex(testString, [regexDMS]);
-        
-        assert.strictEqual(coords.length, 1, 'Should find one coordinate');
-        assert.strictEqual(coords[0].latitude, 59.329306);
-        assert.strictEqual(coords[0].longitude, 18.068611);
+        assert.strictEqual(coords.length, 0, 'Should not match without seconds');
     });
     
     test('should match multiple coordinates in text', () => {
@@ -87,5 +58,33 @@ suite('Regex DMS Test Suite', () => {
         const coords = findCoordinatesRegex(testString, [regexDMS]);
         
         assert.strictEqual(coords.length, 0, 'Should not match decimal format as DMS');
+    });
+    
+    test('should not match plain decimal coordinates', () => {
+        const testString = "45.2 20.06767";
+        const coords = findCoordinatesRegex(testString, [regexDMS]);
+        
+        assert.strictEqual(coords.length, 0, 'Should not match plain decimal format');
+    });
+    
+    test('should not match DMS without direction letters', () => {
+        const testString = "59°19'45.5 18°4'7.0";
+        const coords = findCoordinatesRegex(testString, [regexDMS]);
+        
+        assert.strictEqual(coords.length, 0, 'Should not match without direction letters');
+    });
+    
+    test('should not match DMS with only degrees', () => {
+        const testString = "59° 18°";
+        const coords = findCoordinatesRegex(testString, [regexDMS]);
+        
+        assert.strictEqual(coords.length, 0, 'Should not match with only degrees');
+    });
+    
+    test('should not match DMS with space separators instead of degree symbol', () => {
+        const testString = "59 19 45.5 N 18 4 7.0 E";
+        const coords = findCoordinatesRegex(testString, [regexDMS]);
+        
+        assert.strictEqual(coords.length, 0, 'Should not match without degree symbols');
     });
 });
