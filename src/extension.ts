@@ -217,7 +217,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		vscode.commands.registerCommand('vscodeMaplibreViewer.setBaseMap', async (baseMap: BaseMapStyle) => {
 			try {
 				await layerTreeProvider.setActiveBaseMap(baseMap.id);
-				vscode.window.showInformationMessage(`Base map changed to "${baseMap.name}"`);
 			} catch (error) {
 				vscode.window.showErrorMessage(`Failed to set base map: ${error}`);
 			}
@@ -281,7 +280,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 			try {
 				await layerTreeProvider.addOverlayLayer(newLayer);
-				vscode.window.showInformationMessage(`Layer "${name}" added successfully`);
 			} catch (error) {
 				vscode.window.showErrorMessage(`Failed to add layer: ${error}`);
 			}
@@ -327,7 +325,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			if (confirm === 'Delete') {
 				await bookmarkManager.deleteBookmark(bookmark.id);
 				bookmarkTreeProvider.refresh();
-				vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" deleted.`);
 			}
 		})
 	);
@@ -677,7 +674,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 						}
 					}
 					
-					vscode.window.showInformationMessage(`Loaded "${path.basename(filePath)}" using ${adapter.getName()} adapter`);
 					return; // Use the first adapter that can handle the file
 				} catch (error) {
 					console.error(`Error converting file with ${adapter.getName()} adapter:`, error);
