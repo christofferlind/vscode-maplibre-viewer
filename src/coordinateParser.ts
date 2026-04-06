@@ -41,7 +41,7 @@ export interface BoundingBox {
  * or named groups for DMS components (latDegrees, latMinutes, latSeconds, latDirection,
  * lngDegrees, lngMinutes, lngSeconds, lngDirection).
  */
-export const customPatterns: RegExp[] = [];
+const customPatterns: RegExp[] = [];
 
 // DMS format: 59°19'45.5"N 18°4'7.0"E
 // Stricter regex that requires degree symbol (°), minute ('), second ("), and direction
@@ -56,7 +56,7 @@ export const regexGeoJSON = /\[\s*(?<lng>-?\d+\.?\d*)\s*(,|\s)\s*(?<lat>-?\d+\.?
 /**
  * Default coordinate patterns built into the parser.
  */
-const defaultPatterns: RegExp[] = [
+export const defaultPatterns: RegExp[] = [
     regexGeoJSON,
     regexDMS,
     regexWGS84

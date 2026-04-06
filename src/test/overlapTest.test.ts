@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { customPatterns, findCoordinatesRegex, getCoordinatePatterns } from '../coordinateParser';
+import { defaultPatterns, findCoordinatesRegex, getCoordinatePatterns } from '../coordinateParser';
 
 suite('Overlap Test Suite', () => {
 
@@ -11,7 +11,9 @@ suite('Overlap Test Suite', () => {
         const testString = "45.2 20.06767\n\n[60.06767 34.2]";
         
         // Use only GeoJSON and WGS84 (skip DMS which can cause additional matches)
-        const coords = findCoordinatesRegex(testString, customPatterns);
+        const coords = findCoordinatesRegex(testString, defaultPatterns
+    
+        );
         
         // Should find exactly 2 coordinates
         assert.strictEqual(coords.length, 2, 'Should find two coordinates');
@@ -31,7 +33,9 @@ suite('Overlap Test Suite', () => {
         const testString = "[60.06767 34.2]";
         
         // Run GeoJSON first, then WGS84
-        const coords = findCoordinatesRegex(testString, customPatterns);
+        const coords = findCoordinatesRegex(testString, defaultPatterns
+    
+        );
         
         // Should only find 1 coordinate from GeoJSON
         assert.strictEqual(coords.length, 1, 'Should find exactly one coordinate');
@@ -44,7 +48,9 @@ suite('Overlap Test Suite', () => {
     test('should find both coordinates when patterns do not overlap', () => {
         const testString = "45.2 20.06767 [60.06767 34.2]";
         
-        const coords = findCoordinatesRegex(testString, customPatterns);
+        const coords = findCoordinatesRegex(testString, defaultPatterns
+    
+        );
         
         // Should find 2 coordinates (no overlap)
         assert.strictEqual(coords.length, 2, 'Should find two coordinates');
@@ -54,7 +60,7 @@ suite('Overlap Test Suite', () => {
         // Both patterns could match "10 20" but GeoJSON runs first
         const testString = "[10 20]";
         
-        const coords = findCoordinatesRegex(testString, customPatterns);
+        const coords = findCoordinatesRegex(testString, defaultPatterns);
         
         // Should find 1 coordinate from GeoJSON
         assert.strictEqual(coords.length, 1, 'Should find exactly one coordinate');
