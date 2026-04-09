@@ -49,7 +49,7 @@ Alternatively, edit your `settings.json` directly:
     },
     {
       "name": "UTM Coordinates",
-      "pattern": "UTM\\s*\\d+[NS]\\s*(?<lng>\\d+)\\s*(?<?<lat>\\d+)",
+      "pattern": "UTM\\s*\\d+[NS]\\s*(?<lng>\\d+)\\s*(?<lat>\\d+)",
       "flags": "gi"
     },
     {
@@ -146,15 +146,16 @@ Quick access via:
 
 Save and manage your favorite map locations:
 
-- **Save View**: Save current map position (center, zoom, bearing, pitch) as a named bookmark
-- **Load Place**: Quick-pick dialog to navigate to saved bookmarks
+- **Bookmark Current View**: Save current map position (center, zoom, bearing, pitch) as a named bookmark
+- **Load Bookmark**: Quick-pick dialog to navigate to saved bookmarks
 - **Persistent Storage**: Bookmarks are saved globally and persist across sessions
 - **Duplicate Handling**: Prompts to overwrite existing bookmarks with same name
 
 ### 🔍 Search Functionality
 
-- **Geocoding Search**: Search for places directly from the map view (requires API key)
-- **MapTiler Integration**: Configure your MapTiler API key for search functionality
+- **Geocoding Search**: Search for places directly from the map view
+- **MapTiler Integration**: Configure your MapTiler API key for enhanced search functionality
+- **Photon Fallback**: Free Photon geocoding service available when MapTiler API key is not configured
 - **Toggle Search**: Enable/disable search via settings
 
 ### ⚙️ Configuration
@@ -163,10 +164,13 @@ Customize the extension via VS Code settings:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `vscodeMaplibreViewer.geocodingApiKey` | API key for geocoding service | `""` (empty) |
+| `vscodeMaplibreViewer.geocodingApiKey` | API key for MapTiler geocoding service | `""` (empty) |
+| `vscodeMaplibreViewer.photonSearchUrl` | URL for Photon geocoding search service | `"https://photon.komoot.io/api/"` |
 | `vscodeMaplibreViewer.enableSearch` | Enable search functionality | `true` |
 | `vscodeMaplibreViewer.flyToDuration` | Animation duration in ms | `500` |
+| `vscodeMaplibreViewer.singlePointZoom` | Zoom level for single coordinate points | `10` |
 | `vscodeMaplibreViewer.baseMaps` | Custom basemap styles | `[]` (empty) |
+| `vscodeMaplibreViewer.coordinatePatterns` | Custom coordinate detection patterns | `[]` (empty) |
 
 ### 🗺️ Custom Basemaps
 
@@ -221,10 +225,18 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 | `Map: Set Language to English` | Use English labels |
 | `Map: Set Language to German` | Use German labels |
 | `Map: Set Language...` | Open language picker |
-| `Listen for Coordinate Selection` | Toggle coordinate detection on/off |
+| `Toggle Coordinate Selection` | Toggle coordinate detection on/off |
+| `Enable Coordinate Selection` | Enable coordinate detection |
+| `Disable Coordinate Selection` | Disable coordinate detection |
 | `Open Map Settings` | Open extension settings |
-| `Map: Save Current View` | Save current view as bookmark |
-| `Map: Load Saved Place...` | Load a saved bookmark |
+| `Map: Bookmark Current View` | Save current view as bookmark |
+| `Map: Load Bookmark...` | Load a saved bookmark |
+| `Go to Bookmark` | Navigate to a bookmark |
+| `Delete Bookmark` | Delete a saved bookmark |
+| `Set Active Base Map` | Set the active basemap |
+| `Toggle Layer Visibility` | Toggle overlay layer visibility |
+| `Add Overlay Layer` | Add a new overlay layer |
+| `Remove Layer` | Remove an overlay layer |
 
 ### 🛠️ Toolbar Icons
 
@@ -232,6 +244,7 @@ The map view toolbar provides quick access to:
 
 - **Language Selector** - Change map label language
 - **Coordinate Toggle** - Enable/disable coordinate detection
+- **Bookmark** - Save current view as bookmark
 - **Settings** - Open map settings
 
 ## Installation
@@ -364,8 +377,8 @@ Additional file formats (KML, GPX, Shapefile, etc.) can be supported by installi
 
 ### Bookmarks
 
-1. **Save**: Use "Map: Save Current View" command or toolbar
-2. **Load**: Use "Map: Load Saved Place..." command
+1. **Save**: Use "Map: Bookmark Current View" command or toolbar
+2. **Load**: Use "Map: Load Bookmark..." command
 3. Bookmarks are stored globally and persist across sessions
 
 ## Development
@@ -374,7 +387,7 @@ Additional file formats (KML, GPX, Shapefile, etc.) can be supported by installi
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/vscode-maplibre-viewer.git
+git clone https://github.com/christofferlind/vscode-maplibre-viewer.git
 cd vscode-maplibre-viewer
 
 # Install dependencies
@@ -398,6 +411,7 @@ npm run copy-assets
 | `npm run lint` | Run ESLint |
 | `npm run test` | Run tests |
 | `npm run copy-assets` | Copy MapLibre GL assets |
+| `npm run package` | Package extension as VSIX |
 
 ## Extension API
 
@@ -406,7 +420,7 @@ The MapLibre Viewer extension exposes a public API that allows other VS Code ext
 ### Accessing the API
 
 ```typescript
-const extension = vscode.extensions.getExtension<MapLibreViewerAPI>('your-publisher.vscode-maplibre-viewer');
+const extension = vscode.extensions.getExtension<MapLibreViewerAPI>('christofferlind.vscode-maplibre-viewer');
 const api = extension?.exports;
 
 if (api) {
@@ -472,7 +486,7 @@ import { MapLibreViewerAPI, BasemapProvider } from 'vscode-maplibre-viewer';
 
 export function activate(context: vscode.ExtensionContext) {
     const maplibreExt = vscode.extensions.getExtension<MapLibreViewerAPI>(
-        'publisher.vscode-maplibre-viewer'
+        'christofferlind.vscode-maplibre-viewer'
     );
     
     if (!maplibreExt?.exports) {
@@ -527,7 +541,7 @@ async function convertKmlToGeoJson(filePath: string): Promise<object> {
 
 export function activate(context: vscode.ExtensionContext) {
     const maplibreExt = vscode.extensions.getExtension<MapLibreViewerAPI>(
-        'publisher.vscode-maplibre-viewer'
+        'christofferlind.vscode-maplibre-viewer'
     );
     
     if (!maplibreExt?.exports) {
@@ -563,12 +577,7 @@ When a user opens a `.kml` file in VS Code, the MapLibre Viewer extension will:
 ## Requirements
 
 - VS Code 1.110.0 or higher
-- For search functionality: MapTiler API key (or compatible geocoding service)
-
-## Known Issues
-
-- This extension is currently a work in progress
-- Some features may be incomplete or subject to change
+- For enhanced search functionality: MapTiler API key (or use the free Photon geocoding service)
 
 ## License
 
