@@ -178,7 +178,9 @@ export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordina
             occupiedRanges.push({ start: startIndex, end: endIndex });
             
             const groups = match.groups;
-            if (!groups) continue;
+            if (!groups) {
+                continue;
+            }
             
             let lat: number | null = null;
             let lng: number | null = null;

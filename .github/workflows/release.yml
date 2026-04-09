@@ -1,0 +1,102 @@
+name: Build and Release
+
+# Trigger on version tags (e.g., v1.0.0, v2.1.0-beta)
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'        # Matches v1.0.0, v2.1.0, etc.
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'      # Matches pre-releases like v1.0.0-beta.1
+
+# Required permissions for creating releases
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Release Assets
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for versioning
+      
+      # Step 2: Setup Node.js environment
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'  # Enable npm cache
+      
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm ci
+      
+      # Step 4: Run linting
+      - name: Run linting
+        run: npm run lint
+      
+      # Step 5: Compile TypeScript
+      - name: Compile
+        run: npm run compile
+      
+      # Step 6: Run tests
+      - name: Run tests
+        run: npm test
+      
+      # Step 7: Package the VSCode extension
+      - name: Package extension
+        run: npm run package
+        env:
+          NODE_ENV: production
+      
+      # Step 8: Rename the package with version tag
+      - name: Prepare release assets
+        run: |
+          mkdir -p releases
+          mv *.vsix releases/vscode-maplibre-viewer-${{ github.ref_name }}.vsix || true
+      
+      # Step 9: Upload build artifacts
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: releases/
+          retention-days: 1
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Download artifacts from build job
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: releases/
+      
+      # Create GitHub Release with auto-generated notes
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: releases/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## What's Changed
+            
+            See the commit history for detailed changes.
+            
+            ## Installation
+            
+            Download the `.vsix` file and install it in VS Code:
+            1. Open VS Code
+            2. Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
+            3. Click the "..." menu in the top-right
+            4. Select "Install from VSIX..."
+            5. Choose the downloaded file
