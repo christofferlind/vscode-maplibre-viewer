@@ -310,8 +310,7 @@
     "package": "vsce package"
   },
   "dependencies": {
-    "maplibre-gl": "^4.7.1",
-    "typescript": "^6.0.2"
+    "maplibre-gl": "^4.7.1"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -321,6 +320,7 @@
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.0.0",
     "eslint": "^9.39.3",
+    "typescript": "^6.0.2",
     "typescript-eslint": "^8.56.1"
   }
 }
