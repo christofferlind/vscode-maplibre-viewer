@@ -305,7 +305,7 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test",
+    "test": "mocha --ui tdd out/test/**/*.test.js",
     "copy-assets": "node scripts/copy-maplibre-assets.js",
     "package": "vsce package"
   },
