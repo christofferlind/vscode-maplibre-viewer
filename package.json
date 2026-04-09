@@ -194,6 +194,11 @@
           "default": "",
           "description": "API key for geocoding service (MapTiler)"
         },
+        "vscodeMaplibreViewer.photonSearchUrl": {
+          "type": "string",
+          "default": "https://photon.komoot.io/api/",
+          "description": "URL for Photon geocoding search service (used when MapTiler API key is not configured)"
+        },
         "vscodeMaplibreViewer.enableSearch": {
           "type": "boolean",
           "default": true,

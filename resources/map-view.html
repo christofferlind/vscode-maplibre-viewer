@@ -243,6 +243,7 @@
 		var map = null;
 		var currentStyleUrl = '${mapStyleUrl}';
 		var geocodingApiKey = '${geocodingApiKey}';
+		var photonSearchUrl = '${photonSearchUrl}';
 		var enableSearch = "${enableSearch}" === "true";
 		var flyToDuration = parseInt("${flyToDuration}", 10);
 		
@@ -1102,7 +1103,7 @@
 				if (geocodingApiKey && geocodingApiKey.length > 0) {
 					apiUrl = 'https://api.maptiler.com/geocoding/search.json?query=' + encodeURIComponent(query) + '&key=' + geocodingApiKey;
 				} else {
-					apiUrl = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query);
+					apiUrl = photonSearchUrl + '?q=' + encodeURIComponent(query);
 				}
 
 				fetch(apiUrl)

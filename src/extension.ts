@@ -15,6 +15,7 @@ import { geojsonAdapter } from './adapters/geojsonAdapter';
 // Interface for configuration messages sent to the webview
 interface MapConfig {
 	geocodingApiKey: string;
+	photonSearchUrl: string;
 	enableSearch: boolean;
 	flyToDuration: number;
 	initialViewState?: ViewState;
@@ -1000,6 +1001,7 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		
 		return {
 			geocodingApiKey: config.get<string>('geocodingApiKey') || '',
+			photonSearchUrl: config.get<string>('photonSearchUrl') || 'https://photon.komoot.io/api/',
 			enableSearch: config.get<boolean>('enableSearch') ?? true,
 			flyToDuration: config.get<number>('flyToDuration') ?? 500,
 			initialViewState: lastViewState ? {
@@ -1074,6 +1076,7 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 		htmlContent = htmlContent.replace(/\$\{nonce\}/g, nonce);
 		htmlContent = htmlContent.replace(/\$\{mapStyleUrl\}/g, styleUrl);
 		htmlContent = htmlContent.replace(/\$\{geocodingApiKey\}/g, config.geocodingApiKey);
+		htmlContent = htmlContent.replace(/\$\{photonSearchUrl\}/g, config.photonSearchUrl);
 		htmlContent = htmlContent.replace(/\$\{enableSearch\}/g, String(config.enableSearch));
 		htmlContent = htmlContent.replace(/\$\{flyToDuration\}/g, String(config.flyToDuration));
 		
