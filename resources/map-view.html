@@ -434,6 +434,86 @@
 			});
 		}
 
+		// Create a style JSON for raster tile basemap
+		function createRasterStyle(rasterConfig) {
+			var sources = {};
+			var sourceId = 'raster-basemap';
+
+			sources[sourceId] = {
+				type: 'raster',
+				tiles: [rasterConfig.tileUrl],
+				tileSize: rasterConfig.tileSize || 256,
+				attribution: rasterConfig.attribution || ''
+			};
+
+			// Add minzoom/maxzoom if provided
+			if (rasterConfig.minzoom !== undefined) {
+				sources[sourceId].minzoom = rasterConfig.minzoom;
+			}
+			if (rasterConfig.maxzoom !== undefined) {
+				sources[sourceId].maxzoom = rasterConfig.maxzoom;
+			}
+
+			return {
+				version: 8,
+				sources: sources,
+				layers: [
+					{
+						id: 'raster-layer',
+						type: 'raster',
+						source: sourceId,
+						minzoom: rasterConfig.minzoom || 0,
+						maxzoom: rasterConfig.maxzoom || 22
+					}
+				]
+			};
+		}
+
+		// Update basemap - handles both vector styles and raster tiles
+		function updateBasemap(basemap) {
+			if (!map) {
+				console.warn('Map not initialized');
+				return;
+			}
+
+			console.log('Updating basemap:', basemap);
+
+			// Store current view state
+			var currentCenter = map.getCenter();
+			var currentZoom = map.getZoom();
+			var currentBearing = map.getBearing();
+			var currentPitch = map.getPitch();
+
+			if (basemap.type === 'raster' && basemap.tileUrl) {
+				// Raster tile basemap
+				console.log('Setting raster basemap:', basemap.tileUrl);
+				showLoadingOverlay('Updating style...');
+
+				var rasterStyle = createRasterStyle(basemap);
+				currentStyleUrl = null; // Clear style URL for raster
+
+				map.setStyle(rasterStyle, {
+					transformStyle: function(previousStyle, nextStyle) {
+						return nextStyle;
+					}
+				});
+
+				map.jumpTo({
+					center: currentCenter,
+					zoom: currentZoom,
+					bearing: currentBearing,
+					pitch: currentPitch
+				});
+
+				hideLoadingOverlay();
+			} else if (basemap.styleUrl) {
+				// Vector style basemap
+				updateMapStyle(basemap.styleUrl);
+			} else {
+				console.error('Invalid basemap configuration: must have either styleUrl or tileUrl');
+			}
+		}
+
 		// Change map language for labels
 		function changeMapLanguage(language) {
 			if (!map) {
@@ -1039,10 +1119,13 @@
 					// Future use: update local bookmark list if needed
 					break;
 				case 'setBaseMap':
-					console.log('Received setBaseMap message:', message.styleUrl, message.name);
-					if (message.styleUrl) {
-						// Hide loading overlay first to prevent stale state
-						hideLoadingOverlay();
+					console.log('Received setBaseMap message:', message);
+					// Hide loading overlay first to prevent stale state
+					hideLoadingOverlay();
+					if (message.basemap) {
+						updateBasemap(message.basemap);
+					} else if (message.styleUrl) {
+						// Legacy support: handle old-style styleUrl messages
 						updateMapStyle(message.styleUrl);
 					}
 					break;

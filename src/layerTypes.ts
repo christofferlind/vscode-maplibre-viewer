@@ -1,11 +1,25 @@
 /**
  * Represents a base map style option
+ * Can be either a vector style (styleUrl) or raster tiles (tileUrl)
  */
 export interface BaseMapStyle {
     id: string;
     name: string;
     description?: string;
-    styleUrl: string;
+    /** URL to MapLibre style JSON (for vector styles) */
+    styleUrl?: string;
+    /** Type of basemap: 'vector' for style JSON, 'raster' for raster tiles */
+    type?: 'vector' | 'raster';
+    /** Raster tile URL template (e.g., 'https://tile.example.com/{z}/{x}/{y}.png') */
+    tileUrl?: string;
+    /** Tile size for raster sources (default: 256) */
+    tileSize?: number;
+    /** Attribution text for the tiles */
+    attribution?: string;
+    /** Minimum zoom level for raster tiles */
+    minzoom?: number;
+    /** Maximum zoom level for raster tiles */
+    maxzoom?: number;
     thumbnail?: string;
 }
 
@@ -58,7 +72,7 @@ export function isLayersRoot(item: LayerTreeItem): item is 'layersRoot' {
  * Type guard to check if an item is a base map style
  */
 export function isBaseMapStyle(item: LayerTreeItem): item is BaseMapStyle {
-    return typeof item === 'object' && item !== null && 'styleUrl' in item;
+    return typeof item === 'object' && item !== null && ('styleUrl' in item || 'tileUrl' in item);
 }
 
 /**

@@ -3,13 +3,26 @@ import { BaseMapStyle } from './layerTypes';
 
 /**
  * Interface for basemap providers from external extensions.
- * Required fields: id, name, styleUrl
- * Optional field: description
+ * Required fields: id, name, and either styleUrl (for vector) or tileUrl (for raster)
+ * Optional fields: description, type, tileSize, attribution, minzoom, maxzoom
  */
 export interface BasemapProvider {
     id: string;
     name: string;
-    styleUrl: string;
+    /** URL to MapLibre style JSON (for vector basemaps) */
+    styleUrl?: string;
+    /** Type of basemap: 'vector' or 'raster' */
+    type?: 'vector' | 'raster';
+    /** Raster tile URL template (e.g., 'https://tile.example.com/{z}/{x}/{y}.png') */
+    tileUrl?: string;
+    /** Tile size for raster sources (default: 256) */
+    tileSize?: number;
+    /** Attribution text for the tiles */
+    attribution?: string;
+    /** Minimum zoom level for raster tiles */
+    minzoom?: number;
+    /** Maximum zoom level for raster tiles */
+    maxzoom?: number;
     description?: string;
 }
 

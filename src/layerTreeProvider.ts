@@ -113,6 +113,26 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
             return item;
         }
 
+        if (this.isBaseMapRaster(element)) {
+            const baseMap = element;
+            const item = new vscode.TreeItem(baseMap.name, vscode.TreeItemCollapsibleState.None);
+            item.description = baseMap.description;
+            item.tooltip = `${baseMap.name}\n${baseMap.tileUrl}`;
+            item.contextValue = baseMap.id === this._activeBaseMapId ? 'activeBaseMap' : 'baseMap';
+            item.iconPath = baseMap.id === this._activeBaseMapId 
+                ? new vscode.ThemeIcon('check') 
+                : new vscode.ThemeIcon('circle-outline');
+            
+            // Make clickable to set as active base map
+            item.command = {
+                command: 'vscodeMaplibreViewer.setBaseMap',
+                title: 'Set Active Base Map',
+                arguments: [baseMap]
+            };
+            
+            return item;
+        }
+
         if (this.isOverlayLayer(element)) {
             const layer = element;
             const item = new vscode.TreeItem(layer.name, vscode.TreeItemCollapsibleState.None);
@@ -263,6 +283,13 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     }
 
     /**
+     * Type guard for BaseMapRaster
+     */
+    private isBaseMapRaster(item: TreeItem): item is BaseMapStyle {
+        return typeof item === 'object' && item !== null && 'tileUrl' in item && item.type === 'raster';
+    }
+
+    /**
      * Type guard for OverlayLayer
      */
     private isOverlayLayer(item: TreeItem): item is OverlayLayer {
@@ -275,9 +302,12 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
      * @returns A Disposable that removes the basemap when disposed
      */
     registerBasemap(basemap: BaseMapStyle): vscode.Disposable {
-        // Validate required fields
-        if (!basemap.id || !basemap.name || !basemap.styleUrl) {
-            throw new Error('Basemap must have id, name, and styleUrl');
+        // Validate required fields - must have id, name, and either styleUrl or tileUrl
+        if (!basemap.id || !basemap.name) {
+            throw new Error('Basemap must have id and name');
+        }
+        if (!basemap.styleUrl && !basemap.tileUrl) {
+            throw new Error('Basemap must have either styleUrl or tileUrl');
         }
         
         // Check for duplicate ID

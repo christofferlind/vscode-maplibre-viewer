@@ -710,6 +710,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 				id: provider.id,
 				name: provider.name,
 				styleUrl: provider.styleUrl,
+				type: provider.type,
+				tileUrl: provider.tileUrl,
+				tileSize: provider.tileSize,
+				attribution: provider.attribution,
+				minzoom: provider.minzoom,
+				maxzoom: provider.maxzoom,
 				description: provider.description
 			};
 			return layerTreeProvider.registerBasemap(basemap);
@@ -733,6 +739,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	const defaultBasemap: BasemapProvider = {
 		id: 'maplibre-demotiles',
 		name: 'Demotiles',
+		type: 'vector',
 		styleUrl: 'https://demotiles.maplibre.org/style.json'
 	};
 	const defaultBasemapDisposable = api.registerBasemap(defaultBasemap);
@@ -891,16 +898,26 @@ class MapViewProvider implements vscode.WebviewViewProvider {
 	 * @param baseMap The base map style to use
 	 */
 	public setBaseMap(baseMap: BaseMapStyle): void {
-		// Store the current style URL and ID
+		// Store the current style URL (for vector) and ID
 		this._currentBaseMapStyleUrl = baseMap.styleUrl;
 		this._currentBaseMapId = baseMap.id;
-		
+
 		if (this._view) {
 			// Send message to webview to update style while preserving view state
+			// Support both vector styles (styleUrl) and raster tiles (tileUrl)
 			this._view.webview.postMessage({
 				type: 'setBaseMap',
-				styleUrl: baseMap.styleUrl,
-				name: baseMap.name
+				basemap: {
+					id: baseMap.id,
+					name: baseMap.name,
+					type: baseMap.type || (baseMap.styleUrl ? 'vector' : 'raster'),
+					styleUrl: baseMap.styleUrl,
+					tileUrl: baseMap.tileUrl,
+					tileSize: baseMap.tileSize,
+					attribution: baseMap.attribution,
+					minzoom: baseMap.minzoom,
+					maxzoom: baseMap.maxzoom
+				}
 			});
 		}
 	}

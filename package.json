@@ -217,7 +217,7 @@
         "vscodeMaplibreViewer.baseMaps": {
           "type": "array",
           "default": [],
-          "description": "Custom basemap styles available in the layer selector. Each basemap requires an id, name, and styleUrl.",
+          "description": "Custom basemap styles available in the layer selector. Each basemap requires an id, name, and either styleUrl (for vector styles) or tileUrl (for raster tiles).",
           "items": {
             "type": "object",
             "properties": {
@@ -229,9 +229,35 @@
                 "type": "string",
                 "description": "Display name shown in the layer selector"
               },
+              "type": {
+                "type": "string",
+                "enum": ["vector", "raster"],
+                "description": "Type of basemap: 'vector' for style JSON, 'raster' for raster tiles. Defaults to 'vector' if styleUrl is provided."
+              },
               "styleUrl": {
                 "type": "string",
-                "description": "URL to the MapLibre style JSON"
+                "description": "URL to the MapLibre style JSON (for vector basemaps)"
+              },
+              "tileUrl": {
+                "type": "string",
+                "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')"
+              },
+              "tileSize": {
+                "type": "number",
+                "default": 256,
+                "description": "Tile size for raster sources (default: 256)"
+              },
+              "attribution": {
+                "type": "string",
+                "description": "Attribution text for the tiles"
+              },
+              "minzoom": {
+                "type": "number",
+                "description": "Minimum zoom level for raster tiles"
+              },
+              "maxzoom": {
+                "type": "number",
+                "description": "Maximum zoom level for raster tiles"
               },
               "description": {
                 "type": "string",
@@ -242,7 +268,7 @@
                 "description": "Optional thumbnail image URL for the basemap"
               }
             },
-            "required": ["id", "name", "styleUrl"]
+            "required": ["id", "name"]
           }
         },
         "vscodeMaplibreViewer.coordinatePatterns": {

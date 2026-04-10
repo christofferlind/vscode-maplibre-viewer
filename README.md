@@ -178,7 +178,7 @@ You can contribute custom basemaps in two ways:
 
 #### Via Configuration (settings.json)
 
-Add custom basemaps in your VS Code settings:
+Add custom basemaps in your VS Code settings. The extension supports both **vector styles** (MapLibre style JSON) and **raster tiles** (XYZ tile servers):
 
 ```json
 {
@@ -199,6 +199,16 @@ Add custom basemaps in your VS Code settings:
       "id": "custom-satellite",
       "name": "My Satellite",
       "styleUrl": "https://my-server.com/styles/satellite/style.json"
+    },
+    {
+      "id": "custom-imagery",
+      "name": "Custom Imagery",
+      "type": "raster",
+      "tileUrl": "https://my-tile-server.com/{z}/{x}/{y}.png",
+      "tileSize": 512,
+      "minzoom": 0,
+      "maxzoom": 18,
+      "attribution": "© My Company"
     }
   ]
 }
@@ -207,9 +217,17 @@ Add custom basemaps in your VS Code settings:
 **Basemap Properties:**
 - `id` (required): Unique identifier for the basemap
 - `name` (required): Display name shown in the Layers View
-- `styleUrl` (required): URL to the MapLibre style JSON
+- `type` (optional): Type of basemap - `'vector'` for style JSON, `'raster'` for raster tiles. Defaults to `'vector'` if `styleUrl` is provided.
+- `styleUrl` (optional): URL to the MapLibre style JSON (for vector basemaps)
+- `tileUrl` (optional): Raster tile URL template with `{z}/{x}/{y}` placeholders (for raster basemaps)
+- `tileSize` (optional): Tile size for raster sources (default: 256)
+- `attribution` (optional): Attribution text for the tiles
+- `minzoom` (optional): Minimum zoom level for raster tiles
+- `maxzoom` (optional): Maximum zoom level for raster tiles
 - `description` (optional): Description shown in tooltips
 - `thumbnail` (optional): Thumbnail image URL for the basemap
+
+**Note:** A basemap must have either `styleUrl` (for vector) or `tileUrl` (for raster).
 
 #### Via Extension API
 
@@ -446,8 +464,16 @@ Register a custom basemap from an external extension.
 **BasemapProvider interface:**
 - `id` (string, required): Unique identifier for the basemap
 - `name` (string, required): Display name shown in the Layers View
-- `styleUrl` (string, required): URL to the MapLibre style JSON
+- `type` (string, optional): Type of basemap - `'vector'` or `'raster'`. Defaults to `'vector'` if `styleUrl` is provided.
+- `styleUrl` (string, optional): URL to the MapLibre style JSON (for vector basemaps)
+- `tileUrl` (string, optional): Raster tile URL template with `{z}/{x}/{y}` placeholders (for raster basemaps)
+- `tileSize` (number, optional): Tile size for raster sources (default: 256)
+- `attribution` (string, optional): Attribution text for the tiles
+- `minzoom` (number, optional): Minimum zoom level for raster tiles
+- `maxzoom` (number, optional): Maximum zoom level for raster tiles
 - `description` (string, optional): Description shown in tooltips
+
+**Note:** A basemap must have either `styleUrl` (for vector) or `tileUrl` (for raster).
 
 Returns a `Disposable` that removes the basemap when disposed.
 
@@ -496,7 +522,7 @@ export function activate(context: vscode.ExtensionContext) {
     
     const api = maplibreExt.exports;
     
-    // Register custom basemaps
+    // Register custom basemaps (both vector and raster)
     const basemaps: BasemapProvider[] = [
         {
             id: 'my-company.streets',
@@ -508,6 +534,15 @@ export function activate(context: vscode.ExtensionContext) {
             id: 'my-company.satellite',
             name: 'Company Satellite',
             styleUrl: 'https://tiles.mycompany.com/styles/satellite.json'
+        },
+        {
+            id: 'my-company.raster-imagery',
+            name: 'Company Imagery',
+            type: 'raster',
+            tileUrl: 'https://tiles.mycompany.com/imagery/{z}/{x}/{y}.png',
+            tileSize: 512,
+            minzoom: 0,
+            maxzoom: 18
         }
     ];
     
