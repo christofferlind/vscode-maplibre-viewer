@@ -348,9 +348,9 @@
     "vscode:prepublish": "npm run compile && npm run copy-assets",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "mocha --ui tdd out/test/**/*.test.js",
+    "test": "npm run compile && mocha --ui tdd out/test/unit/**/*.test.js",
+    "test:vscode": "npm run compile && npm run lint && npx @vscode/test-cli",
     "copy-assets": "node scripts/copy-maplibre-assets.js",
     "package": "vsce package"
   },
@@ -365,6 +365,7 @@
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.0.0",
     "eslint": "^9.39.3",
+    "mocha": "^11.7.5",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.56.1"
   }

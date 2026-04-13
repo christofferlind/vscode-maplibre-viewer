@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { defaultPatterns, findCoordinatesRegex, getCoordinatePatterns } from '../coordinateParser';
+import { defaultPatterns, findCoordinatesRegex, getCoordinatePatterns } from '../../coordinateParser';
 
 suite('Overlap Test Suite', () => {
 

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
-import { BookmarkManager } from '../bookmarkManager';
-import { MapBookmark, ViewState } from '../bookmarkTypes';
+import { BookmarkManager } from '../../bookmarkManager';
+import { MapBookmark, ViewState } from '../../bookmarkTypes';
 
 /**
  * Mock Memento for testing BookmarkManager

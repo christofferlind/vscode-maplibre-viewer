@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { regexDMS, findCoordinatesRegex } from '../coordinateParser';
+import { regexDMS, findCoordinatesRegex } from '../../coordinateParser';
 
 suite('Regex DMS Test Suite', () => {
     
