@@ -570,6 +570,233 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		})
 	);
 
+	// Register search on map command - shows filtered dialog with selected text as default
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.searchOnMap', async (args?: unknown) => {
+			let selectedText = '';
+			
+			// Debug: log what args are passed
+			console.log('searchOnMap called with args:', args);
+			
+			// Check if text was passed as argument (from terminal context menu)
+			// Terminal context passes an object with 'selectionText' or 'selection' property
+			if (args && typeof args === 'object') {
+				const argsObj = args as Record<string, unknown>;
+				console.log('argsObj keys:', Object.keys(argsObj));
+				if (typeof argsObj.selectionText === 'string') {
+					selectedText = argsObj.selectionText.trim();
+				} else if (typeof argsObj.selection === 'string') {
+					selectedText = argsObj.selection.trim();
+				} else if (typeof argsObj.text === 'string') {
+					selectedText = argsObj.text.trim();
+				} else if (typeof argsObj.value === 'string') {
+					selectedText = argsObj.value.trim();
+				}
+			}
+			
+			// If no text from args, try to get from active editor
+			if (!selectedText) {
+				// Get the active editor
+				const editor = vscode.window.activeTextEditor;
+				
+				// Get selected text if available
+				if (editor) {
+					const selection = editor.selection;
+					if (!selection.isEmpty) {
+						selectedText = editor.document.getText(selection).trim();
+					}
+				}
+			}
+
+			// Get configuration for geocoding
+			const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+			const geocodingApiKey = config.get<string>('geocodingApiKey') || '';
+			const photonSearchUrl = config.get<string>('photonSearchUrl') || 'https://photon.komoot.io/api/';
+
+			// Create a QuickPick for search
+			const quickPick = vscode.window.createQuickPick();
+			quickPick.placeholder = 'Search for a place on the map...';
+			quickPick.value = selectedText;
+			quickPick.matchOnDescription = true;
+			quickPick.matchOnDetail = true;
+
+			// Store search results with coordinates and optional bounding box
+			interface SearchResultData {
+				lat: number;
+				lng: number;
+				bbox?: { southwest: { latitude: number; longitude: number }; northeast: { latitude: number; longitude: number } };
+			};
+			const searchResultsMap = new Map<string, SearchResultData>();
+
+			// Debounce timer for search
+			let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+			// Perform search function
+			const performSearch = async (query: string) => {
+				if (query.trim().length < 2) {
+					quickPick.items = [];
+					quickPick.busy = false;
+					return;
+				}
+
+				quickPick.busy = true;
+
+				try {
+					// Build API URL
+					let apiUrl: string;
+					if (geocodingApiKey && geocodingApiKey.length > 0) {
+						apiUrl = `https://api.maptiler.com/geocoding/search.json?query=${encodeURIComponent(query)}&key=${geocodingApiKey}`;
+					} else {
+						apiUrl = `${photonSearchUrl}?q=${encodeURIComponent(query)}`;
+					}
+
+					// Fetch results
+					const response = await fetch(apiUrl);
+					if (!response.ok) {
+						throw new Error(`Geocoding API error: ${response.status}`);
+					}
+
+					const data = await response.json() as { features: Array<{
+						text?: string;
+						place_name?: string;
+						place_type?: string[];
+						center?: [number, number];
+						bbox?: [number, number, number, number]; // [west, south, east, north]
+						properties?: {
+							name?: string;
+							city?: string;
+							state?: string;
+							osm_value?: string;
+							osm_key?: string
+						};
+						geometry?: { coordinates: [number, number] }
+					}> };
+
+					// Clear previous results
+					searchResultsMap.clear();
+
+					// Parse results based on API type
+					const items: vscode.QuickPickItem[] = [];
+					
+					if (geocodingApiKey && geocodingApiKey.length > 0) {
+						// MapTiler format
+						if (data.features && data.features.length > 0) {
+							data.features.slice(0, 10).forEach(feature => {
+								const label = feature.text || feature.place_name || 'Unknown';
+								const description = feature.place_type ? feature.place_type[0] : 'place';
+								const lat = feature.center?.[1] || 0;
+								const lng = feature.center?.[0] || 0;
+								
+								// Parse bounding box if available (format: [west, south, east, north])
+								let bbox: SearchResultData['bbox'] | undefined;
+								if (feature.bbox && feature.bbox.length === 4) {
+									bbox = {
+										southwest: { latitude: feature.bbox[1], longitude: feature.bbox[0] },
+										northeast: { latitude: feature.bbox[3], longitude: feature.bbox[2] }
+									};
+								}
+								
+								const detail = bbox
+									? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`
+									: `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+								const itemKey = `${label}-${detail}`;
+								
+								items.push({
+									label: label,
+									description: description,
+									detail: detail
+								});
+								searchResultsMap.set(itemKey, { lat, lng, bbox });
+							});
+						}
+					} else {
+						// Photon format
+						if (data.features && data.features.length > 0) {
+							data.features.slice(0, 10).forEach(feature => {
+								const label = feature.properties?.name || feature.properties?.city || feature.properties?.state || 'Unknown';
+								const description = feature.properties?.osm_value || feature.properties?.osm_key || 'place';
+								const lat = feature.geometry?.coordinates?.[1] || 0;
+								const lng = feature.geometry?.coordinates?.[0] || 0;
+								
+								// Parse bounding box if available (format: [west, south, east, north])
+								let bbox: SearchResultData['bbox'] | undefined;
+								if (feature.bbox && feature.bbox.length === 4) {
+									bbox = {
+										southwest: { latitude: feature.bbox[1], longitude: feature.bbox[0] },
+										northeast: { latitude: feature.bbox[3], longitude: feature.bbox[2] }
+									};
+								}
+								
+								const detail = bbox
+									? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`
+									: `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+								const itemKey = `${label}-${detail}`;
+								
+								items.push({
+									label: label,
+									description: description,
+									detail: detail
+								});
+								searchResultsMap.set(itemKey, { lat, lng, bbox });
+							});
+						}
+					}
+
+					// Update QuickPick items
+					quickPick.items = items;
+					quickPick.busy = false;
+				} catch (error) {
+					quickPick.busy = false;
+					quickPick.items = [{
+						label: 'Search failed. Please try again.',
+						description: '',
+						detail: ''
+					}];
+				}
+			};
+
+			// Handle input changes with debounce
+			quickPick.onDidChangeValue((value) => {
+				if (searchDebounceTimer) {
+					clearTimeout(searchDebounceTimer);
+				}
+				searchDebounceTimer = setTimeout(() => {
+					performSearch(value);
+				}, 300);
+			});
+
+			// Initial search if there's selected text
+			if (selectedText.length >= 2) {
+				performSearch(selectedText);
+			}
+
+			// Handle selection
+			quickPick.onDidAccept(() => {
+				const selected = quickPick.selectedItems[0];
+				if (selected) {
+					// Find the coordinates for the selected item
+					const itemKey = `${selected.label}-${selected.detail}`;
+					const coords = searchResultsMap.get(itemKey);
+					
+					if (coords) {
+						if (coords.bbox) {
+							// Use bounding box to fit the map
+							mapsViewProvider.fitBoundsOnly(coords.bbox);
+						} else if (coords.lat !== 0 && coords.lng !== 0) {
+							// Fall back to flying to a point
+							const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
+							mapsViewProvider.flyToLocation(coords.lat, coords.lng, singlePointZoom);
+						}
+					}
+				}
+				quickPick.hide();
+			});
+
+			// Show the QuickPick
+			quickPick.show();
+		})
+	);
+
 	// Debounce timer for text selection listener
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 

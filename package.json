@@ -133,6 +133,11 @@
         "title": "Remove Layer",
         "category": "MapLibre Viewer",
         "icon": "$(trash)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.searchOnMap",
+        "title": "Search On Map",
+        "category": "MapLibre Viewer"
       }
     ],
     "menus": {
@@ -183,6 +188,20 @@
           "command": "vscodeMaplibreViewer.removeLayer",
           "when": "view == layersView && viewItem == overlayLayer",
           "group": "layerActions"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "vscodeMaplibreViewer.searchOnMap",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ],
+      "terminal/context": [
+        {
+          "command": "vscodeMaplibreViewer.searchOnMap",
+          "when": "terminalFocus",
+          "group": "1_search"
         }
       ]
     },

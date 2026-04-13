@@ -129,6 +129,7 @@ Save and manage your favorite map locations:
 - **MapTiler Integration**: Configure your MapTiler API key for enhanced search functionality
 - **Photon Fallback**: Free Photon geocoding service available when MapTiler API key is not configured
 - **Toggle Search**: Enable/disable search via settings
+- **Search On Map**: Right-click on selected text in the editor or terminal to search for that location on the map
 
 ### ⚙️ Configuration
 
@@ -219,6 +220,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 | `Map: Load Bookmark...` | Load a saved bookmark |
 | `Go to Bookmark` | Navigate to a bookmark |
 | `Delete Bookmark` | Delete a saved bookmark |
+| `Search On Map` | Search for selected text on the map (from editor or terminal) |
 | `Set Active Base Map` | Set the active basemap |
 | `Toggle Layer Visibility` | Toggle overlay layer visibility |
 | `Add Overlay Layer` | Add a new overlay layer |
