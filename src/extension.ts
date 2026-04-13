@@ -2,7 +2,6 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromGeoJson, Coordinate, addCoordinatePattern, clearCustomPatterns } from './coordinateParser';
 import { BookmarkManager } from './bookmarkManager';
 import { MapBookmark, ViewState } from './bookmarkTypes';
@@ -11,15 +10,10 @@ import { LayerTreeProvider } from './layerTreeProvider';
 import { BaseMapStyle, OverlayLayer } from './layerTypes';
 import { MapLibreViewerAPI, BasemapProvider, FileToGeoJsonAdapter } from './api';
 import { geojsonAdapter } from './adapters/geojsonAdapter';
-
-// Interface for configuration messages sent to the webview
-interface MapConfig {
-	geocodingApiKey: string;
-	photonSearchUrl: string;
-	enableSearch: boolean;
-	flyToDuration: number;
-	initialViewState?: ViewState;
-}
+import { MapViewProvider } from './mapViewProvider';
+import { LANGUAGE_OPTIONS } from './languageOptions';
+import { confirmAction, showOperationError, updateCoordinateSelectionState, getCoordinateSelectionState, toggleCoordinateSelectionState } from './extensionUtils';
+import { performGeocodingSearch, extractSearchTextFromArgs, getSelectedTextFromEditor, SearchResultData } from './geocodingSearch';
 
 // Interface for view state stored in settings
 interface StoredViewState {
@@ -29,93 +23,6 @@ interface StoredViewState {
 	pitch: number;
 	baseMapId?: string;
 }
-
-// Interface for language options in Quick Pick
-interface LanguageOption {
-	label: string;
-	description: string;
-	languageCode: string;
-}
-
-// Comprehensive list of supported languages for map labels
-const LANGUAGE_OPTIONS: LanguageOption[] = [
-	{ label: 'Native (Local)', description: 'Use native/local place names', languageCode: 'native' },
-	{ label: 'English', description: 'English', languageCode: 'en' },
-	{ label: 'German', description: 'Deutsch', languageCode: 'de' },
-	{ label: 'French', description: 'Français', languageCode: 'fr' },
-	{ label: 'Spanish', description: 'Español', languageCode: 'es' },
-	{ label: 'Russian', description: 'Русский', languageCode: 'ru' },
-	{ label: 'Chinese (Simplified)', description: '简体中文', languageCode: 'zh-Hans' },
-	{ label: 'Chinese (Traditional)', description: '繁體中文', languageCode: 'zh-Hant' },
-	{ label: 'Japanese', description: '日本語', languageCode: 'ja' },
-	{ label: 'Korean', description: '한국어', languageCode: 'ko' },
-	{ label: 'Italian', description: 'Italiano', languageCode: 'it' },
-	{ label: 'Portuguese', description: 'Português', languageCode: 'pt' },
-	{ label: 'Portuguese (Brazil)', description: 'Português (Brasil)', languageCode: 'pt-BR' },
-	{ label: 'Arabic', description: 'العربية', languageCode: 'ar' },
-	{ label: 'Hindi', description: 'हिन्दी', languageCode: 'hi' },
-	{ label: 'Dutch', description: 'Nederlands', languageCode: 'nl' },
-	{ label: 'Polish', description: 'Polski', languageCode: 'pl' },
-	{ label: 'Turkish', description: 'Türkçe', languageCode: 'tr' },
-	{ label: 'Indonesian', description: 'Bahasa Indonesia', languageCode: 'id' },
-	{ label: 'Vietnamese', description: 'Tiếng Việt', languageCode: 'vi' },
-	{ label: 'Thai', description: 'ไทย', languageCode: 'th' },
-	{ label: 'Greek', description: 'Ελληνικά', languageCode: 'el' },
-	{ label: 'Czech', description: 'Čeština', languageCode: 'cs' },
-	{ label: 'Swedish', description: 'Svenska', languageCode: 'sv' },
-	{ label: 'Norwegian', description: 'Norsk', languageCode: 'no' },
-	{ label: 'Danish', description: 'Dansk', languageCode: 'da' },
-	{ label: 'Finnish', description: 'Suomi', languageCode: 'fi' },
-	{ label: 'Hungarian', description: 'Magyar', languageCode: 'hu' },
-	{ label: 'Romanian', description: 'Română', languageCode: 'ro' },
-	{ label: 'Ukrainian', description: 'Українська', languageCode: 'uk' },
-	{ label: 'Hebrew', description: 'עברית', languageCode: 'he' },
-	{ label: 'Persian', description: 'فارسی', languageCode: 'fa' },
-	{ label: 'Bengali', description: 'বাংলা', languageCode: 'bn' },
-	{ label: 'Tamil', description: 'தமிழ்', languageCode: 'ta' },
-	{ label: 'Telugu', description: 'తెలుగు', languageCode: 'te' },
-	{ label: 'Malayalam', description: 'മലയാളം', languageCode: 'ml' },
-	{ label: 'Kannada', description: 'ಕನ್ನಡ', languageCode: 'kn' },
-	{ label: 'Marathi', description: 'मराठी', languageCode: 'mr' },
-	{ label: 'Gujarati', description: 'ગુજરાતી', languageCode: 'gu' },
-	{ label: 'Punjabi', description: 'ਪੰਜਾਬੀ', languageCode: 'pa' },
-	{ label: 'Urdu', description: 'اردو', languageCode: 'ur' },
-	{ label: 'Kazakh', description: 'Қазақ', languageCode: 'kk' },
-	{ label: 'Uzbek', description: 'Oʻzbek', languageCode: 'uz' },
-	{ label: 'Azerbaijani', description: 'Azərbaycan', languageCode: 'az' },
-	{ label: 'Georgian', description: 'ქართული', languageCode: 'ka' },
-	{ label: 'Armenian', description: 'Հայերեն', languageCode: 'hy' },
-	{ label: 'Lithuanian', description: 'Lietuvių', languageCode: 'lt' },
-	{ label: 'Latvian', description: 'Latviešu', languageCode: 'lv' },
-	{ label: 'Estonian', description: 'Eesti', languageCode: 'et' },
-	{ label: 'Slovak', description: 'Slovenčina', languageCode: 'sk' },
-	{ label: 'Slovenian', description: 'Slovenščina', languageCode: 'sl' },
-	{ label: 'Croatian', description: 'Hrvatski', languageCode: 'hr' },
-	{ label: 'Serbian', description: 'Српски', languageCode: 'sr' },
-	{ label: 'Bulgarian', description: 'Български', languageCode: 'bg' },
-	{ label: 'Macedonian', description: 'Македонски', languageCode: 'mk' },
-	{ label: 'Albanian', description: 'Shqip', languageCode: 'sq' },
-	{ label: 'Basque', description: 'Euskara', languageCode: 'eu' },
-	{ label: 'Catalan', description: 'Català', languageCode: 'ca' },
-	{ label: 'Galician', description: 'Galego', languageCode: 'gl' },
-	{ label: 'Welsh', description: 'Cymraeg', languageCode: 'cy' },
-	{ label: 'Irish', description: 'Gaeilge', languageCode: 'ga' },
-	{ label: 'Scottish Gaelic', description: 'Gàidhlig', languageCode: 'gd' },
-	{ label: 'Breton', description: 'Brezhoneg', languageCode: 'br' },
-	{ label: 'Icelandic', description: 'Íslenska', languageCode: 'is' },
-	{ label: 'Malay', description: 'Bahasa Melayu', languageCode: 'ms' },
-	{ label: 'Filipino', description: 'Filipino', languageCode: 'fil' },
-	{ label: 'Burmese', description: 'မြန်မာ', languageCode: 'my' },
-	{ label: 'Khmer', description: 'ខ្មែរ', languageCode: 'km' },
-	{ label: 'Lao', description: 'ລາວ', languageCode: 'lo' },
-	{ label: 'Nepali', description: 'नेपाली', languageCode: 'ne' },
-	{ label: 'Sinhala', description: 'සිංහල', languageCode: 'si' },
-	{ label: 'Amharic', description: 'አማርኛ', languageCode: 'am' },
-	{ label: 'Swahili', description: 'Kiswahili', languageCode: 'sw' },
-	{ label: 'Afrikaans', description: 'Afrikaans', languageCode: 'af' },
-	{ label: 'Zulu', description: 'isiZulu', languageCode: 'zu' },
-	{ label: 'Xhosa', description: 'isiXhosa', languageCode: 'xh' }
-];
 
 /**
  * Loads custom coordinate patterns from VS Code settings
@@ -148,6 +55,449 @@ function loadCustomCoordinatePatterns(): void {
 	}
 }
 
+/**
+ * Registers language change commands
+ */
+function registerLanguageCommands(context: vscode.ExtensionContext, mapsViewProvider: MapViewProvider): void {
+	// Register specific language commands
+	const languageCommands: [string, string][] = [
+		['vscodeMaplibreViewer.setLanguageNative', 'native'],
+		['vscodeMaplibreViewer.setLanguageEnglish', 'en'],
+		['vscodeMaplibreViewer.setLanguageGerman', 'de']
+	];
+
+	languageCommands.forEach(([commandId, languageCode]) => {
+		context.subscriptions.push(
+			vscode.commands.registerCommand(commandId, () => {
+				mapsViewProvider.setMapLanguage(languageCode);
+			})
+		);
+	});
+
+	// Register generic language selection command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.setLanguage', async () => {
+			const selected = await vscode.window.showQuickPick(LANGUAGE_OPTIONS, {
+				placeHolder: 'Select a language for map labels',
+				matchOnDescription: true,
+				matchOnDetail: true
+			});
+
+			if (selected) {
+				mapsViewProvider.setMapLanguage(selected.languageCode);
+			}
+		})
+	);
+}
+
+/**
+ * Registers coordinate selection commands
+ */
+function registerCoordinateSelectionCommands(context: vscode.ExtensionContext): void {
+	// Register toggle coordinate selection command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.toggleCoordinateSelection', async () => {
+			await toggleCoordinateSelectionState(context);
+		})
+	);
+
+	// Register enable coordinate selection command (for toolbar icon when disabled)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.enableCoordinateSelection', async () => {
+			await updateCoordinateSelectionState(context, true);
+		})
+	);
+
+	// Register disable coordinate selection command (for toolbar icon when enabled)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.disableCoordinateSelection', async () => {
+			await updateCoordinateSelectionState(context, false);
+		})
+	);
+}
+
+/**
+ * Handles saving a bookmark
+ */
+async function handleSaveBookmark(
+	bookmarkManager: BookmarkManager,
+	bookmarkTreeProvider: BookmarkTreeProvider,
+	mapsViewProvider: MapViewProvider
+): Promise<void> {
+	// Get current view state from the webview
+	const viewState = await mapsViewProvider.getCurrentViewState();
+	
+	if (!viewState) {
+		vscode.window.showWarningMessage('Unable to get current map view. Please ensure the map is loaded.');
+		return;
+	}
+
+	const bookmarks = bookmarkManager.getAllBookmarks();
+	
+	// Create QuickPick items: existing bookmarks + option to create new
+	const items: (vscode.QuickPickItem & { bookmark?: MapBookmark; isNew?: boolean })[] = [
+		{
+			label: '$(add) Create New Bookmark...',
+			description: 'Save current view as a new bookmark',
+			isNew: true
+		}
+	];
+	
+	// Add existing bookmarks if any
+	if (bookmarks.length > 0) {
+		items.push({
+			label: '── Existing Bookmarks ──',
+			kind: vscode.QuickPickItemKind.Separator
+		});
+		
+		bookmarks.forEach(b => {
+			items.push({
+				label: `$(bookmark) ${b.name}`,
+				description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
+				detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
+				bookmark: b
+			});
+		});
+	}
+
+	// Show QuickPick
+	const selected = await vscode.window.showQuickPick(items, {
+		placeHolder: 'Select an existing bookmark to update or create a new one',
+		matchOnDescription: true,
+		matchOnDetail: true
+	});
+
+	// User cancelled the selection
+	if (!selected) {
+		return;
+	}
+
+	// Handle selection
+	if (selected.isNew) {
+		await createNewBookmark(bookmarkManager, bookmarkTreeProvider, viewState);
+	} else if (selected.bookmark) {
+		await updateExistingBookmark(bookmarkManager, bookmarkTreeProvider, selected.bookmark, viewState);
+	}
+}
+
+/**
+ * Creates a new bookmark
+ */
+async function createNewBookmark(
+	bookmarkManager: BookmarkManager,
+	bookmarkTreeProvider: BookmarkTreeProvider,
+	viewState: ViewState
+): Promise<void> {
+	const name = await vscode.window.showInputBox({
+		prompt: 'Enter a name for this bookmark',
+		placeHolder: 'e.g., Office Location',
+		validateInput: (value) => {
+			if (!value || value.trim().length === 0) {
+				return 'Name is required';
+			}
+			if (bookmarkManager.findByName(value)) {
+				return 'A bookmark with this name already exists';
+			}
+			return null;
+		}
+	});
+
+	if (!name) {
+		return;
+	}
+
+	try {
+		const bookmark = await bookmarkManager.createBookmark(name, viewState);
+		bookmarkTreeProvider.refresh();
+		vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" saved successfully.`);
+	} catch (error) {
+		showOperationError('save bookmark', error);
+	}
+}
+
+/**
+ * Updates an existing bookmark
+ */
+async function updateExistingBookmark(
+	bookmarkManager: BookmarkManager,
+	bookmarkTreeProvider: BookmarkTreeProvider,
+	bookmark: MapBookmark,
+	viewState: ViewState
+): Promise<void> {
+	if (!await confirmAction(`Update "${bookmark.name}" with current view?`, 'Update')) {
+		return;
+	}
+
+	try {
+		await bookmarkManager.updateBookmark(bookmark.id, {
+			center: viewState.center,
+			zoom: viewState.zoom,
+			bearing: viewState.bearing,
+			pitch: viewState.pitch
+		});
+		bookmarkTreeProvider.refresh();
+		vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" updated successfully.`);
+	} catch (error) {
+		showOperationError('update bookmark', error);
+	}
+}
+
+/**
+ * Handles loading a bookmark
+ */
+async function handleLoadBookmark(
+	bookmarkManager: BookmarkManager,
+	mapsViewProvider: MapViewProvider
+): Promise<void> {
+	const bookmarks = bookmarkManager.getAllBookmarks();
+	
+	if (bookmarks.length === 0) {
+		vscode.window.showInformationMessage('No bookmarks saved. Use "Save View" to create bookmarks.');
+		return;
+	}
+
+	// Create QuickPick items from bookmarks
+	const items = bookmarks.map(b => ({
+		label: b.name,
+		description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
+		detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
+		bookmark: b
+	}));
+
+	// Show QuickPick
+	const selected = await vscode.window.showQuickPick(items, {
+		placeHolder: 'Select a saved place to load',
+		matchOnDescription: true,
+		matchOnDetail: true
+	});
+
+	// User cancelled the selection
+	if (!selected) {
+		return;
+	}
+
+	// Fly to the selected bookmark
+	mapsViewProvider.flyToBookmark(selected.bookmark);
+}
+
+/**
+ * Handles search on map command
+ */
+async function handleSearchOnMap(
+	args: unknown,
+	mapsViewProvider: MapViewProvider
+): Promise<void> {
+	// Try to get text from args first, then from editor
+	let selectedText = extractSearchTextFromArgs(args);
+	
+	if (!selectedText) {
+		selectedText = getSelectedTextFromEditor();
+	}
+
+	// Get configuration for geocoding
+	const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+	const geocodingApiKey = config.get<string>('geocodingApiKey') || '';
+	const photonSearchUrl = config.get<string>('photonSearchUrl') || 'https://photon.komoot.io/api/';
+
+	// Create a QuickPick for search
+	const quickPick = vscode.window.createQuickPick();
+	quickPick.placeholder = 'Search for a place on the map...';
+	quickPick.value = selectedText;
+	quickPick.matchOnDescription = true;
+	quickPick.matchOnDetail = true;
+
+	// Store search results with coordinates and optional bounding box
+	const searchResultsMap = new Map<string, SearchResultData>();
+
+	// Debounce timer for search
+	let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// Handle input changes with debounce
+	quickPick.onDidChangeValue((value) => {
+		if (searchDebounceTimer) {
+			clearTimeout(searchDebounceTimer);
+		}
+		searchDebounceTimer = setTimeout(async () => {
+			quickPick.busy = true;
+			quickPick.items = await performGeocodingSearch(value, geocodingApiKey, photonSearchUrl, searchResultsMap);
+			quickPick.busy = false;
+		}, 300);
+	});
+
+	// Initial search if there's selected text
+	if (selectedText.length >= 2) {
+		quickPick.busy = true;
+		const items = await performGeocodingSearch(selectedText, geocodingApiKey, photonSearchUrl, searchResultsMap);
+		quickPick.items = items;
+		quickPick.busy = false;
+	}
+
+	// Handle selection
+	quickPick.onDidAccept(() => {
+		const selected = quickPick.selectedItems[0];
+		if (selected) {
+			// Find the coordinates for the selected item
+			const itemKey = `${selected.label}-${selected.detail}`;
+			const coords = searchResultsMap.get(itemKey);
+			
+			if (coords) {
+				if (coords.bbox) {
+					// Use bounding box to fit the map
+					mapsViewProvider.fitBoundsOnly(coords.bbox);
+				} else if (coords.lat !== 0 && coords.lng !== 0) {
+					// Fall back to flying to a point
+					const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+					const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
+					mapsViewProvider.flyToLocation(coords.lat, coords.lng, singlePointZoom);
+				}
+			}
+		}
+		quickPick.hide();
+	});
+
+	// Show the QuickPick
+	quickPick.show();
+}
+
+/**
+ * Handles text selection for coordinate parsing
+ */
+function handleTextSelection(mapsViewProvider: MapViewProvider): void {
+	// Get the active editor
+	const editor = vscode.window.activeTextEditor;
+	if (!editor) {
+		return;
+	}
+
+	// Get the selected text
+	const selection = editor.selection;
+	if (selection.isEmpty) {
+		return;
+	}
+
+	const selectedText = editor.document.getText(selection);
+	if (!selectedText || selectedText.trim().length === 0) {
+		return;
+	}
+
+	// Try to parse multiple coordinates from the selected text
+	const coordinates = parseMultipleCoordinates(selectedText);
+	
+	if (coordinates.length > 1) {
+		// Multiple coordinates found - calculate bounding box and fit all
+		const bbox = calculateBoundingBox(coordinates);
+		if (bbox) {
+			mapsViewProvider.fitBoundingBox(coordinates, bbox);
+		}
+	} else if (coordinates.length === 1) {
+		// Single coordinate - fly to it with configured zoom level
+		const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+		const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
+		mapsViewProvider.flyToLocation(coordinates[0].latitude, coordinates[0].longitude, singlePointZoom);
+	} else {
+		// Fallback: try single coordinate parsing for backward compatibility
+		const coordinate = parseCoordinate(selectedText);
+		if (coordinate) {
+			mapsViewProvider.flyToLocation(coordinate.latitude, coordinate.longitude);
+		}
+	}
+}
+
+/**
+ * Handles file selection for GeoJSON processing
+ */
+async function handleFileSelection(
+	editor: vscode.TextEditor,
+	layerTreeProvider: LayerTreeProvider,
+	mapsViewProvider: MapViewProvider,
+	fileToGeoJsonAdapters: FileToGeoJsonAdapter[]
+): Promise<void> {
+	const filePath = editor.document.uri.fsPath;
+	console.log(`File selected in navigator: ${filePath}`);
+
+	// Only clear the layer if it has content
+	if (!layerTreeProvider.isSelectedFileLayerEmpty()) {
+		await layerTreeProvider.updateSelectedFileLayer(null);
+	}
+
+	// Check if the "Selected file" layer is enabled
+	const selectedFileLayer = layerTreeProvider.getSelectedFileLayer();
+	if (selectedFileLayer && !selectedFileLayer.visible) {
+		console.log('Selected file layer is disabled, skipping file processing');
+		return;
+	}
+
+	// Check all registered file-to-GeoJSON adapters
+	const fileExtension = path.extname(filePath).toLowerCase();
+	for (const adapter of fileToGeoJsonAdapters) {
+		if (adapter.canHandle(fileExtension)) {
+			console.log(`Adapter "${adapter.getName()}" can handle ${fileExtension} files`);
+			try {
+				const geojson = await adapter.toGeoJson(filePath);
+				
+				// Update the selected file layer through the layer tree provider
+				// This ensures the layer visibility state is properly managed
+				await layerTreeProvider.updateSelectedFileLayer(geojson);
+				
+				// Extract coordinates from GeoJSON and fit map to bounding box
+				// Use fitBoundsOnly to avoid creating blue markers - the GeoJSON layer already renders features
+				const coordinates = extractCoordinatesFromGeoJson(geojson);
+				if (coordinates.length > 0) {
+					const bbox = calculateBoundingBox(coordinates);
+					if (bbox) {
+						mapsViewProvider.fitBoundsOnly(bbox);
+					}
+				}
+				
+				return; // Use the first adapter that can handle the file
+			} catch (error) {
+				console.error(`Error converting file with ${adapter.getName()} adapter:`, error);
+			}
+		}
+	}
+}
+
+/**
+ * Creates the public API object
+ */
+function createAPI(
+	layerTreeProvider: LayerTreeProvider,
+	onDidChangeActiveBasemapEmitter: vscode.EventEmitter<BaseMapStyle>,
+	fileToGeoJsonAdapters: FileToGeoJsonAdapter[]
+): MapLibreViewerAPI {
+	return {
+		registerBasemap: (provider: BasemapProvider) => {
+			// Convert BasemapProvider to BaseMapStyle
+			const basemap: BaseMapStyle = {
+				id: provider.id,
+				name: provider.name,
+				styleUrl: provider.styleUrl,
+				type: provider.type,
+				tileUrl: provider.tileUrl,
+				tileSize: provider.tileSize,
+				attribution: provider.attribution,
+				minzoom: provider.minzoom,
+				maxzoom: provider.maxzoom,
+				description: provider.description
+			};
+			return layerTreeProvider.registerBasemap(basemap);
+		},
+		getBasemaps: () => layerTreeProvider.getBasemaps(),
+		getActiveBasemap: () => layerTreeProvider.getActiveBaseMap(),
+		onDidChangeActiveBasemap: onDidChangeActiveBasemapEmitter.event,
+		registerFileToGeoJsonAdapter: (adapter: FileToGeoJsonAdapter) => {
+			fileToGeoJsonAdapters.push(adapter);
+			return new vscode.Disposable(() => {
+				const index = fileToGeoJsonAdapters.indexOf(adapter);
+				if (index !== -1) {
+					fileToGeoJsonAdapters.splice(index, 1);
+				}
+			});
+		},
+		getFileToGeoJsonAdapters: () => [...fileToGeoJsonAdapters]
+	};
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext): Promise<MapLibreViewerAPI> {
@@ -161,7 +511,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 	// Initialize coordinate selection state from globalState (default: true)
 	// MUST be set BEFORE registering the webview view provider
-	const coordinateSelectionEnabled = context.globalState.get<boolean>('coordinateSelectionEnabled', true);
+	const coordinateSelectionEnabled = getCoordinateSelectionState(context);
 	
 	// Set the context variable for the toolbar icon
 	vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', coordinateSelectionEnabled);
@@ -219,7 +569,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			try {
 				await layerTreeProvider.setActiveBaseMap(baseMap.id);
 			} catch (error) {
-				vscode.window.showErrorMessage(`Failed to set base map: ${error}`);
+				showOperationError('set base map', error);
 			}
 		})
 	);
@@ -230,7 +580,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			try {
 				await layerTreeProvider.toggleLayerVisibility(layer.id);
 			} catch (error) {
-				vscode.window.showErrorMessage(`Failed to toggle layer: ${error}`);
+				showOperationError('toggle layer', error);
 			}
 		})
 	);
@@ -282,7 +632,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			try {
 				await layerTreeProvider.addOverlayLayer(newLayer);
 			} catch (error) {
-				vscode.window.showErrorMessage(`Failed to add layer: ${error}`);
+				showOperationError('add layer', error);
 			}
 		})
 	);
@@ -290,18 +640,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	// Register command to remove an overlay layer
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscodeMaplibreViewer.removeLayer', async (layer: OverlayLayer) => {
-			const confirm = await vscode.window.showWarningMessage(
-				`Are you sure you want to remove layer "${layer.name}"?`,
-				'Remove',
-				'Cancel'
-			);
-
-			if (confirm === 'Remove') {
+			if (await confirmAction(`Are you sure you want to remove layer "${layer.name}"?`, 'Remove')) {
 				try {
 					await layerTreeProvider.removeOverlayLayer(layer.id);
 					vscode.window.showInformationMessage(`Layer "${layer.name}" removed`);
 				} catch (error) {
-					vscode.window.showErrorMessage(`Failed to remove layer: ${error}`);
+					showOperationError('remove layer', error);
 				}
 			}
 		})
@@ -317,13 +661,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	// Register command to delete a bookmark from the tree view context menu
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscodeMaplibreViewer.deleteBookmark', async (bookmark: MapBookmark) => {
-			const confirm = await vscode.window.showWarningMessage(
-				`Are you sure you want to delete bookmark "${bookmark.name}"?`,
-				'Delete',
-				'Cancel'
-			);
-
-			if (confirm === 'Delete') {
+			if (await confirmAction(`Are you sure you want to delete bookmark "${bookmark.name}"?`, 'Delete')) {
 				await bookmarkManager.deleteBookmark(bookmark.id);
 				bookmarkTreeProvider.refresh();
 			}
@@ -349,74 +687,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	);
 
 	// Register language change commands
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.setLanguageNative', () => {
-			mapsViewProvider.setMapLanguage('native');
-		})
-	);
+	registerLanguageCommands(context, mapsViewProvider);
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.setLanguageEnglish', () => {
-			mapsViewProvider.setMapLanguage('en');
-		})
-	);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.setLanguageGerman', () => {
-			mapsViewProvider.setMapLanguage('de');
-		})
-	);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.setLanguage', async () => {
-			const selected = await vscode.window.showQuickPick(LANGUAGE_OPTIONS, {
-				placeHolder: 'Select a language for map labels',
-				matchOnDescription: true,
-				matchOnDetail: true
-			});
-
-			if (selected) {
-				mapsViewProvider.setMapLanguage(selected.languageCode);
-			}
-		})
-	);
-
-	// Register toggle coordinate selection command
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.toggleCoordinateSelection', async () => {
-			const currentState = context.globalState.get<boolean>('coordinateSelectionEnabled', true);
-			const newState = !currentState;
-			
-			// Update the state
-			await context.globalState.update('coordinateSelectionEnabled', newState);
-			
-			// Update the context variable for the toolbar icon
-			vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', newState);
-			
-			// Show a message to the user
-			vscode.window.showInformationMessage(
-				`Coordinate selection ${newState ? 'enabled' : 'disabled'}`
-			);
-		})
-	);
-
-	// Register enable coordinate selection command (for toolbar icon when disabled)
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.enableCoordinateSelection', async () => {
-			await context.globalState.update('coordinateSelectionEnabled', true);
-			vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', true);
-			vscode.window.showInformationMessage('Coordinate selection enabled');
-		})
-	);
-
-	// Register disable coordinate selection command (for toolbar icon when enabled)
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.disableCoordinateSelection', async () => {
-			await context.globalState.update('coordinateSelectionEnabled', false);
-			vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', false);
-			vscode.window.showInformationMessage('Coordinate selection disabled');
-		})
-	);
+	// Register coordinate selection commands
+	registerCoordinateSelectionCommands(context);
 
 	// Register open settings command
 	context.subscriptions.push(
@@ -430,380 +704,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 	// Register save view command - opens QuickPick with existing bookmarks or option to create new
 	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.saveBookmark', async () => {
-			// Get current view state from the webview
-			const viewState = await mapsViewProvider.getCurrentViewState();
-			
-			if (!viewState) {
-				vscode.window.showWarningMessage('Unable to get current map view. Please ensure the map is loaded.');
-				return;
-			}
-
-			const bookmarks = bookmarkManager.getAllBookmarks();
-			
-			// Create QuickPick items: existing bookmarks + option to create new
-			const items: (vscode.QuickPickItem & { bookmark?: MapBookmark; isNew?: boolean })[] = [
-				{
-					label: '$(add) Create New Bookmark...',
-					description: 'Save current view as a new bookmark',
-					isNew: true
-				}
-			];
-			
-			// Add existing bookmarks if any
-			if (bookmarks.length > 0) {
-				items.push({
-					label: '── Existing Bookmarks ──',
-					kind: vscode.QuickPickItemKind.Separator
-				});
-				
-				bookmarks.forEach(b => {
-					items.push({
-						label: `$(bookmark) ${b.name}`,
-						description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
-						detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
-						bookmark: b
-					});
-				});
-			}
-
-			// Show QuickPick
-			const selected = await vscode.window.showQuickPick(items, {
-				placeHolder: 'Select an existing bookmark to update or create a new one',
-				matchOnDescription: true,
-				matchOnDetail: true
-			});
-
-			// User cancelled the selection
-			if (!selected) {
-				return;
-			}
-
-			// Handle selection
-			if (selected.isNew) {
-				// Create new bookmark - prompt for name
-				const name = await vscode.window.showInputBox({
-					prompt: 'Enter a name for this bookmark',
-					placeHolder: 'e.g., Office Location',
-					validateInput: (value) => {
-						if (!value || value.trim().length === 0) {
-							return 'Name is required';
-						}
-						if (bookmarkManager.findByName(value)) {
-							return 'A bookmark with this name already exists';
-						}
-						return null;
-					}
-				});
-
-				if (!name) {
-					return;
-				}
-
-				try {
-					const bookmark = await bookmarkManager.createBookmark(name, viewState);
-					bookmarkTreeProvider.refresh();
-					vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" saved successfully.`);
-				} catch (error) {
-					vscode.window.showErrorMessage(`Failed to save bookmark: ${error}`);
-				}
-			} else if (selected.bookmark) {
-				// Update existing bookmark
-				const confirm = await vscode.window.showWarningMessage(
-					`Update "${selected.bookmark.name}" with current view?`,
-					'Update',
-					'Cancel'
-				);
-
-				if (confirm !== 'Update') {
-					return;
-				}
-
-				try {
-					await bookmarkManager.updateBookmark(selected.bookmark.id, {
-						center: viewState.center,
-						zoom: viewState.zoom,
-						bearing: viewState.bearing,
-						pitch: viewState.pitch
-					});
-					bookmarkTreeProvider.refresh();
-					vscode.window.showInformationMessage(`Bookmark "${selected.bookmark.name}" updated successfully.`);
-				} catch (error) {
-					vscode.window.showErrorMessage(`Failed to update bookmark: ${error}`);
-				}
-			}
-		})
+		vscode.commands.registerCommand('vscodeMaplibreViewer.saveBookmark', () => 
+			handleSaveBookmark(bookmarkManager, bookmarkTreeProvider, mapsViewProvider)
+		)
 	);
 
 	// Register load place command - opens QuickPick with all bookmarks
 	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.loadBookmark', async () => {
-			const bookmarks = bookmarkManager.getAllBookmarks();
-			
-			if (bookmarks.length === 0) {
-				vscode.window.showInformationMessage('No bookmarks saved. Use "Save View" to create bookmarks.');
-				return;
-			}
-
-			// Create QuickPick items from bookmarks
-			const items = bookmarks.map(b => ({
-				label: b.name,
-				description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
-				detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
-				bookmark: b
-			}));
-
-			// Show QuickPick
-			const selected = await vscode.window.showQuickPick(items, {
-				placeHolder: 'Select a saved place to load',
-				matchOnDescription: true,
-				matchOnDetail: true
-			});
-
-			// User cancelled the selection
-			if (!selected) {
-				return;
-			}
-
-			// Fly to the selected bookmark
-			mapsViewProvider.flyToBookmark(selected.bookmark);
-		})
+		vscode.commands.registerCommand('vscodeMaplibreViewer.loadBookmark', () => 
+			handleLoadBookmark(bookmarkManager, mapsViewProvider)
+		)
 	);
 
 	// Register search on map command - shows filtered dialog with selected text as default
 	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.searchOnMap', async (args?: unknown) => {
-			let selectedText = '';
-			
-			// Debug: log what args are passed
-			console.log('searchOnMap called with args:', args);
-			
-			// Check if text was passed as argument (from terminal context menu)
-			// Terminal context passes an object with 'selectionText' or 'selection' property
-			if (args && typeof args === 'object') {
-				const argsObj = args as Record<string, unknown>;
-				console.log('argsObj keys:', Object.keys(argsObj));
-				if (typeof argsObj.selectionText === 'string') {
-					selectedText = argsObj.selectionText.trim();
-				} else if (typeof argsObj.selection === 'string') {
-					selectedText = argsObj.selection.trim();
-				} else if (typeof argsObj.text === 'string') {
-					selectedText = argsObj.text.trim();
-				} else if (typeof argsObj.value === 'string') {
-					selectedText = argsObj.value.trim();
-				}
-			}
-			
-			// If no text from args, try to get from active editor
-			if (!selectedText) {
-				// Get the active editor
-				const editor = vscode.window.activeTextEditor;
-				
-				// Get selected text if available
-				if (editor) {
-					const selection = editor.selection;
-					if (!selection.isEmpty) {
-						selectedText = editor.document.getText(selection).trim();
-					}
-				}
-			}
-
-			// Get configuration for geocoding
-			const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-			const geocodingApiKey = config.get<string>('geocodingApiKey') || '';
-			const photonSearchUrl = config.get<string>('photonSearchUrl') || 'https://photon.komoot.io/api/';
-
-			// Create a QuickPick for search
-			const quickPick = vscode.window.createQuickPick();
-			quickPick.placeholder = 'Search for a place on the map...';
-			quickPick.value = selectedText;
-			quickPick.matchOnDescription = true;
-			quickPick.matchOnDetail = true;
-
-			// Store search results with coordinates and optional bounding box
-			interface SearchResultData {
-				lat: number;
-				lng: number;
-				bbox?: { southwest: { latitude: number; longitude: number }; northeast: { latitude: number; longitude: number } };
-			};
-			const searchResultsMap = new Map<string, SearchResultData>();
-
-			// Debounce timer for search
-			let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
-
-			// Perform search function
-			const performSearch = async (query: string) => {
-				if (query.trim().length < 2) {
-					quickPick.items = [];
-					quickPick.busy = false;
-					return;
-				}
-
-				quickPick.busy = true;
-
-				try {
-					// Build API URL
-					let apiUrl: string;
-					if (geocodingApiKey && geocodingApiKey.length > 0) {
-						apiUrl = `https://api.maptiler.com/geocoding/search.json?query=${encodeURIComponent(query)}&key=${geocodingApiKey}`;
-					} else {
-						apiUrl = `${photonSearchUrl}?q=${encodeURIComponent(query)}`;
-					}
-
-					// Fetch results
-					const response = await fetch(apiUrl);
-					if (!response.ok) {
-						throw new Error(`Geocoding API error: ${response.status}`);
-					}
-
-					const data = await response.json() as { features: Array<{
-						text?: string;
-						place_name?: string;
-						place_type?: string[];
-						center?: [number, number];
-						bbox?: [number, number, number, number]; // [west, south, east, north]
-						properties?: {
-							name?: string;
-							city?: string;
-							state?: string;
-							osm_value?: string;
-							osm_key?: string
-						};
-						geometry?: { coordinates: [number, number] }
-					}> };
-
-					// Clear previous results
-					searchResultsMap.clear();
-
-					// Parse results based on API type
-					const items: vscode.QuickPickItem[] = [];
-					
-					if (geocodingApiKey && geocodingApiKey.length > 0) {
-						// MapTiler format
-						if (data.features && data.features.length > 0) {
-							data.features.slice(0, 10).forEach(feature => {
-								const label = feature.text || feature.place_name || 'Unknown';
-								const description = feature.place_type ? feature.place_type[0] : 'place';
-								const lat = feature.center?.[1] || 0;
-								const lng = feature.center?.[0] || 0;
-								
-								// Parse bounding box if available (format: [west, south, east, north])
-								let bbox: SearchResultData['bbox'] | undefined;
-								if (feature.bbox && feature.bbox.length === 4) {
-									bbox = {
-										southwest: { latitude: feature.bbox[1], longitude: feature.bbox[0] },
-										northeast: { latitude: feature.bbox[3], longitude: feature.bbox[2] }
-									};
-								}
-								
-								const detail = bbox
-									? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`
-									: `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-								const itemKey = `${label}-${detail}`;
-								
-								items.push({
-									label: label,
-									description: description,
-									detail: detail
-								});
-								searchResultsMap.set(itemKey, { lat, lng, bbox });
-							});
-						}
-					} else {
-						// Photon format
-						if (data.features && data.features.length > 0) {
-							data.features.slice(0, 10).forEach(feature => {
-								const label = feature.properties?.name || feature.properties?.city || feature.properties?.state || 'Unknown';
-								const description = feature.properties?.osm_value || feature.properties?.osm_key || 'place';
-								const lat = feature.geometry?.coordinates?.[1] || 0;
-								const lng = feature.geometry?.coordinates?.[0] || 0;
-								
-								// Parse bounding box if available (format: [west, south, east, north])
-								let bbox: SearchResultData['bbox'] | undefined;
-								if (feature.bbox && feature.bbox.length === 4) {
-									bbox = {
-										southwest: { latitude: feature.bbox[1], longitude: feature.bbox[0] },
-										northeast: { latitude: feature.bbox[3], longitude: feature.bbox[2] }
-									};
-								}
-								
-								const detail = bbox
-									? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`
-									: `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-								const itemKey = `${label}-${detail}`;
-								
-								items.push({
-									label: label,
-									description: description,
-									detail: detail
-								});
-								searchResultsMap.set(itemKey, { lat, lng, bbox });
-							});
-						}
-					}
-
-					// Update QuickPick items
-					quickPick.items = items;
-					quickPick.busy = false;
-				} catch (error) {
-					quickPick.busy = false;
-					quickPick.items = [{
-						label: 'Search failed. Please try again.',
-						description: '',
-						detail: ''
-					}];
-				}
-			};
-
-			// Handle input changes with debounce
-			quickPick.onDidChangeValue((value) => {
-				if (searchDebounceTimer) {
-					clearTimeout(searchDebounceTimer);
-				}
-				searchDebounceTimer = setTimeout(() => {
-					performSearch(value);
-				}, 300);
-			});
-
-			// Initial search if there's selected text
-			if (selectedText.length >= 2) {
-				performSearch(selectedText);
-			}
-
-			// Handle selection
-			quickPick.onDidAccept(() => {
-				const selected = quickPick.selectedItems[0];
-				if (selected) {
-					// Find the coordinates for the selected item
-					const itemKey = `${selected.label}-${selected.detail}`;
-					const coords = searchResultsMap.get(itemKey);
-					
-					if (coords) {
-						if (coords.bbox) {
-							// Use bounding box to fit the map
-							mapsViewProvider.fitBoundsOnly(coords.bbox);
-						} else if (coords.lat !== 0 && coords.lng !== 0) {
-							// Fall back to flying to a point
-							const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
-							mapsViewProvider.flyToLocation(coords.lat, coords.lng, singlePointZoom);
-						}
-					}
-				}
-				quickPick.hide();
-			});
-
-			// Show the QuickPick
-			quickPick.show();
-		})
+		vscode.commands.registerCommand('vscodeMaplibreViewer.searchOnMap', (args?: unknown) => 
+			handleSearchOnMap(args, mapsViewProvider)
+		)
 	);
 
 	// Debounce timer for text selection listener
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// Register text selection listener for coordinate parsing
-	const selectionListener = vscode.window.onDidChangeTextEditorSelection((event) => {
+	const selectionListener = vscode.window.onDidChangeTextEditorSelection(() => {
 		// Check if coordinate selection is enabled
-		const isEnabled = context.globalState.get<boolean>('coordinateSelectionEnabled', true);
+		const isEnabled = getCoordinateSelectionState(context);
 		if (!isEnabled) {
 			return;
 		}
@@ -814,50 +740,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		}
 
 		// Debounce the handler (300ms)
-		debounceTimer = setTimeout(() => {
-			// Get the active editor
-			const editor = vscode.window.activeTextEditor;
-			if (!editor) {
-				return;
-			}
-
-			// Get the selected text
-			const selection = editor.selection;
-			if (selection.isEmpty) {
-				return;
-			}
-
-			const selectedText = editor.document.getText(selection);
-			if (!selectedText || selectedText.trim().length === 0) {
-				return;
-			}
-
-			// Try to parse multiple coordinates from the selected text
-			const coordinates = parseMultipleCoordinates(selectedText);
-			
-			if (coordinates.length > 1) {
-				// Multiple coordinates found - calculate bounding box and fit all
-				const bbox = calculateBoundingBox(coordinates);
-				if (bbox) {
-					mapsViewProvider.fitBoundingBox(coordinates, bbox);
-				}
-			} else if (coordinates.length === 1) {
-				// Single coordinate - fly to it with configured zoom level
-				const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-				const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
-				mapsViewProvider.flyToLocation(coordinates[0].latitude, coordinates[0].longitude, singlePointZoom);
-			} else {
-				// Fallback: try single coordinate parsing for backward compatibility
-				const coordinate = parseCoordinate(selectedText);
-				if (coordinate) {
-					mapsViewProvider.flyToLocation(coordinate.latitude, coordinate.longitude);
-				}
-			}
-		}, 300);
+		debounceTimer = setTimeout(() => handleTextSelection(mapsViewProvider), 300);
 	});
 
 	// Clean up the listener when the extension is deactivated
 	context.subscriptions.push(selectionListener);
+
+	// Registry for file-to-GeoJSON adapters
+	const fileToGeoJsonAdapters: FileToGeoJsonAdapter[] = [];
+
+	// Register the built-in GeoJSON adapter
+	fileToGeoJsonAdapters.push(geojsonAdapter);
 
 	// Register file selection listener for the navigator view
 	const fileSelectionListener = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
@@ -865,49 +758,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			return;
 		}
 		
-		const filePath = editor.document.uri.fsPath;
-		console.log(`File selected in navigator: ${filePath}`);
-
-		// Only clear the layer if it has content
-		if (!layerTreeProvider.isSelectedFileLayerEmpty()) {
-			await layerTreeProvider.updateSelectedFileLayer(null);
-		}
-
-		// Check if the "Selected file" layer is enabled
-		const selectedFileLayer = layerTreeProvider.getSelectedFileLayer();
-		if (selectedFileLayer && !selectedFileLayer.visible) {
-			console.log('Selected file layer is disabled, skipping file processing');
-			return;
-		}
-
-		// Check all registered file-to-GeoJSON adapters
-		const fileExtension = path.extname(filePath).toLowerCase();
-		for (const adapter of fileToGeoJsonAdapters) {
-			if (adapter.canHandle(fileExtension)) {
-				console.log(`Adapter "${adapter.getName()}" can handle ${fileExtension} files`);
-				try {
-					const geojson = await adapter.toGeoJson(filePath);
-					
-					// Update the selected file layer through the layer tree provider
-					// This ensures the layer visibility state is properly managed
-					await layerTreeProvider.updateSelectedFileLayer(geojson);
-					
-					// Extract coordinates from GeoJSON and fit map to bounding box
-					// Use fitBoundsOnly to avoid creating blue markers - the GeoJSON layer already renders features
-					const coordinates = extractCoordinatesFromGeoJson(geojson);
-					if (coordinates.length > 0) {
-						const bbox = calculateBoundingBox(coordinates);
-						if (bbox) {
-							mapsViewProvider.fitBoundsOnly(bbox);
-						}
-					}
-					
-					return; // Use the first adapter that can handle the file
-				} catch (error) {
-					console.error(`Error converting file with ${adapter.getName()} adapter:`, error);
-				}
-			}
-		}
+		await handleFileSelection(editor, layerTreeProvider, mapsViewProvider, fileToGeoJsonAdapters);
 	});
 
 	// Clean up the file selection listener when the extension is deactivated
@@ -923,44 +774,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		}
 	});
 
-	// Registry for file-to-GeoJSON adapters
-	const fileToGeoJsonAdapters: FileToGeoJsonAdapter[] = [];
-
-	// Register the built-in GeoJSON adapter
-	fileToGeoJsonAdapters.push(geojsonAdapter);
-
 	// Export the public API for external extensions
-	const api: MapLibreViewerAPI = {
-		registerBasemap: (provider: BasemapProvider) => {
-			// Convert BasemapProvider to BaseMapStyle
-			const basemap: BaseMapStyle = {
-				id: provider.id,
-				name: provider.name,
-				styleUrl: provider.styleUrl,
-				type: provider.type,
-				tileUrl: provider.tileUrl,
-				tileSize: provider.tileSize,
-				attribution: provider.attribution,
-				minzoom: provider.minzoom,
-				maxzoom: provider.maxzoom,
-				description: provider.description
-			};
-			return layerTreeProvider.registerBasemap(basemap);
-		},
-		getBasemaps: () => layerTreeProvider.getBasemaps(),
-		getActiveBasemap: () => layerTreeProvider.getActiveBaseMap(),
-		onDidChangeActiveBasemap: onDidChangeActiveBasemapEmitter.event,
-		registerFileToGeoJsonAdapter: (adapter: FileToGeoJsonAdapter) => {
-			fileToGeoJsonAdapters.push(adapter);
-			return new vscode.Disposable(() => {
-				const index = fileToGeoJsonAdapters.indexOf(adapter);
-				if (index !== -1) {
-					fileToGeoJsonAdapters.splice(index, 1);
-				}
-			});
-		},
-		getFileToGeoJsonAdapters: () => [...fileToGeoJsonAdapters]
-	};
+	const api = createAPI(layerTreeProvider, onDidChangeActiveBasemapEmitter, fileToGeoJsonAdapters);
 
 	// Register the default basemap using our own API
 	const defaultBasemap: BasemapProvider = {
@@ -978,375 +793,3 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 // This method is called when your extension is deactivated
 export function deactivate() {}
-
-class MapViewProvider implements vscode.WebviewViewProvider {
-	public static readonly viewType = 'mapsView';
-
-	private _view?: vscode.WebviewView;
-	private _pendingViewStateResolve?: (state: ViewState | undefined) => void;
-	private _currentBaseMapStyleUrl?: string;
-	private _currentBaseMapId?: string;
-
-	constructor(
-		private readonly _extensionUri: vscode.Uri,
-		private readonly _bookmarkManager: BookmarkManager,
-		initialStyleUrl?: string,
-		initialBaseMapId?: string
-	) {
-		// Store the initial style URL if provided
-		if (initialStyleUrl) {
-			this._currentBaseMapStyleUrl = initialStyleUrl;
-		}
-		// Store the initial base map ID if provided
-		if (initialBaseMapId) {
-			this._currentBaseMapId = initialBaseMapId;
-		}
-	}
-
-	public resolveWebviewView(
-		webviewView: vscode.WebviewView,
-		context: vscode.WebviewViewResolveContext,
-		_token: vscode.CancellationToken,
-	) {
-		this._view = webviewView;
-
-		webviewView.webview.options = {
-			// Allow scripts in the webview
-			enableScripts: true,
-			localResourceRoots: [
-				vscode.Uri.joinPath(this._extensionUri, 'resources')
-			]
-		};
-
-		webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
-
-		// Handle messages from the webview
-		webviewView.webview.onDidReceiveMessage(
-			(message: any) => {
-				this.handleWebviewMessage(message);
-			},
-			undefined,
-			[]
-		);
-	}
-
-	/**
-	 * Updates the map configuration when settings change
-	 */
-	public updateConfiguration(): void {
-		if (this._view) {
-			const config = this.getConfiguration();
-			this._view.webview.postMessage({
-				type: 'configUpdate',
-				config: config
-			});
-		}
-	}
-
-	/**
-	 * Sets the map language for labels
-	 * @param languageCode The language code ('native' for local names, or ISO 639-1 code like 'en', 'de', etc.)
-	 */
-	public setMapLanguage(languageCode: string): void {
-		if (this._view) {
-			this._view.webview.postMessage({
-				type: 'languageChange',
-				language: languageCode
-			});
-		}
-	}
-
-	/**
-	 * Flies to a specific location on the map
-	 * @param latitude The latitude coordinate
-	 * @param longitude The longitude coordinate
-	 * @param zoom Optional zoom level (defaults to configuration setting)
-	 */
-	public flyToLocation(latitude: number, longitude: number, zoom?: number): void {
-		if (this._view) {
-			// Get the zoom level from parameter or configuration
-			const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-			const defaultZoom = config.get<number>('singlePointZoom') ?? 14;
-			const zoomLevel = zoom ?? defaultZoom;
-			
-			this._view.webview.postMessage({
-				type: 'flyToLocation',
-				latitude: latitude,
-				longitude: longitude,
-				zoom: zoomLevel
-			});
-		}
-	}
-
-	/**
-	 * Fits the map to show all coordinates within a bounding box
-	 * @param coordinates Array of coordinates to display
-	 * @param bbox The bounding box containing southwest and northeast corners
-	 */
-	public fitBoundingBox(coordinates: Coordinate[], bbox: { southwest: Coordinate; northeast: Coordinate }): void {
-		if (this._view) {
-			this._view.webview.postMessage({
-				type: 'fitBoundingBox',
-				coordinates: coordinates,
-				boundingBox: bbox
-			});
-		}
-	}
-
-	/**
-	 * Fits the map to show a bounding box without creating markers
-	 * Use this for GeoJSON file viewing where the layer already renders the features
-	 * @param bbox The bounding box containing southwest and northeast corners
-	 */
-	public fitBoundsOnly(bbox: { southwest: Coordinate; northeast: Coordinate }): void {
-		if (this._view) {
-			this._view.webview.postMessage({
-				type: 'fitBoundsOnly',
-				boundingBox: bbox
-			});
-		}
-	}
-
-	/**
-	 * Flies to a bookmark location on the map
-	 * @param bookmark The bookmark to fly to
-	 */
-	public flyToBookmark(bookmark: MapBookmark): void {
-		if (this._view) {
-			this._view.webview.postMessage({
-				type: 'flyToBookmark',
-				bookmark: bookmark
-			});
-		}
-	}
-
-	/**
-	 * Sets the base map style
-	 * @param baseMap The base map style to use
-	 */
-	public setBaseMap(baseMap: BaseMapStyle): void {
-		// Store the current style URL (for vector) and ID
-		this._currentBaseMapStyleUrl = baseMap.styleUrl;
-		this._currentBaseMapId = baseMap.id;
-
-		if (this._view) {
-			// Send message to webview to update style while preserving view state
-			// Support both vector styles (styleUrl) and raster tiles (tileUrl)
-			this._view.webview.postMessage({
-				type: 'setBaseMap',
-				basemap: {
-					id: baseMap.id,
-					name: baseMap.name,
-					type: baseMap.type || (baseMap.styleUrl ? 'vector' : 'raster'),
-					styleUrl: baseMap.styleUrl,
-					tileUrl: baseMap.tileUrl,
-					tileSize: baseMap.tileSize,
-					attribution: baseMap.attribution,
-					minzoom: baseMap.minzoom,
-					maxzoom: baseMap.maxzoom
-				}
-			});
-		}
-	}
-
-	/**
-	 * Updates the overlay layers on the map
-	 * @param layers Array of visible overlay layers
-	 */
-	public updateOverlayLayers(layers: OverlayLayer[]): void {
-		if (this._view) {
-			this._view.webview.postMessage({
-				type: 'updateOverlayLayers',
-				layers: layers
-			});
-		}
-	}
-
-	/**
-	 * Updates the "Selected file" layer with new GeoJSON data
-	 * @param geojson The GeoJSON data to display, or null to clear
-	 */
-	public updateSelectedFileLayer(geojson: object | null): void {
-		if (this._view) {
-			this._view.webview.postMessage({
-				type: 'updateSelectedFileLayer',
-				geojson: geojson
-			});
-		}
-	}
-
-	/**
-	 * Gets the current view state from the webview
-	 * @returns Promise resolving to the current view state, or undefined if unavailable
-	 */
-	public async getCurrentViewState(): Promise<ViewState | undefined> {
-		if (!this._view) {
-			return undefined;
-		}
-
-		return new Promise<ViewState | undefined>((resolve) => {
-			// Store the resolve function to be called when we receive the response
-			this._pendingViewStateResolve = resolve;
-			
-			// Request the view state from the webview
-			this._view?.webview.postMessage({ type: 'requestViewState' });
-			
-			// Set a timeout to resolve with undefined if no response
-			setTimeout(() => {
-				if (this._pendingViewStateResolve) {
-					this._pendingViewStateResolve = undefined;
-					resolve(undefined);
-				}
-			}, 5000);
-		});
-	}
-
-	/**
-	 * Handles messages from the webview
-	 * @param message The message from the webview
-	 */
-	public async handleWebviewMessage(message: any): Promise<void> {
-		switch (message.type) {
-			case 'viewStateChanged':
-				const viewState = message.viewState;
-				if (viewState && viewState.center) {
-					const state: ViewState = {
-						center: {
-							latitude: viewState.center.lat || viewState.center.latitude,
-							longitude: viewState.center.lng || viewState.center.longitude
-						},
-						zoom: viewState.zoom,
-						bearing: viewState.bearing || 0,
-						pitch: viewState.pitch || 0
-					};
-					
-					// If this is a response to a pending request, resolve it
-					if (this._pendingViewStateResolve) {
-						this._pendingViewStateResolve(state);
-						this._pendingViewStateResolve = undefined;
-					}
-					
-					// Save the view state to settings (debounced in webview)
-					await this.saveViewState(state);
-				} else if (this._pendingViewStateResolve) {
-					this._pendingViewStateResolve(undefined);
-					this._pendingViewStateResolve = undefined;
-				}
-				break;
-		}
-	}
-
-	/**
-	 * Gets the current configuration from VS Code settings
-	 */
-	private getConfiguration(): MapConfig {
-		const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-		const lastViewState = config.get<StoredViewState>('lastViewState');
-		
-		return {
-			geocodingApiKey: config.get<string>('geocodingApiKey') || '',
-			photonSearchUrl: config.get<string>('photonSearchUrl') || 'https://photon.komoot.io/api/',
-			enableSearch: config.get<boolean>('enableSearch') ?? true,
-			flyToDuration: config.get<number>('flyToDuration') ?? 500,
-			initialViewState: lastViewState ? {
-				center: {
-					latitude: lastViewState.center.lat,
-					longitude: lastViewState.center.lng
-				},
-				zoom: lastViewState.zoom,
-				bearing: lastViewState.bearing || 0,
-				pitch: lastViewState.pitch || 0
-			} : undefined
-		};
-	}
-
-	/**
-	 * Saves the current view state to VS Code settings
-	 */
-	private async saveViewState(viewState: ViewState): Promise<void> {
-		const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-		const stateToStore: StoredViewState = {
-			center: {
-				lat: viewState.center.latitude,
-				lng: viewState.center.longitude
-			},
-			zoom: viewState.zoom,
-			bearing: viewState.bearing || 0,
-			pitch: viewState.pitch || 0,
-			baseMapId: this._currentBaseMapId
-		};
-		
-		try {
-			await config.update('lastViewState', stateToStore, vscode.ConfigurationTarget.Global);
-		} catch (error) {
-			console.error('Failed to save view state:', error);
-		}
-	}
-
-	/**
-	 * Gets the webview URI for a local resource file
-	 */
-	private _getUri(webview: vscode.Webview, ...pathSegments: string[]): vscode.Uri {
-		const fileUri = vscode.Uri.joinPath(this._extensionUri, ...pathSegments);
-		return webview.asWebviewUri(fileUri);
-	}
-
-	private _getHtmlForWebview(webview: vscode.Webview): string {
-		// Use a nonce to only allow specific scripts to be run
-		const nonce = getNonce();
-		
-		// Get the current configuration
-		const config = this.getConfiguration();
-
-		// Use the stored base map style URL if available, otherwise use default
-		const styleUrl = this._currentBaseMapStyleUrl || 'https://demotiles.maplibre.org/style.json';
-
-		// Get webview URIs for local MapLibre assets
-		const maplibreJsUri = this._getUri(webview, 'resources', 'maplibre-gl', 'maplibre-gl.js');
-		const maplibreCssUri = this._getUri(webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
-
-		// Read the worker script and encode it as base64 for inline Blob URL
-		// This is needed because VS Code webviews have cross-origin restrictions for Workers
-		const workerPath = path.join(this._extensionUri.fsPath, 'resources', 'maplibre-gl', 'maplibre-gl-worker.js');
-		const workerContent = fs.readFileSync(workerPath, 'utf8');
-		const workerBase64 = Buffer.from(workerContent).toString('base64');
-
-		// Read the HTML template from the resources folder
-		const htmlPath = path.join(this._extensionUri.fsPath, 'resources', 'map-view.html');
-		let htmlContent = fs.readFileSync(htmlPath, 'utf8');
-
-		// Replace the placeholders with actual values
-		htmlContent = htmlContent.replace(/\$\{cspSource\}/g, webview.cspSource);
-		htmlContent = htmlContent.replace(/\$\{nonce\}/g, nonce);
-		htmlContent = htmlContent.replace(/\$\{mapStyleUrl\}/g, styleUrl);
-		htmlContent = htmlContent.replace(/\$\{geocodingApiKey\}/g, config.geocodingApiKey);
-		htmlContent = htmlContent.replace(/\$\{photonSearchUrl\}/g, config.photonSearchUrl);
-		htmlContent = htmlContent.replace(/\$\{enableSearch\}/g, String(config.enableSearch));
-		htmlContent = htmlContent.replace(/\$\{flyToDuration\}/g, String(config.flyToDuration));
-		
-		// Replace initial view state placeholder
-		const initialViewStateJson = config.initialViewState
-			? JSON.stringify(config.initialViewState)
-			: 'null';
-		htmlContent = htmlContent.replace(
-			/var initialViewState = null;/g,
-			`var initialViewState = ${initialViewStateJson};`
-		);
-		
-		// Replace MapLibre asset URIs
-		htmlContent = htmlContent.replace(/\$\{maplibreJsUri\}/g, maplibreJsUri.toString());
-		htmlContent = htmlContent.replace(/\$\{maplibreCssUri\}/g, maplibreCssUri.toString());
-		htmlContent = htmlContent.replace(/\$\{maplibreWorkerBase64\}/g, workerBase64);
-
-		return htmlContent;
-	}
-}
-
-function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 32; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
-}
