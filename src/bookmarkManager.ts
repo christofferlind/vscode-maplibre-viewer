@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import { MapBookmark, BookmarkCollection, ViewState } from './bookmarkTypes';
+import { BookmarkTreeProvider } from './bookmarkTreeProvider';
+import { MapViewProvider } from './mapViewProvider';
+import { confirmAction, showOperationError } from './extensionUtils';
 
 /**
  * Storage key for bookmarks in globalState
@@ -248,5 +251,209 @@ export class BookmarkManager {
     public get count(): number {
         const collection = this.getCollection();
         return collection.bookmarks.length;
+    }
+
+    /**
+     * Registers bookmark-related commands with VS Code
+     * @param context The extension context
+     * @param bookmarkTreeProvider The bookmark tree provider for UI updates
+     * @param mapsViewProvider The map view provider for navigation
+     * @returns Array of disposables for the registered commands
+     */
+    public registerCommands(
+        context: vscode.ExtensionContext,
+        bookmarkTreeProvider: BookmarkTreeProvider,
+        mapsViewProvider: MapViewProvider
+    ): void {
+        // Register command to navigate to a bookmark from the tree view
+        context.subscriptions.push(
+            vscode.commands.registerCommand('vscodeMaplibreViewer.goToBookmark', (bookmark: MapBookmark) => {
+                mapsViewProvider.flyToBookmark(bookmark);
+            })
+        );
+
+        // Register command to delete a bookmark from the tree view context menu
+        context.subscriptions.push(
+            vscode.commands.registerCommand('vscodeMaplibreViewer.deleteBookmark', async (bookmark: MapBookmark) => {
+                if (await confirmAction(`Are you sure you want to delete bookmark "${bookmark.name}"?`, 'Delete')) {
+                    await this.deleteBookmark(bookmark.id);
+                    bookmarkTreeProvider.refresh();
+                }
+            })
+        );
+
+        // Register save view command - opens QuickPick with existing bookmarks or option to create new
+        context.subscriptions.push(
+            vscode.commands.registerCommand('vscodeMaplibreViewer.saveBookmark', () => 
+                this.handleSaveBookmark(bookmarkTreeProvider, mapsViewProvider)
+            )
+        );
+
+        // Register load place command - opens QuickPick with all bookmarks
+        context.subscriptions.push(
+            vscode.commands.registerCommand('vscodeMaplibreViewer.loadBookmark', () => 
+                this.handleLoadBookmark(mapsViewProvider)
+            )
+        );
+    }
+
+    /**
+     * Handles saving a bookmark
+     */
+    private async handleSaveBookmark(
+        bookmarkTreeProvider: BookmarkTreeProvider,
+        mapsViewProvider: MapViewProvider
+    ): Promise<void> {
+        // Get current view state from the webview
+        const viewState = await mapsViewProvider.getCurrentViewState();
+        
+        if (!viewState) {
+            vscode.window.showWarningMessage('Unable to get current map view. Please ensure the map is loaded.');
+            return;
+        }
+
+        const bookmarks = this.getAllBookmarks();
+        
+        // Create QuickPick items: existing bookmarks + option to create new
+        const items: (vscode.QuickPickItem & { bookmark?: MapBookmark; isNew?: boolean })[] = [
+            {
+                label: '$(add) Create New Bookmark...',
+                description: 'Save current view as a new bookmark',
+                isNew: true
+            }
+        ];
+        
+        // Add existing bookmarks if any
+        if (bookmarks.length > 0) {
+            items.push({
+                label: '── Existing Bookmarks ──',
+                kind: vscode.QuickPickItemKind.Separator
+            });
+            
+            bookmarks.forEach(b => {
+                items.push({
+                    label: `$(bookmark) ${b.name}`,
+                    description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
+                    detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
+                    bookmark: b
+                });
+            });
+        }
+
+        // Show QuickPick
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Select an existing bookmark to update or create a new one',
+            matchOnDescription: true,
+            matchOnDetail: true
+        });
+
+        // User cancelled the selection
+        if (!selected) {
+            return;
+        }
+
+        // Handle selection
+        if (selected.isNew) {
+            await this.createNewBookmark(bookmarkTreeProvider, viewState);
+        } else if (selected.bookmark) {
+            await this.updateExistingBookmark(bookmarkTreeProvider, selected.bookmark, viewState);
+        }
+    }
+
+    /**
+     * Creates a new bookmark
+     */
+    private async createNewBookmark(
+        bookmarkTreeProvider: BookmarkTreeProvider,
+        viewState: ViewState
+    ): Promise<void> {
+        const name = await vscode.window.showInputBox({
+            prompt: 'Enter a name for this bookmark',
+            placeHolder: 'e.g., Office Location',
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Name is required';
+                }
+                if (this.findByName(value)) {
+                    return 'A bookmark with this name already exists';
+                }
+                return null;
+            }
+        });
+
+        if (!name) {
+            return;
+        }
+
+        try {
+            const bookmark = await this.createBookmark(name, viewState);
+            bookmarkTreeProvider.refresh();
+            vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" saved successfully.`);
+        } catch (error) {
+            showOperationError('save bookmark', error);
+        }
+    }
+
+    /**
+     * Updates an existing bookmark
+     */
+    private async updateExistingBookmark(
+        bookmarkTreeProvider: BookmarkTreeProvider,
+        bookmark: MapBookmark,
+        viewState: ViewState
+    ): Promise<void> {
+        if (!await confirmAction(`Update "${bookmark.name}" with current view?`, 'Update')) {
+            return;
+        }
+
+        try {
+            await this.updateBookmark(bookmark.id, {
+                center: viewState.center,
+                zoom: viewState.zoom,
+                bearing: viewState.bearing,
+                pitch: viewState.pitch
+            });
+            bookmarkTreeProvider.refresh();
+            vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" updated successfully.`);
+        } catch (error) {
+            showOperationError('update bookmark', error);
+        }
+    }
+
+    /**
+     * Handles loading a bookmark
+     */
+    private async handleLoadBookmark(
+        mapsViewProvider: MapViewProvider
+    ): Promise<void> {
+        const bookmarks = this.getAllBookmarks();
+        
+        if (bookmarks.length === 0) {
+            vscode.window.showInformationMessage('No bookmarks saved. Use "Save View" to create bookmarks.');
+            return;
+        }
+
+        // Create QuickPick items from bookmarks
+        const items = bookmarks.map(b => ({
+            label: b.name,
+            description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
+            detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
+            bookmark: b
+        }));
+
+        // Show QuickPick
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Select a saved place to load',
+            matchOnDescription: true,
+            matchOnDetail: true
+        });
+
+        // User cancelled the selection
+        if (!selected) {
+            return;
+        }
+
+        // Fly to the selected bookmark
+        mapsViewProvider.flyToBookmark(selected.bookmark);
     }
 }
