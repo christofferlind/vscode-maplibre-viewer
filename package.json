@@ -13,9 +13,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onView:mapsView"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -113,6 +111,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "vscodeMaplibreViewer.openBookmarkInEditor",
+        "title": "Open Bookmark in Map Editor",
+        "category": "MapLibre Viewer",
+        "icon": "$(open-editors)"
+      },
+      {
         "command": "vscodeMaplibreViewer.setBaseMap",
         "title": "Set Active Base Map",
         "category": "MapLibre Viewer"
@@ -138,6 +142,12 @@
         "command": "vscodeMaplibreViewer.searchOnMap",
         "title": "Search On Map",
         "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.openMapEditor",
+        "title": "Map: Open Map Editor",
+        "category": "MapLibre Viewer",
+        "icon": "$(map)"
       }
     ],
     "menus": {
@@ -148,8 +158,18 @@
           "group": "1_languages"
         },
         {
+          "command": "vscodeMaplibreViewer.setLanguage",
+          "when": "view == mapEditor",
+          "group": "1_languages"
+        },
+        {
           "command": "vscodeMaplibreViewer.enableCoordinateSelection",
           "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == false",
+          "group": "2_coordinates"
+        },
+        {
+          "command": "vscodeMaplibreViewer.enableCoordinateSelection",
+          "when": "view == mapEditor && maplibreView.coordinateSelectionEnabled == false",
           "group": "2_coordinates"
         },
         {
@@ -158,13 +178,33 @@
           "group": "2_coordinates"
         },
         {
+          "command": "vscodeMaplibreViewer.disableCoordinateSelection",
+          "when": "view == mapEditor && maplibreView.coordinateSelectionEnabled == true",
+          "group": "2_coordinates"
+        },
+        {
           "command": "vscodeMaplibreViewer.saveBookmark",
           "when": "view == mapsView",
           "group": "navigation@1"
         },
         {
+          "command": "vscodeMaplibreViewer.saveBookmark",
+          "when": "view == mapEditor",
+          "group": "navigation@1"
+        },
+        {
           "command": "vscodeMaplibreViewer.openSettings",
           "when": "view == mapsView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "vscodeMaplibreViewer.openMapEditor",
+          "when": "view == mapsView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "vscodeMaplibreViewer.openSettings",
+          "when": "view == mapEditor",
           "group": "navigation@2"
         },
         {
@@ -178,6 +218,11 @@
           "command": "vscodeMaplibreViewer.deleteBookmark",
           "when": "view == bookmarksView && viewItem == bookmark",
           "group": "bookmarkActions"
+        },
+        {
+          "command": "vscodeMaplibreViewer.openBookmarkInEditor",
+          "when": "view == bookmarksView && viewItem == bookmark",
+          "group": "bookmarkActions@1"
         },
         {
           "command": "vscodeMaplibreViewer.removeLayer",

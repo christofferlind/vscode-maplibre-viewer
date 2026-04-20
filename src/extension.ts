@@ -11,6 +11,7 @@ import { BaseMapStyle, OverlayLayer } from './layerTypes';
 import { MapLibreViewerAPI, BasemapProvider, FileToGeoJsonAdapter } from './api';
 import { geojsonAdapter } from './adapters/geojsonAdapter';
 import { MapViewProvider } from './mapViewProvider';
+import { MapEditorProvider } from './mapEditorProvider';
 import { LANGUAGE_OPTIONS } from './languageOptions';
 import { confirmAction, showOperationError, updateCoordinateSelectionState, getCoordinateSelectionState, toggleCoordinateSelectionState } from './extensionUtils';
 import { performGeocodingSearch, extractSearchTextFromArgs, getSelectedTextFromEditor, SearchResultData } from './geocodingSearch';
@@ -58,7 +59,7 @@ function loadCustomCoordinatePatterns(): void {
 /**
  * Registers language change commands
  */
-function registerLanguageCommands(context: vscode.ExtensionContext, mapsViewProvider: MapViewProvider): void {
+function registerLanguageCommands(context: vscode.ExtensionContext, providers: (MapViewProvider | MapEditorProvider)[]): void {
 	// Register specific language commands
 	const languageCommands: [string, string][] = [
 		['vscodeMaplibreViewer.setLanguageNative', 'native'],
@@ -69,7 +70,7 @@ function registerLanguageCommands(context: vscode.ExtensionContext, mapsViewProv
 	languageCommands.forEach(([commandId, languageCode]) => {
 		context.subscriptions.push(
 			vscode.commands.registerCommand(commandId, () => {
-				mapsViewProvider.setMapLanguage(languageCode);
+				providers.forEach(p => p.setMapLanguage(languageCode));
 			})
 		);
 	});
@@ -84,7 +85,7 @@ function registerLanguageCommands(context: vscode.ExtensionContext, mapsViewProv
 			});
 
 			if (selected) {
-				mapsViewProvider.setMapLanguage(selected.languageCode);
+				providers.forEach(p => p.setMapLanguage(selected.languageCode));
 			}
 		})
 	);
@@ -121,7 +122,8 @@ function registerCoordinateSelectionCommands(context: vscode.ExtensionContext): 
  */
 async function handleSearchOnMap(
 	args: unknown,
-	mapsViewProvider: MapViewProvider
+	mapsViewProvider: MapViewProvider,
+	mapEditorProvider: MapEditorProvider
 ): Promise<void> {
 	// Try to get text from args first, then from editor
 	let selectedText = extractSearchTextFromArgs(args);
@@ -180,11 +182,13 @@ async function handleSearchOnMap(
 				if (coords.bbox) {
 					// Use bounding box to fit the map
 					mapsViewProvider.fitBoundsOnly(coords.bbox);
+					mapEditorProvider.fitBoundsOnly(coords.bbox);
 				} else if (coords.lat !== 0 && coords.lng !== 0) {
 					// Fall back to flying to a point
 					const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
 					const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
 					mapsViewProvider.flyToLocation(coords.lat, coords.lng, singlePointZoom);
+					mapEditorProvider.flyToLocation(coords.lat, coords.lng, singlePointZoom);
 				}
 			}
 		}
@@ -198,7 +202,7 @@ async function handleSearchOnMap(
 /**
  * Handles text selection for coordinate parsing
  */
-function handleTextSelection(mapsViewProvider: MapViewProvider): void {
+function handleTextSelection(providers: (MapViewProvider | MapEditorProvider)[]): void {
 	// Get the active editor
 	const editor = vscode.window.activeTextEditor;
 	if (!editor) {
@@ -223,20 +227,20 @@ function handleTextSelection(mapsViewProvider: MapViewProvider): void {
 		// Multiple coordinates found - calculate bounding box and fit all
 		const bbox = calculateBoundingBox(coordinates);
 		if (bbox) {
-			mapsViewProvider.fitBoundingBox(coordinates, bbox);
+			providers.forEach(p => p.fitBoundingBox(coordinates, bbox));
 		}
 	} else if (coordinates.length === 1) {
 		// Single coordinate - fly to it with configured zoom level
 		const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
 		const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
-		mapsViewProvider.flyToLocation(coordinates[0].latitude, coordinates[0].longitude, singlePointZoom);
-	} else {
-		// Fallback: try single coordinate parsing for backward compatibility
-		const coordinate = parseCoordinate(selectedText);
-		if (coordinate) {
-			mapsViewProvider.flyToLocation(coordinate.latitude, coordinate.longitude);
-		}
+		providers.forEach(p => p.flyToLocation(coordinates[0].latitude, coordinates[0].longitude, singlePointZoom));
+} else {
+	// Fallback: try single coordinate parsing for backward compatibility
+	const coordinate = parseCoordinate(selectedText);
+	if (coordinate) {
+		providers.forEach(p => p.flyToLocation(coordinate.latitude, coordinate.longitude));
 	}
+}
 }
 
 /**
@@ -246,6 +250,7 @@ async function handleFileSelection(
 	editor: vscode.TextEditor,
 	layerTreeProvider: LayerTreeProvider,
 	mapsViewProvider: MapViewProvider,
+	mapEditorProvider: MapEditorProvider,
 	fileToGeoJsonAdapters: FileToGeoJsonAdapter[]
 ): Promise<void> {
 	const filePath = editor.document.uri.fsPath;
@@ -282,6 +287,7 @@ async function handleFileSelection(
 					const bbox = calculateBoundingBox(coordinates);
 					if (bbox) {
 						mapsViewProvider.fitBoundsOnly(bbox);
+						mapEditorProvider.fitBoundsOnly(bbox);
 					}
 				}
 				
@@ -386,6 +392,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		vscode.window.registerWebviewViewProvider('mapsView', mapsViewProvider)
 	);
 
+	const mapEditorProvider = new MapEditorProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
+
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('layersView', layerTreeProvider)
 	);
@@ -394,8 +402,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	layerTreeProvider.onDidChangeLayers((event) => {
 		if (event.type === 'baseMap') {
 			mapsViewProvider.setBaseMap(event.data as BaseMapStyle);
+			mapEditorProvider.setBaseMap(event.data as BaseMapStyle);
 		} else if (event.type === 'overlay') {
-			mapsViewProvider.updateOverlayLayers(layerTreeProvider.getVisibleOverlayLayers());
+			const visibleLayers = layerTreeProvider.getVisibleOverlayLayers();
+			mapsViewProvider.updateOverlayLayers(visibleLayers);
+			mapEditorProvider.updateOverlayLayers(visibleLayers);
 		}
 	});
 
@@ -488,13 +499,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	);
 
 	// Register bookmark-related commands
-	bookmarkManager.registerCommands(context, bookmarkTreeProvider, mapsViewProvider);
+	bookmarkManager.registerCommands(context, bookmarkTreeProvider, mapsViewProvider, mapEditorProvider);
 
 	// Register configuration change listener
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('vscodeMaplibreViewer')) {
 				mapsViewProvider.updateConfiguration();
+				mapEditorProvider.updateConfiguration();
 			}
 			// Rebuild basemaps when the baseMaps setting changes
 			if (e.affectsConfiguration('vscodeMaplibreViewer.baseMaps')) {
@@ -509,7 +521,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	);
 
 	// Register language change commands
-	registerLanguageCommands(context, mapsViewProvider);
+	registerLanguageCommands(context, [mapsViewProvider, mapEditorProvider]);
 
 	// Register coordinate selection commands
 	registerCoordinateSelectionCommands(context);
@@ -526,8 +538,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 	// Register search on map command - shows filtered dialog with selected text as default
 	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.searchOnMap', (args?: unknown) => 
-			handleSearchOnMap(args, mapsViewProvider)
+		vscode.commands.registerCommand('vscodeMaplibreViewer.searchOnMap', (args?: unknown) =>
+			handleSearchOnMap(args, mapsViewProvider, mapEditorProvider)
 		)
 	);
 
@@ -548,7 +560,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		}
 
 		// Debounce the handler (300ms)
-		debounceTimer = setTimeout(() => handleTextSelection(mapsViewProvider), 300);
+		debounceTimer = setTimeout(() => {
+			handleTextSelection([mapsViewProvider, mapEditorProvider]);
+		}, 300);
 	});
 
 	// Clean up the listener when the extension is deactivated
@@ -566,7 +580,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			return;
 		}
 		
-		await handleFileSelection(editor, layerTreeProvider, mapsViewProvider, fileToGeoJsonAdapters);
+		await handleFileSelection(editor, layerTreeProvider, mapsViewProvider, mapEditorProvider, fileToGeoJsonAdapters);
 	});
 
 	// Clean up the file selection listener when the extension is deactivated
@@ -596,6 +610,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	context.subscriptions.push(defaultBasemapDisposable);
 
 	// Return the API for other extensions to consume
+	// Register command to open the Map Editor panel
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.openMapEditor', async () => {
+			await mapEditorProvider.createPanel();
+		})
+	);
+
 	return api;
 }
 

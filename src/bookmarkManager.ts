@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { MapBookmark, BookmarkCollection, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
 import { MapViewProvider } from './mapViewProvider';
+import { MapEditorProvider } from './mapEditorProvider';
 import { confirmAction, showOperationError } from './extensionUtils';
 
 /**
@@ -263,12 +264,31 @@ export class BookmarkManager {
     public registerCommands(
         context: vscode.ExtensionContext,
         bookmarkTreeProvider: BookmarkTreeProvider,
-        mapsViewProvider: MapViewProvider
+        mapsViewProvider: MapViewProvider,
+        mapEditorProvider?: MapEditorProvider
     ): void {
         // Register command to navigate to a bookmark from the tree view
         context.subscriptions.push(
             vscode.commands.registerCommand('vscodeMaplibreViewer.goToBookmark', (bookmark: MapBookmark) => {
                 mapsViewProvider.flyToBookmark(bookmark);
+            })
+        );
+
+        // Register command to open a bookmark in the Map Editor panel
+        context.subscriptions.push(
+            vscode.commands.registerCommand('vscodeMaplibreViewer.openBookmarkInEditor', async (bookmark: MapBookmark) => {
+                if (!mapEditorProvider) {
+                    vscode.window.showErrorMessage('Map Editor is not available');
+                    return;
+                }
+                
+                // Open the editor panel
+                const panel = await mapEditorProvider.createPanel();
+                
+                // Wait a bit for the panel to initialize, then fly to the bookmark
+                setTimeout(() => {
+                    mapEditorProvider.flyToBookmark(bookmark);
+                }, 500);
             })
         );
 
