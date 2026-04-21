@@ -105,6 +105,12 @@
         "icon": "$(location)"
       },
       {
+        "command": "vscodeMaplibreViewer.renameBookmark",
+        "title": "Rename Bookmark",
+        "category": "MapLibre Viewer",
+        "icon": "$(edit)"
+      },
+      {
         "command": "vscodeMaplibreViewer.deleteBookmark",
         "title": "Delete Bookmark",
         "category": "MapLibre Viewer",
@@ -215,14 +221,19 @@
       ],
       "view/item/context": [
         {
+          "command": "vscodeMaplibreViewer.renameBookmark",
+          "when": "view == bookmarksView && viewItem == bookmark",
+          "group": "bookmarkActions@1"
+        },
+        {
           "command": "vscodeMaplibreViewer.deleteBookmark",
           "when": "view == bookmarksView && viewItem == bookmark",
-          "group": "bookmarkActions"
+          "group": "bookmarkActions@2"
         },
         {
           "command": "vscodeMaplibreViewer.openBookmarkInEditor",
           "when": "view == bookmarksView && viewItem == bookmark",
-          "group": "bookmarkActions@1"
+          "group": "bookmarkActions@3"
         },
         {
           "command": "vscodeMaplibreViewer.removeLayer",

@@ -364,6 +364,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	// Initialize and register the Bookmark Tree Provider
 	const bookmarkTreeProvider = new BookmarkTreeProvider(bookmarkManager);
 
+	// Register bookmark tree provider commands (rename, etc.)
+	bookmarkTreeProvider.registerCommands(context);
+
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('bookmarksView', bookmarkTreeProvider)
 	);
