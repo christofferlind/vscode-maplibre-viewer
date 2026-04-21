@@ -1,0 +1,232 @@
+/* Main container styles */
+html, body {
+	margin: 0;
+	padding: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
+/* Main container with flexbox layout */
+.main-container {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+}
+
+/* Search container at the top - static positioning */
+.search-container {
+	position: relative;
+	flex-shrink: 0;
+	padding: 10px;
+	background: var(--vscode-editor-background, #fff);
+	border-bottom: 1px solid var(--vscode-input-border, #ccc);
+	font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+}
+
+/* Map container fills remaining space */
+.map-wrapper {
+	flex: 1;
+	position: relative;
+	min-height: 0;
+}
+
+#map {
+	width: 100%;
+	height: 100%;
+}
+
+/* Loading overlay */
+.loading-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(255, 255, 255, 0.8);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-size: 14px;
+	color: #333;
+	z-index: 1000;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	pointer-events: none;
+}
+
+.loading-overlay.visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Error overlay */
+.error-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(255, 240, 240, 0.95);
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-size: 14px;
+	color: #c00;
+	z-index: 1001;
+	padding: 20px;
+	text-align: center;
+}
+
+.error-overlay.visible {
+	display: flex;
+}
+
+.error-overlay .error-icon {
+	font-size: 48px;
+	margin-bottom: 16px;
+}
+
+.error-overlay .error-title {
+	font-weight: bold;
+	font-size: 16px;
+	margin-bottom: 8px;
+}
+
+.error-overlay .error-message {
+	max-width: 300px;
+	word-wrap: break-word;
+}
+
+/* Search input */
+.search-input-wrapper {
+	position: relative;
+	width: 100%;
+}
+
+.search-input {
+	width: 100%;
+	padding: 8px 12px;
+	padding-right: 30px;
+	font-size: 13px;
+	font-family: inherit;
+	border: 1px solid var(--vscode-input-border, #ccc);
+	border-radius: 4px;
+	background: var(--vscode-input-background, rgba(255, 255, 255, 0.9));
+	color: var(--vscode-input-foreground, #333);
+	outline: none;
+	box-sizing: border-box;
+	transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.search-input::placeholder {
+	color: var(--vscode-input-placeholderForeground, #999);
+}
+
+.search-input:focus {
+	border-color: var(--vscode-focusBorder, #0078d4);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #0078d4);
+}
+
+/* Search clear button */
+.search-clear-btn {
+	position: absolute;
+	right: 6px;
+	top: 50%;
+	transform: translateY(-50%);
+	background: none;
+	border: none;
+	padding: 4px;
+	cursor: pointer;
+	color: var(--vscode-input-foreground, #333);
+	opacity: 0.6;
+	font-size: 14px;
+	line-height: 1;
+}
+
+.search-clear-btn:hover {
+	opacity: 1;
+}
+
+.search-clear-btn:focus {
+	outline: 1px solid var(--vscode-focusBorder, #0078d4);
+	outline-offset: 1px;
+}
+
+/* Search results dropdown */
+.search-results {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	margin-top: 2px;
+	background: var(--vscode-editor-background, rgba(255, 255, 255, 0.95));
+	border: 1px solid var(--vscode-input-border, #ccc);
+	border-radius: 4px;
+	max-height: 300px;
+	overflow-y: auto;
+	display: none;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	z-index: 1000;
+}
+
+.search-results.visible {
+	display: block;
+}
+
+.search-result-item {
+	padding: 8px 12px;
+	cursor: pointer;
+	border-bottom: 1px solid var(--vscode-editorGroup-border, #eee);
+	transition: background-color 0.1s ease;
+}
+
+.search-result-item:last-child {
+	border-bottom: none;
+}
+
+.search-result-item.selected,
+.search-result-item:hover {
+	background: var(--vscode-list-hoverBackground, rgba(0, 120, 212, 0.1));
+}
+
+.search-result-item.selected {
+	background: var(--vscode-list-activeSelectionBackground, rgba(0, 120, 212, 0.2));
+}
+
+.search-result-name {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--vscode-input-foreground, #333);
+	margin-bottom: 2px;
+}
+
+.search-result-type {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground, #666);
+}
+
+.search-loading {
+	padding: 12px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground, #666);
+	font-size: 12px;
+}
+
+.search-error {
+	padding: 12px;
+	text-align: center;
+	color: var(--vscode-errorForeground, #c00);
+	font-size: 12px;
+}
+
+.search-no-results {
+	padding: 12px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground, #666);
+	font-size: 12px;
+}

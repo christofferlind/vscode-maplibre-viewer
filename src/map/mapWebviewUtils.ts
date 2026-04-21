@@ -87,6 +87,17 @@ export function generateWebviewHtml(
     const maplibreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.js');
     const maplibreCssUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
 
+    // Get webview URIs for modular JS files
+    const mapUtilsJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-utils.js');
+    const mapCoreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-core.js');
+    const mapOverlaysJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-overlays.js');
+    const mapNavigationJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-navigation.js');
+    const mapSearchJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-search.js');
+    const mainJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'main.js');
+
+    // Get webview URI for CSS file
+    const mainCssUri = getWebviewUri(extensionUri, webview, 'resources', 'styles', 'main.css');
+
     // Read the worker script and encode it as base64 for inline Blob URL
     const workerPath = path.join(extensionUri.fsPath, 'resources', 'maplibre-gl', 'maplibre-gl-worker.js');
     const workerContent = fs.readFileSync(workerPath, 'utf8');
@@ -118,6 +129,17 @@ export function generateWebviewHtml(
     htmlContent = htmlContent.replace(/\$\{maplibreJsUri\}/g, maplibreJsUri.toString());
     htmlContent = htmlContent.replace(/\$\{maplibreCssUri\}/g, maplibreCssUri.toString());
     htmlContent = htmlContent.replace(/\$\{maplibreWorkerBase64\}/g, workerBase64);
+
+    // Replace modular JS file URIs
+    htmlContent = htmlContent.replace(/\$\{mapUtilsJsUri\}/g, mapUtilsJsUri.toString());
+    htmlContent = htmlContent.replace(/\$\{mapCoreJsUri\}/g, mapCoreJsUri.toString());
+    htmlContent = htmlContent.replace(/\$\{mapOverlaysJsUri\}/g, mapOverlaysJsUri.toString());
+    htmlContent = htmlContent.replace(/\$\{mapNavigationJsUri\}/g, mapNavigationJsUri.toString());
+    htmlContent = htmlContent.replace(/\$\{mapSearchJsUri\}/g, mapSearchJsUri.toString());
+    htmlContent = htmlContent.replace(/\$\{mainJsUri\}/g, mainJsUri.toString());
+
+    // Replace CSS URI
+    htmlContent = htmlContent.replace(/\$\{mainCssUri\}/g, mainCssUri.toString());
 
     return htmlContent;
 }
