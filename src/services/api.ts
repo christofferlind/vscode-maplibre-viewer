@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BaseMapStyle } from './layerTypes';
+import { BaseMapStyle } from '../layers/layerTypes';
 
 /**
  * Interface for basemap providers from external extensions.

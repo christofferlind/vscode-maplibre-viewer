@@ -1,6 +1,6 @@
 
 import * as assert from 'assert';
-import { MapBookmark } from '../../bookmarkTypes';
+import { MapBookmark } from '../../bookmarks/bookmarkTypes';
 
 /**
  * UI Tests for BookmarkManager

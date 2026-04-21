@@ -2,19 +2,19 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromGeoJson, Coordinate, addCoordinatePattern, clearCustomPatterns } from './coordinateParser';
-import { BookmarkManager } from './bookmarkManager';
-import { MapBookmark } from './bookmarkTypes';
-import { BookmarkTreeProvider } from './bookmarkTreeProvider';
-import { LayerTreeProvider } from './layerTreeProvider';
-import { BaseMapStyle, OverlayLayer } from './layerTypes';
-import { MapLibreViewerAPI, BasemapProvider, FileToGeoJsonAdapter } from './api';
+import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromGeoJson, Coordinate, addCoordinatePattern, clearCustomPatterns } from './services/coordinateParser';
+import { BookmarkManager } from './bookmarks/bookmarkManager';
+import { MapBookmark } from './bookmarks/bookmarkTypes';
+import { BookmarkTreeProvider } from './bookmarks/bookmarkTreeProvider';
+import { LayerTreeProvider } from './layers/layerTreeProvider';
+import { BaseMapStyle, OverlayLayer } from './layers/layerTypes';
+import { MapLibreViewerAPI, BasemapProvider, FileToGeoJsonAdapter } from './services/api';
 import { geojsonAdapter } from './adapters/geojsonAdapter';
-import { MapViewProvider } from './mapViewProvider';
-import { MapEditorProvider } from './mapEditorProvider';
-import { LANGUAGE_OPTIONS } from './languageOptions';
+import { MapViewProvider } from './map/mapViewProvider';
+import { MapEditorProvider } from './map/mapEditorProvider';
+import { LANGUAGE_OPTIONS } from './services/languageOptions';
 import { confirmAction, showOperationError, updateCoordinateSelectionState, getCoordinateSelectionState, toggleCoordinateSelectionState } from './extensionUtils';
-import { performGeocodingSearch, extractSearchTextFromArgs, getSelectedTextFromEditor, SearchResultData } from './geocodingSearch';
+import { performGeocodingSearch, extractSearchTextFromArgs, getSelectedTextFromEditor, SearchResultData } from './services/geocodingSearch';
 
 // Interface for view state stored in settings
 interface StoredViewState {

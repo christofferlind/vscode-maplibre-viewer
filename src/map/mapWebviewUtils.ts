@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ViewState } from './bookmarkTypes';
+import { ViewState } from '../bookmarks/bookmarkTypes';
 import { MapConfig, StoredViewState } from './mapWebviewTypes';
 
 /**

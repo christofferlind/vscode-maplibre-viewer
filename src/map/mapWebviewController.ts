@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
-import { BookmarkManager } from './bookmarkManager';
-import { MapBookmark, ViewState } from './bookmarkTypes';
-import { BaseMapStyle, OverlayLayer } from './layerTypes';
-import { Coordinate } from './coordinateParser';
+import { BookmarkManager } from '../bookmarks/bookmarkManager';
+import { MapBookmark, ViewState } from '../bookmarks/bookmarkTypes';
+import { BaseMapStyle, OverlayLayer } from '../layers/layerTypes';
+import { Coordinate } from '../services/coordinateParser';
 import { MapConfig, StoredViewState } from './mapWebviewTypes';
-import { 
-    getMapConfiguration, 
-    saveViewStateToSettings, 
+import {
+    getMapConfiguration,
+    saveViewStateToSettings,
     generateWebviewHtml,
-    parseViewStateFromMessage 
+    parseViewStateFromMessage
 } from './mapWebviewUtils';
 
 /**

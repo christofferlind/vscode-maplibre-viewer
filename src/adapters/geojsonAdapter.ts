@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { FileToGeoJsonAdapter } from '../api';
+import { FileToGeoJsonAdapter } from '../services/api';
 
 /**
  * GeoJSON file adapter for the MapLibre Viewer extension.

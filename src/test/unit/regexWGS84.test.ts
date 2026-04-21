@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { regexWGS84, findCoordinatesRegex } from '../../coordinateParser';
+import { regexWGS84, findCoordinatesRegex } from '../../services/coordinateParser';
 
 suite('Regex WGS84 Test Suite', () => {
     

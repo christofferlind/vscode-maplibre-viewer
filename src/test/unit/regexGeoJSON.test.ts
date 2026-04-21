@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { regexGeoJSON, findCoordinatesRegex } from '../../coordinateParser';
+import { regexGeoJSON, findCoordinatesRegex } from '../../services/coordinateParser';
 
 suite('Regex GeoJSON Test Suite', () => {
     

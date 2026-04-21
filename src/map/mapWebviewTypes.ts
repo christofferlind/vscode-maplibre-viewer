@@ -1,4 +1,4 @@
-import { ViewState } from './bookmarkTypes';
+import { ViewState } from '../bookmarks/bookmarkTypes';
 
 // Interface for configuration messages sent to the webview
 export interface MapConfig {

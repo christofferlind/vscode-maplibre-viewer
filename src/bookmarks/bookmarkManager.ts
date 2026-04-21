@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { MapBookmark, BookmarkCollection, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
-import { MapViewProvider } from './mapViewProvider';
-import { MapEditorProvider } from './mapEditorProvider';
-import { confirmAction, showOperationError } from './extensionUtils';
+import { MapViewProvider } from '../map/mapViewProvider';
+import { MapEditorProvider } from '../map/mapEditorProvider';
+import { confirmAction, showOperationError } from '../extensionUtils';
 
 /**
  * Storage key for bookmarks in globalState

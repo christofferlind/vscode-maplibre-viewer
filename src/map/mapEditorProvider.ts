@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BookmarkManager } from './bookmarkManager';
+import { BookmarkManager } from '../bookmarks/bookmarkManager';
 import { MapWebviewController } from './mapWebviewController';
 
 /**
