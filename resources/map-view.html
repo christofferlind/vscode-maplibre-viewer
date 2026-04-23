@@ -31,6 +31,29 @@
 			</div>
 		</div>
 	</div>
+	<script nonce="${nonce}">
+		// Global monkey-patching of Event.prototype to prevent MapLibre (or any other script)
+		// from swallowing the contextmenu event. VS Code's native context menu relies on
+		// this event bubbling up to the document without being prevented.
+		// This must run before MapLibre is loaded.
+		(function() {
+			const originalPreventDefault = Event.prototype.preventDefault;
+			Event.prototype.preventDefault = function() {
+				if (this.type === 'contextmenu') {
+					return;
+				}
+				return originalPreventDefault.apply(this, arguments);
+			};
+
+			const originalStopPropagation = Event.prototype.stopPropagation;
+			Event.prototype.stopPropagation = function() {
+				if (this.type === 'contextmenu') {
+					return;
+				}
+				return originalStopPropagation.apply(this, arguments);
+			};
+		})();
+	</script>
 	<script nonce="${nonce}" src="${maplibreJsUri}"></script>
 	<script nonce="${nonce}" src="${mapUtilsJsUri}"></script>
 	<script nonce="${nonce}" src="${mapCoreJsUri}"></script>

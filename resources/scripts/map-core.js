@@ -100,6 +100,31 @@ function initializeMap(initialViewState) {
 				saveViewStateToExtension();
 			}, 500);
 		});
+
+		// Add a listener for the right-click event - send coordinates to extension for native context menu
+		map.on('contextmenu', function(e) {
+			var lngLat = e.lngLat;
+			
+			// Update data-vscode-context on the canvas for the native context menu.
+			// VS Code looks for this attribute on the event target or its parents.
+			var canvas = map.getCanvas();
+			if (canvas) {
+				canvas.setAttribute('data-vscode-context', JSON.stringify({
+					'maplibre:clickedLngLat': {
+						lng: lngLat.lng,
+						lat: lngLat.lat
+					}
+				}));
+			}
+
+			vscode.postMessage({
+				type: 'contextMenu',
+				lngLat: {
+					lng: lngLat.lng,
+					lat: lngLat.lat
+				}
+			});
+		});
 	} catch (e) {
 		console.error('Error initializing map:', e);
 		showErrorOverlay('Failed to initialize map: ' + (e.message || e));

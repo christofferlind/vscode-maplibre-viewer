@@ -39,11 +39,12 @@ export class MapEditorProvider extends MapWebviewController {
         }
 
         this._panel = vscode.window.createWebviewPanel(
-            'mapEditor',
-            'Map Viewer Editor',
-            {
-                viewColumn: column
-            }
+        	'mapEditor',
+        	'Map Viewer Editor',
+        	{
+        		viewColumn: column
+        	},
+        	this.getWebviewOptions()
         );
 
         this._panel.webview.options = this.getWebviewOptions();

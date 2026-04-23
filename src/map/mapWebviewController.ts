@@ -45,6 +45,7 @@ export abstract class MapWebviewController {
     protected getWebviewOptions(): vscode.WebviewOptions {
         return {
             enableScripts: true,
+            enableCommandUris: true,
             localResourceRoots: [
                 vscode.Uri.joinPath(this._extensionUri, 'resources')
             ]
@@ -249,6 +250,16 @@ export abstract class MapWebviewController {
                 } else if (this._pendingViewStateResolve) {
                     this._pendingViewStateResolve(undefined);
                     this._pendingViewStateResolve = undefined;
+                }
+                break;
+                
+            case 'contextMenu':
+                // Set context for webview context menu commands
+                console.log('[Extension] Received contextMenu message', msg.lngLat);
+                const lngLat = msg.lngLat as { lng: number; lat: number } | undefined;
+                if (lngLat) {
+                    await vscode.commands.executeCommand('setContext', 'maplibre:clickedLngLat', lngLat);
+                    await vscode.commands.executeCommand('setContext', 'maplibre:hasClickedLngLat', true);
                 }
                 break;
         }

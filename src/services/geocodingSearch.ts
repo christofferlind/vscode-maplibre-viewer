@@ -209,6 +209,9 @@ export function extractSearchTextFromArgs(args: unknown): string {
 			selectedText = argsObj.selectionText.trim();
 		} else if (typeof argsObj.selection === 'string') {
 			selectedText = argsObj.selection.trim();
+		} else if (argsObj.lngLat && typeof argsObj.lngLat === 'object') {
+			// If it's a lngLat from the map context menu, we don't have text
+			return '';
 		}
 	}
 	

@@ -15,9 +15,8 @@ Development guide for AI agents working on the vscode-maplibre-viewer project.
 - Ask for confirmation before adding new production dependencies.
 - Code must be organized into logical, small, and reusable functions/modules. Business logic should be strictly separated from input/output handling.
 - Use clear, descriptive names for variables, functions, and classes. Add meaningful comments where the *why* of the code is not immediately obvious.
-- Every new feature or fix must be accompanied by comprehensive unit tests that cover core functionality and edge cases.
-- In tests, use mocking for external service dependencies to ensure tests are fast, reliable, and isolated.
-
+- Cover all changes with unit tests, including edge cases.
+- Mock external dependencies to keep tests fast and isolated.
 ## Commands
 
 ### File-scoped (preferred - fast feedback)
@@ -26,6 +25,7 @@ Development guide for AI agents working on the vscode-maplibre-viewer project.
 npm run compile                    # Compile TypeScript once
 npm run lint                        # Run ESLint on src/
 npm run test                        # Run unit tests (requires compile first)
+wc -l <filename>                    # Check line count for a specific file 
 ```
 
 ### Full suite (only when explicitly requested)
@@ -50,6 +50,7 @@ npm run watch                       # Watch TypeScript for changes
 - Naming: camelCase for imports (warn), PascalCase for types
 - Rules: curly braces required, `===` strict equality, semicolons required
 - Never use `@ts-ignore` or hardcode API keys
+- Check files after changes `wc -l`. Refactor any over 600 lines.
 
 ### Architecture Patterns
 
