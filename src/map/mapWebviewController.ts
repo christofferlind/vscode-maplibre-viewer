@@ -20,6 +20,12 @@ export abstract class MapWebviewController {
     protected _currentBaseMapStyleUrl?: string;
     protected _currentBaseMapId?: string;
 
+    /**
+     * Tracks which webview last triggered a context menu
+     * Used by commands to know which view to operate on
+     */
+    public static lastActiveViewType: string = 'mapsView';
+
     constructor(
         protected readonly _extensionUri: vscode.Uri,
         protected readonly _bookmarkManager: BookmarkManager,
@@ -32,6 +38,14 @@ export abstract class MapWebviewController {
         if (initialBaseMapId) {
             this._currentBaseMapId = initialBaseMapId;
         }
+    }
+
+    /**
+     * Returns a unique identifier for this view type
+     * Used to differentiate context menu sources
+     */
+    protected getViewType(): string {
+        return 'unknown';
     }
 
     /**
@@ -62,12 +76,13 @@ export abstract class MapWebviewController {
     /**
      * Generates HTML for the webview
      */
-    protected getHtmlForWebview(webview: vscode.Webview): string {
+    protected getHtmlForWebview(webview: vscode.Webview, viewType?: string): string {
         return generateWebviewHtml(
             this._extensionUri,
             webview,
             this.getConfiguration(),
-            this._currentBaseMapStyleUrl
+            this._currentBaseMapStyleUrl,
+            viewType
         );
     }
 
@@ -260,6 +275,8 @@ export abstract class MapWebviewController {
                 if (lngLat) {
                     await vscode.commands.executeCommand('setContext', 'maplibre:clickedLngLat', lngLat);
                     await vscode.commands.executeCommand('setContext', 'maplibre:hasClickedLngLat', true);
+                    // Track which webview triggered the context menu
+                    MapWebviewController.lastActiveViewType = this.getViewType();
                 }
                 break;
         }

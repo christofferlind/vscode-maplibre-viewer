@@ -9,6 +9,10 @@ import { MapWebviewController } from './mapWebviewController';
 export class MapViewProvider extends MapWebviewController implements vscode.WebviewViewProvider {
     public static readonly viewType = 'mapsView';
 
+    protected getViewType(): string {
+        return 'mapsView';
+    }
+
     private _view?: vscode.WebviewView;
 
     constructor(

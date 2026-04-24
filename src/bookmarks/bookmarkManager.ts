@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { MapBookmark, BookmarkCollection, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
+import { MapWebviewController } from '../map/mapWebviewController';
 import { MapViewProvider } from '../map/mapViewProvider';
 import { MapEditorProvider } from '../map/mapEditorProvider';
 import { confirmAction, showOperationError } from '../extensionUtils';
@@ -303,16 +304,19 @@ export class BookmarkManager {
         );
 
         // Register save view command - opens QuickPick with existing bookmarks or option to create new
+        // Uses MapWebviewController.lastActiveViewType to know which webview triggered the context menu
         context.subscriptions.push(
-            vscode.commands.registerCommand('vscodeMaplibreViewer.saveBookmark', () => 
-                this.handleSaveBookmark(bookmarkTreeProvider, mapsViewProvider)
-            )
+            vscode.commands.registerCommand('vscodeMaplibreViewer.saveBookmark', () => {
+                const isEditor = MapWebviewController.lastActiveViewType === 'mapEditor';
+                const provider = isEditor && mapEditorProvider ? mapEditorProvider : mapsViewProvider;
+                return this.handleSaveBookmark(bookmarkTreeProvider, provider);
+            })
         );
 
-        // Register load place command - opens QuickPick with all bookmarks
+        // Register load bookmark command - opens QuickPick with all bookmarks
         context.subscriptions.push(
-            vscode.commands.registerCommand('vscodeMaplibreViewer.loadBookmark', () => 
-                this.handleLoadBookmark(mapsViewProvider)
+            vscode.commands.registerCommand('vscodeMaplibreViewer.loadBookmark', () =>
+                this.handleLoadBookmark(mapsViewProvider, mapEditorProvider)
             )
         );
     }
@@ -322,10 +326,10 @@ export class BookmarkManager {
      */
     private async handleSaveBookmark(
         bookmarkTreeProvider: BookmarkTreeProvider,
-        mapsViewProvider: MapViewProvider
+        mapProvider: MapWebviewController
     ): Promise<void> {
         // Get current view state from the webview
-        const viewState = await mapsViewProvider.getCurrentViewState();
+        const viewState = await mapProvider.getCurrentViewState();
         
         if (!viewState) {
             vscode.window.showWarningMessage('Unable to get current map view. Please ensure the map is loaded.');
@@ -351,10 +355,12 @@ export class BookmarkManager {
             });
             
             bookmarks.forEach(b => {
+                const lat = b.center?.latitude ?? 0;
+                const lng = b.center?.longitude ?? 0;
                 items.push({
                     label: `$(bookmark) ${b.name}`,
-                    description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
-                    detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
+                    description: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+                    detail: `Zoom: ${(b.zoom ?? 0).toFixed(1)} | Bearing: ${(b.bearing ?? 0).toFixed(0)}° | Pitch: ${(b.pitch ?? 0).toFixed(0)}°`,
                     bookmark: b
                 });
             });
@@ -444,7 +450,8 @@ export class BookmarkManager {
      * Handles loading a bookmark
      */
     private async handleLoadBookmark(
-        mapsViewProvider: MapViewProvider
+        mapsViewProvider: MapViewProvider,
+        mapEditorProvider?: MapEditorProvider
     ): Promise<void> {
         const bookmarks = this.getAllBookmarks();
         
@@ -454,12 +461,16 @@ export class BookmarkManager {
         }
 
         // Create QuickPick items from bookmarks
-        const items = bookmarks.map(b => ({
-            label: b.name,
-            description: `${b.center.latitude.toFixed(4)}, ${b.center.longitude.toFixed(4)}`,
-            detail: `Zoom: ${b.zoom.toFixed(1)} | Bearing: ${b.bearing.toFixed(0)}° | Pitch: ${b.pitch.toFixed(0)}°`,
-            bookmark: b
-        }));
+        const items: (vscode.QuickPickItem & { bookmark: MapBookmark })[] = bookmarks.map(b => {
+            const lat = b.center?.latitude ?? 0;
+            const lng = b.center?.longitude ?? 0;
+            return {
+                label: b.name,
+                description: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+                detail: `Zoom: ${(b.zoom ?? 0).toFixed(1)} | Bearing: ${(b.bearing ?? 0).toFixed(0)}° | Pitch: ${(b.pitch ?? 0).toFixed(0)}°`,
+                bookmark: b
+            };
+        });
 
         // Show QuickPick
         const selected = await vscode.window.showQuickPick(items, {
@@ -473,7 +484,10 @@ export class BookmarkManager {
             return;
         }
 
-        // Fly to the selected bookmark
+        // Fly to the selected bookmark on both map views
         mapsViewProvider.flyToBookmark(selected.bookmark);
+        if (mapEditorProvider) {
+            mapEditorProvider.flyToBookmark(selected.bookmark);
+        }
     }
 }

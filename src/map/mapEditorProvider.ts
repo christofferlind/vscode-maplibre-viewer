@@ -9,6 +9,10 @@ import { MapWebviewController } from './mapWebviewController';
 export class MapEditorProvider extends MapWebviewController {
     private _panel?: vscode.WebviewPanel;
 
+    protected getViewType(): string {
+        return 'mapEditor';
+    }
+
     constructor(
         extensionUri: vscode.Uri,
         bookmarkManager: BookmarkManager,

@@ -78,7 +78,8 @@ export function generateWebviewHtml(
     extensionUri: vscode.Uri,
     webview: vscode.Webview,
     config: MapConfig,
-    currentBaseMapStyleUrl?: string
+    currentBaseMapStyleUrl?: string,
+    viewType?: string
 ): string {
     const nonce = getNonce();
     const styleUrl = currentBaseMapStyleUrl || 'https://demotiles.maplibre.org/style.json';
@@ -140,6 +141,9 @@ export function generateWebviewHtml(
 
     // Replace CSS URI
     htmlContent = htmlContent.replace(/\$\{mainCssUri\}/g, mainCssUri.toString());
+
+    // Replace view type identifier
+    htmlContent = htmlContent.replace(/\$\{viewType\}/g, viewType || 'mapsView');
 
     return htmlContent;
 }

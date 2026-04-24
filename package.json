@@ -265,12 +265,22 @@
         {
           "command": "vscodeMaplibreViewer.searchOnMap",
           "when": "true",
-          "group": "navigation"
+          "group": "1_search"
         },
         {
           "command": "vscodeMaplibreViewer.saveBookmark",
           "when": "true",
-          "group": "navigation"
+          "group": "2_bookmarks@1"
+        },
+        {
+          "command": "vscodeMaplibreViewer.loadBookmark",
+          "when": "true",
+          "group": "2_bookmarks@2"
+        },
+        {
+          "command": "vscodeMaplibreViewer.openSettings",
+          "when": "true",
+          "group": "3_settings"
         }
       ]
     },

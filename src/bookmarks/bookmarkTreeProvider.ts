@@ -36,8 +36,10 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<MapBookmark
     getTreeItem(element: MapBookmark): vscode.TreeItem {
         const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
         
-        // Set description to show coordinates
-        item.description = `${element.center.latitude.toFixed(4)}, ${element.center.longitude.toFixed(4)}`;
+        // Set description to show coordinates (with null safety for corrupted data)
+        const lat = element.center?.latitude ?? 0;
+        const lng = element.center?.longitude ?? 0;
+        item.description = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         
         // Set tooltip with detailed information
         item.tooltip = this.createTooltip(element);
@@ -177,10 +179,13 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<MapBookmark
             md.appendMarkdown(`${bookmark.description}\n\n`);
         }
         
-        md.appendMarkdown(`**Coordinates:** ${bookmark.center.latitude.toFixed(6)}, ${bookmark.center.longitude.toFixed(6)}\n\n`);
-        md.appendMarkdown(`**Zoom:** ${bookmark.zoom.toFixed(1)}\n\n`);
-        md.appendMarkdown(`**Bearing:** ${bookmark.bearing.toFixed(0)}°\n\n`);
-        md.appendMarkdown(`**Pitch:** ${bookmark.pitch.toFixed(0)}°\n\n`);
+        // Use null-safe access for corrupted bookmark data
+        const lat = bookmark.center?.latitude ?? 0;
+        const lng = bookmark.center?.longitude ?? 0;
+        md.appendMarkdown(`**Coordinates:** ${lat.toFixed(6)}, ${lng.toFixed(6)}\n\n`);
+        md.appendMarkdown(`**Zoom:** ${(bookmark.zoom ?? 0).toFixed(1)}\n\n`);
+        md.appendMarkdown(`**Bearing:** ${(bookmark.bearing ?? 0).toFixed(0)}°\n\n`);
+        md.appendMarkdown(`**Pitch:** ${(bookmark.pitch ?? 0).toFixed(0)}°\n\n`);
         
         if (bookmark.tags && bookmark.tags.length > 0) {
             md.appendMarkdown(`**Tags:** ${bookmark.tags.join(', ')}\n\n`);
