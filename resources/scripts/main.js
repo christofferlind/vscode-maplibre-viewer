@@ -23,6 +23,13 @@ function setupMessageHandler() {
 					if (message.config.flyToDuration !== undefined) {
 						window.MapConfig.flyToDuration = message.config.flyToDuration;
 					}
+					if (message.config.searchResultsTransparency !== undefined) {
+						window.MapConfig.searchResultsTransparency = message.config.searchResultsTransparency;
+						// Apply updated transparency to search results
+						if (window.MapSearch && window.MapSearch.applyTransparency) {
+							window.MapSearch.applyTransparency(message.config.searchResultsTransparency);
+						}
+					}
 				}
 				break;
 
@@ -110,6 +117,7 @@ function initialize(config) {
 		geocodingApiKey: config.geocodingApiKey || '',
 		photonSearchUrl: config.photonSearchUrl || 'https://photon.komoot.io/api',
 		enableSearch: config.enableSearch || false,
+		searchResultsTransparency: config.searchResultsTransparency || 20,
 		flyToDuration: config.flyToDuration || 1500,
 		mapStyleUrl: config.mapStyleUrl || ''
 	};

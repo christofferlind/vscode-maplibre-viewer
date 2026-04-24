@@ -16,6 +16,66 @@ var searchResultsEl = null;
 var clearBtn = null;
 
 /**
+ * Apply transparency to search results popup
+ * @param {number} transparencyPercent - Transparency percentage (0-100)
+ */
+function applySearchResultsTransparency(transparencyPercent) {
+	if (!searchResultsEl) return;
+	
+	// Clamp transparency to valid range
+	var clampedTransparency = Math.max(0, Math.min(100, transparencyPercent));
+	
+	// Convert percentage to opacity (0% transparency = 1 opacity, 100% transparency = 0 opacity)
+	var opacity = 1 - (clampedTransparency / 100);
+	
+	// Get the background color from VS Code CSS variable or use fallback
+	var computedStyle = getComputedStyle(document.documentElement);
+	var bgColor = computedStyle.getPropertyValue('--vscode-editor-background').trim() || '#1e1e1e';
+	
+	// Parse the color and apply alpha
+	var rgbaColor = parseColorToRgba(bgColor, opacity);
+	
+	searchResultsEl.style.background = rgbaColor;
+}
+
+/**
+ * Parse a CSS color to RGBA format with specified opacity
+ * @param {string} color - CSS color value
+ * @param {number} opacity - Opacity value (0-1)
+ * @returns {string} RGBA color string
+ */
+function parseColorToRgba(color, opacity) {
+	// Handle hex colors
+	if (color.startsWith('#')) {
+		var hex = color.slice(1);
+		var r, g, b;
+		if (hex.length === 3) {
+			r = parseInt(hex[0] + hex[0], 16);
+			g = parseInt(hex[1] + hex[1], 16);
+			b = parseInt(hex[2] + hex[2], 16);
+		} else if (hex.length === 6) {
+			r = parseInt(hex.slice(0, 2), 16);
+			g = parseInt(hex.slice(2, 4), 16);
+			b = parseInt(hex.slice(4, 6), 16);
+		} else {
+			return 'rgba(30, 30, 30, ' + opacity + ')';
+		}
+		return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + opacity + ')';
+	}
+	
+	// Handle rgb/rgba colors
+	if (color.startsWith('rgb')) {
+		var match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+		if (match) {
+			return 'rgba(' + match[1] + ', ' + match[2] + ', ' + match[3] + ', ' + opacity + ')';
+		}
+	}
+	
+	// Fallback for unknown formats
+	return 'rgba(30, 30, 30, ' + opacity + ')';
+}
+
+/**
  * Initialize search functionality
  */
 function initializeSearch() {
@@ -34,6 +94,10 @@ function initializeSearch() {
 	if (enableSearch) {
 		searchContainer.style.display = 'block';
 	}
+	
+	// Apply transparency setting
+	var transparency = window.MapConfig ? window.MapConfig.searchResultsTransparency : 20;
+	applySearchResultsTransparency(transparency);
 
 	// Input event handler with debounce
 	searchInput.addEventListener('input', function() {
@@ -158,11 +222,22 @@ function performSearch(query) {
 				// MapTiler format
 				if (data.features && data.features.length > 0) {
 					results = data.features.slice(0, 10).map(function(feature) {
+						var bbox = null;
+						// MapTiler provides bbox in feature.bbox array [west, south, east, north]
+						if (feature.bbox && Array.isArray(feature.bbox) && feature.bbox.length === 4) {
+							bbox = {
+								west: feature.bbox[0],
+								south: feature.bbox[1],
+								east: feature.bbox[2],
+								north: feature.bbox[3]
+							};
+						}
 						return {
 							name: feature.text || feature.place_name,
 							type: feature.place_type ? feature.place_type[0] : 'place',
 							lng: feature.center[0],
-							lat: feature.center[1]
+							lat: feature.center[1],
+							bbox: bbox
 						};
 					});
 				}
@@ -172,11 +247,22 @@ function performSearch(query) {
 					results = data.features.slice(0, 10).map(function(feature) {
 						var name = feature.properties.name || feature.properties.city || feature.properties.state || 'Unknown';
 						var type = feature.properties.osm_value || feature.properties.osm_key || 'place';
+						var bbox = null;
+						// Photon provides extent as [west, south, east, north]
+						if (feature.properties.extent && Array.isArray(feature.properties.extent) && feature.properties.extent.length === 4) {
+							bbox = {
+								west: feature.properties.extent[0],
+								south: feature.properties.extent[1],
+								east: feature.properties.extent[2],
+								north: feature.properties.extent[3]
+							};
+						}
 						return {
 							name: name,
 							type: type,
 							lng: feature.geometry.coordinates[0],
-							lat: feature.geometry.coordinates[1]
+							lat: feature.geometry.coordinates[1],
+							bbox: bbox
 						};
 					});
 				}
@@ -221,6 +307,12 @@ function renderSearchResults() {
 			var index = parseInt(this.getAttribute('data-index'), 10);
 			selectSearchResult(index);
 		});
+		
+		// Add hover handler to preview result on map
+		item.addEventListener('mouseenter', function() {
+			var index = parseInt(this.getAttribute('data-index'), 10);
+			previewResultOnHover(index);
+		});
 	});
 }
 
@@ -240,7 +332,7 @@ function selectSearchResult(index) {
 
 /**
  * Fly to a result location
- * @param {Object} result - Result object with lng, lat
+ * @param {Object} result - Result object with lng, lat, and optional bbox
  */
 function flyToResult(result) {
 	var map = window.MapCore.getMap();
@@ -248,11 +340,57 @@ function flyToResult(result) {
 
 	var flyToDuration = window.MapConfig ? window.MapConfig.flyToDuration : 1500;
 
-	map.flyTo({
-		center: [result.lng, result.lat],
-		zoom: 14,
-		duration: flyToDuration
-	});
+	// If bounding box is available, fit the map to it
+	if (result.bbox) {
+		map.fitBounds(
+			[
+				[result.bbox.west, result.bbox.south],
+				[result.bbox.east, result.bbox.north]
+			],
+			{
+				duration: flyToDuration,
+				padding: 50
+			}
+		);
+	} else {
+		// Fallback to flying to center point with fixed zoom
+		map.flyTo({
+			center: [result.lng, result.lat],
+			zoom: 14,
+			duration: flyToDuration
+		});
+	}
+}
+
+/**
+ * Preview result on hover - smoothly move to the location
+ * @param {number} index - Result index
+ */
+function previewResultOnHover(index) {
+	if (index < 0 || index >= searchResults.length) return;
+	
+	var result = searchResults[index];
+	var map = window.MapCore.getMap();
+	if (!map) return;
+
+	// If bounding box is available, fit the map to it for preview
+	if (result.bbox) {
+		map.fitBounds(
+			[
+				[result.bbox.west, result.bbox.south],
+				[result.bbox.east, result.bbox.north]
+			],
+			{
+				duration: 500,
+				padding: 50
+			}
+		);
+	} else {
+		// Fallback to panning to center point
+		map.panTo([result.lng, result.lat], {
+			duration: 500
+		});
+	}
 }
 
 /**
@@ -325,5 +463,6 @@ function escapeHtml(text) {
 window.MapSearch = {
 	initialize: initializeSearch,
 	performSearch: performSearch,
-	clearResults: hideSearchResults
+	clearResults: hideSearchResults,
+	applyTransparency: applySearchResultsTransparency
 };

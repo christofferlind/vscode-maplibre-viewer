@@ -161,9 +161,12 @@ html, body {
 .search-results {
 	position: absolute;
 	top: 100%;
-	left: 0;
-	right: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 280px;
+	max-width: calc(100% - 20px);
 	margin-top: 2px;
+	/* Background transparency is set dynamically via JavaScript using --search-results-opacity */
 	background: var(--vscode-editor-background, rgba(255, 255, 255, 0.95));
 	border: 1px solid var(--vscode-input-border, #ccc);
 	border-radius: 4px;
@@ -172,6 +175,8 @@ html, body {
 	display: none;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	z-index: 1000;
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
 }
 
 .search-results.visible {

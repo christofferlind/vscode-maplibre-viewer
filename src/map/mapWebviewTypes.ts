@@ -5,6 +5,7 @@ export interface MapConfig {
     geocodingApiKey: string;
     photonSearchUrl: string;
     enableSearch: boolean;
+    searchResultsTransparency: number;
     flyToDuration: number;
     initialViewState?: ViewState;
 }

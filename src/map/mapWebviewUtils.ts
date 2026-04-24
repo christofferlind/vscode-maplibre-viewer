@@ -27,6 +27,7 @@ export function getMapConfiguration(): MapConfig {
         geocodingApiKey: config.get<string>('geocodingApiKey') || '',
         photonSearchUrl: config.get<string>('photonSearchUrl') || 'https://photon.komoot.io/api/',
         enableSearch: config.get<boolean>('enableSearch') ?? true,
+        searchResultsTransparency: config.get<number>('searchResultsTransparency') ?? 20,
         flyToDuration: config.get<number>('flyToDuration') ?? 500,
         initialViewState: lastViewState ? {
             center: {
@@ -115,6 +116,7 @@ export function generateWebviewHtml(
     htmlContent = htmlContent.replace(/\$\{geocodingApiKey\}/g, config.geocodingApiKey);
     htmlContent = htmlContent.replace(/\$\{photonSearchUrl\}/g, config.photonSearchUrl);
     htmlContent = htmlContent.replace(/\$\{enableSearch\}/g, String(config.enableSearch));
+    htmlContent = htmlContent.replace(/\$\{searchResultsTransparency\}/g, String(config.searchResultsTransparency));
     htmlContent = htmlContent.replace(/\$\{flyToDuration\}/g, String(config.flyToDuration));
     
     // Replace initial view state placeholder

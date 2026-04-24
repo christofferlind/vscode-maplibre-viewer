@@ -302,6 +302,13 @@
           "default": true,
           "description": "Enable search functionality in the map view"
         },
+        "vscodeMaplibreViewer.searchResultsTransparency": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Transparency percentage for the search results popup (0 = fully opaque, 100 = fully transparent)"
+        },
         "vscodeMaplibreViewer.flyToDuration": {
           "type": "number",
           "default": 500,
