@@ -14,6 +14,9 @@ var geocodingApiKey = '';
 var photonSearchUrl = '';
 var enableSearch = false;
 
+// Queue for pending operations that need to run after map is loaded
+var pendingOperations = [];
+
 /**
  * Set configuration options
  * @param {Object} config - Configuration object
@@ -33,6 +36,43 @@ function setConfig(config) {
 	}
 	if (config.mapStyleUrl !== undefined) {
 		currentStyleUrl = config.mapStyleUrl;
+	}
+}
+
+/**
+ * Check if the map is ready
+ * @returns {boolean} True if map is initialized and loaded
+ */
+function isMapReady() {
+	return map !== null && map.isStyleLoaded();
+}
+
+/**
+ * Queue an operation to run after the map is loaded
+ * @param {Function} operation - Function to execute when map is ready
+ */
+function queueOperation(operation) {
+	if (isMapReady()) {
+		// Map is already ready, execute immediately
+		operation();
+	} else {
+		// Queue for later execution
+		pendingOperations.push(operation);
+	}
+}
+
+/**
+ * Process all pending operations after map loads
+ */
+function processPendingOperations() {
+	console.log('Processing pending operations, count:', pendingOperations.length);
+	while (pendingOperations.length > 0) {
+		var operation = pendingOperations.shift();
+		try {
+			operation();
+		} catch (e) {
+			console.error('Error executing pending operation:', e);
+		}
 	}
 }
 
@@ -88,6 +128,12 @@ function initializeMap(initialViewState) {
 			console.log('Map loaded successfully');
 			hideLoadingOverlay();
 			hideErrorOverlay();
+			// Process any pending operations that were queued before map was ready
+			processPendingOperations();
+			// Notify the extension that the map is ready
+			vscode.postMessage({
+				type: 'mapReady'
+			});
 		});
 
 		// Listen for map move events and save view state
@@ -379,6 +425,9 @@ window.MapCore = {
 	setConfig: setConfig,
 	initializeMap: initializeMap,
 	getMap: getMap,
+	isMapReady: isMapReady,
+	queueOperation: queueOperation,
+	processPendingOperations: processPendingOperations,
 	saveViewStateToExtension: saveViewStateToExtension,
 	sendViewStateChanged: sendViewStateChanged,
 	updateMapStyle: updateMapStyle,

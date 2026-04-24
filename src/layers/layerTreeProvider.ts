@@ -1,5 +1,15 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { BaseMapStyle, OverlayLayer, DEFAULT_OVERLAY_LAYERS, SELECTED_FILE_LAYER_ID } from './layerTypes';
+import { FileToGeoJsonAdapter } from '../services/api';
+import {
+    validateFile,
+    convertToGeoJson,
+    getDefaultLayerName,
+    isSupportedFileExtension,
+    getSupportedExtensionsDisplay
+} from '../services/fileConversionService';
+import { calculateBoundingBoxFromGeoJson, BoundingBox } from '../services/coordinateParser';
 
 /**
  * Tree item types for internal use
@@ -7,13 +17,20 @@ import { BaseMapStyle, OverlayLayer, DEFAULT_OVERLAY_LAYERS, SELECTED_FILE_LAYER
 type TreeItem = BaseMapStyle | OverlayLayer | 'baseMapsRoot' | 'layersRoot';
 
 /**
- * Tree data provider for managing map layers and base maps
+ * MIME types for drag-and-drop operations
  */
-export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<TreeItem | undefined | null> = 
+const MIME_TEXT_URI_LIST = 'text/uri-list';
+const MIME_APPLICATION_JSON = 'application/json';
+
+/**
+ * Tree data provider for managing map layers and base maps
+ * Also implements TreeDragAndDropController for file drag-and-drop support
+ */
+export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vscode.TreeDragAndDropController<TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<TreeItem | undefined | null> =
         new vscode.EventEmitter<TreeItem | undefined | null>();
     
-    readonly onDidChangeTreeData: vscode.Event<TreeItem | undefined | null> = 
+    readonly onDidChangeTreeData: vscode.Event<TreeItem | undefined | null> =
         this._onDidChangeTreeData.event;
 
     private _baseMaps: BaseMapStyle[];
@@ -21,18 +38,46 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     private _overlayLayers: OverlayLayer[];
     private _activeBaseMapId: string;
     private _extensionContext: vscode.ExtensionContext;
+    
+    /**
+     * File-to-GeoJSON adapters for drag-and-drop conversion
+     */
+    private _fileAdapters: FileToGeoJsonAdapter[] = [];
 
     /**
      * Event emitter for layer changes
      */
-    private _onDidChangeLayers: vscode.EventEmitter<{ type: 'baseMap' | 'overlay'; data: any }> = 
+    private _onDidChangeLayers: vscode.EventEmitter<{ type: 'baseMap' | 'overlay'; data: any }> =
         new vscode.EventEmitter<{ type: 'baseMap' | 'overlay'; data: any }>();
     
     /**
      * Event that fires when layers change
      */
-    readonly onDidChangeLayers: vscode.Event<{ type: 'baseMap' | 'overlay'; data: any }> = 
+    readonly onDidChangeLayers: vscode.Event<{ type: 'baseMap' | 'overlay'; data: any }> =
         this._onDidChangeLayers.event;
+    
+    /**
+     * Event emitter for when a layer is added via drag-and-drop with bounding box
+     */
+    private _onDidAddLayerViaDragDrop: vscode.EventEmitter<{ layer: OverlayLayer; bbox: BoundingBox | null }> =
+        new vscode.EventEmitter<{ layer: OverlayLayer; bbox: BoundingBox | null }>();
+    
+    /**
+     * Event that fires when a layer is added via drag-and-drop
+     * The bounding box can be used to zoom the map to fit the new layer
+     */
+    readonly onDidAddLayerViaDragDrop: vscode.Event<{ layer: OverlayLayer; bbox: BoundingBox | null }> =
+        this._onDidAddLayerViaDragDrop.event;
+
+    /**
+     * MIME types that this controller can handle for drops
+     */
+    readonly dropMimeTypes: readonly string[] = [MIME_TEXT_URI_LIST];
+    
+    /**
+     * MIME types that this controller can produce for drags (not used, but required by interface)
+     */
+    readonly dragMimeTypes: readonly string[] = [MIME_APPLICATION_JSON];
 
     constructor(context: vscode.ExtensionContext) {
         this._extensionContext = context;
@@ -52,6 +97,163 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         this._activeBaseMapId = context.globalState.get<string>('activeBaseMapId')
             || this._baseMaps[0]?.id
             || 'basic';
+    }
+
+    /**
+     * Sets the file adapters to use for drag-and-drop conversion
+     * @param adapters Array of FileToGeoJsonAdapter instances
+     */
+    setFileAdapters(adapters: FileToGeoJsonAdapter[]): void {
+        this._fileAdapters = adapters;
+    }
+
+    /**
+     * Handles the drag operation (required by TreeDragAndDropController)
+     * We don't support dragging items out of the tree, so this is a no-op.
+     */
+    handleDrag(
+        _source: readonly TreeItem[],
+        _dataTransfer: vscode.DataTransfer,
+        _token: vscode.CancellationToken
+    ): void | Thenable<void> {
+        // Not implemented - we don't support dragging items out of the layers view
+    }
+
+    /**
+     * Handles the drop operation when files are dropped onto the tree view.
+     * Validates the dropped files, converts them to GeoJSON, and creates new layers.
+     */
+    async handleDrop(
+        target: TreeItem | undefined,
+        sources: vscode.DataTransfer,
+        _token: vscode.CancellationToken
+    ): Promise<void> {
+        // Get the URI list from the data transfer
+        const uriList = sources.get(MIME_TEXT_URI_LIST);
+        if (!uriList) {
+            return;
+        }
+
+        // Parse the URI list - it's a string with one URI per line
+        const uriListValue = uriList.value;
+        if (typeof uriListValue !== 'string' || !uriListValue.trim()) {
+            return;
+        }
+
+        const uris = uriListValue
+            .split('\n')
+            .map(u => u.trim())
+            .filter(u => u.length > 0)
+            .map(u => {
+                try {
+                    return vscode.Uri.parse(u);
+                } catch {
+                    return undefined;
+                }
+            })
+            .filter((u): u is vscode.Uri => u !== undefined);
+
+        if (uris.length === 0) {
+            return;
+        }
+
+        // Process each dropped file
+        const addedLayers: { layer: OverlayLayer; bbox: BoundingBox | null }[] = [];
+        const errors: { file: string; error: string }[] = [];
+
+        for (const uri of uris) {
+            // Only handle file URIs
+            if (uri.scheme !== 'file') {
+                errors.push({
+                    file: uri.toString(),
+                    error: 'Only local files are supported'
+                });
+                continue;
+            }
+
+            const filePath = uri.fsPath;
+            const result = await this._processDroppedFile(filePath);
+
+            if (result.success && result.layer && result.bbox !== undefined) {
+                addedLayers.push({ layer: result.layer, bbox: result.bbox });
+            } else if (result.error) {
+                errors.push({ file: path.basename(filePath), error: result.error });
+            }
+        }
+
+        // Show error messages for failed files
+        if (errors.length > 0) {
+            const errorMessages = errors.map(e => `${e.file}: ${e.error}`).join('\n');
+            if (errors.length === 1) {
+                vscode.window.showErrorMessage(`Failed to add layer: ${errorMessages}`);
+            } else {
+                vscode.window.showErrorMessage(
+                    `Failed to add ${errors.length} layer(s). See console for details.`
+                );
+                console.error('Drag-and-drop errors:\n' + errorMessages);
+            }
+        }
+
+        // Show success message for added layers
+        if (addedLayers.length > 0) {
+            const layerNames = addedLayers.map(l => l.layer.name).join(', ');
+            vscode.window.showInformationMessage(
+                `Added ${addedLayers.length} layer(s): ${layerNames}`
+            );
+
+            // Fire events for each added layer
+            for (const { layer, bbox } of addedLayers) {
+                this._onDidAddLayerViaDragDrop.fire({ layer, bbox });
+            }
+        }
+    }
+
+    /**
+     * Processes a single dropped file - validates and converts to a layer.
+     */
+    private async _processDroppedFile(filePath: string): Promise<{
+        success: boolean;
+        layer?: OverlayLayer;
+        bbox?: BoundingBox | null;
+        error?: string;
+    }> {
+        // Validate the file
+        const validation = validateFile(filePath);
+        if (!validation.valid) {
+            return { success: false, error: validation.error };
+        }
+
+        try {
+            // Convert to GeoJSON
+            const geojson = await convertToGeoJson(filePath, this._fileAdapters);
+
+            // Create a new layer
+            const layerName = getDefaultLayerName(filePath);
+            const layerId = `drag-drop-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            const newLayer: OverlayLayer = {
+                id: layerId,
+                name: layerName,
+                description: `Imported from ${path.basename(filePath)}`,
+                type: 'geojson',
+                source: {
+                    type: 'geojson',
+                    data: geojson
+                },
+                visible: true
+            };
+
+            // Add the layer
+            await this.addOverlayLayer(newLayer);
+
+            // Calculate bounding box for zooming
+            const bbox = calculateBoundingBoxFromGeoJson(geojson);
+
+            return { success: true, layer: newLayer, bbox };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return { success: false, error: errorMessage };
+        }
     }
 
     /**

@@ -14,12 +14,16 @@ var SELECTED_FILE_LAYER_ID = 'selected-file';
  * @param {Array} layers - Array of layer configurations
  */
 function updateOverlayLayers(layers) {
-	var map = window.MapCore.getMap();
-	if (!map) {
-		console.warn('Map not initialized');
+	// Queue the operation if map is not ready
+	if (!window.MapCore.isMapReady()) {
+		console.log('Map not ready, queueing updateOverlayLayers operation');
+		window.MapCore.queueOperation(function() {
+			updateOverlayLayers(layers);
+		});
 		return;
 	}
 
+	var map = window.MapCore.getMap();
 	console.log('Updating overlay layers:', layers);
 
 	// Get current overlay layer IDs

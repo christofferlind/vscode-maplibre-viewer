@@ -284,7 +284,25 @@ export abstract class MapWebviewController {
             case 'geocodingSearch':
                 await this.handleGeocodingSearch(msg.query as string);
                 break;
+                
+            case 'mapReady':
+                // Map is ready, request overlay layers callback
+                console.log('[Extension] Received mapReady message - map is initialized');
+                this._onMapReady?.();
+                break;
         }
+    }
+
+    /**
+     * Sets the callback for when the webview's map is ready
+     */
+    private _onMapReady?: () => void;
+
+    /**
+     * Registers a callback to be called when the webview's map is ready
+     */
+    public onMapReady(callback: () => void): void {
+        this._onMapReady = callback;
     }
     
     /**

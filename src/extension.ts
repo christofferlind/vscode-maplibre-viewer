@@ -421,9 +421,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 	const mapEditorProvider = new MapEditorProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
 
-	context.subscriptions.push(
-		vscode.window.registerTreeDataProvider('layersView', layerTreeProvider)
-	);
+	// Register the layers tree view with drag-and-drop support
+	// Note: We use createTreeView instead of registerTreeDataProvider to enable drag-and-drop
+	const layersTreeView = vscode.window.createTreeView('layersView', {
+		treeDataProvider: layerTreeProvider,
+		dragAndDropController: layerTreeProvider,
+		showCollapseAll: true
+	});
+	context.subscriptions.push(layersTreeView);
+
+	// Function to send current visible overlay layers to webview providers
+	const sendVisibleOverlayLayers = () => {
+		const visibleLayers = layerTreeProvider.getVisibleOverlayLayers();
+		mapsViewProvider.updateOverlayLayers(visibleLayers);
+		mapEditorProvider.updateOverlayLayers(visibleLayers);
+	};
+
+	// Register callbacks for when webviews' maps are ready
+	mapsViewProvider.onMapReady(sendVisibleOverlayLayers);
+	mapEditorProvider.onMapReady(sendVisibleOverlayLayers);
 
 	// Listen for layer changes and update the webview
 	layerTreeProvider.onDidChangeLayers((event) => {
@@ -434,6 +450,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			const visibleLayers = layerTreeProvider.getVisibleOverlayLayers();
 			mapsViewProvider.updateOverlayLayers(visibleLayers);
 			mapEditorProvider.updateOverlayLayers(visibleLayers);
+		}
+	});
+
+	// Listen for layers added via drag-and-drop and zoom the map to fit
+	layerTreeProvider.onDidAddLayerViaDragDrop((event) => {
+		if (event.bbox) {
+			mapsViewProvider.fitBoundsOnly(event.bbox);
+			mapEditorProvider.fitBoundsOnly(event.bbox);
 		}
 	});
 
@@ -600,6 +624,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 	// Register the built-in GeoJSON adapter
 	fileToGeoJsonAdapters.push(geojsonAdapter);
+
+	// Set the file adapters on the layer tree provider for drag-and-drop conversion
+	layerTreeProvider.setFileAdapters(fileToGeoJsonAdapters);
 
 	// Register file selection listener for the navigator view
 	const fileSelectionListener = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
