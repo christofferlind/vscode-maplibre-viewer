@@ -19,8 +19,24 @@ export interface StoredViewState {
     baseMapId?: string;
 }
 
+/**
+ * Represents a geocoding search result with normalized bounding box format
+ */
+export interface GeocodingResult {
+    name: string;
+    type: string;
+    lat: number;
+    lng: number;
+    bbox?: {
+        west: number;
+        south: number;
+        east: number;
+        north: number;
+    };
+}
+
 // Type-safe message types for webview communication
-export type WebviewMessageType = 
+export type WebviewMessageType =
     | 'configUpdate'
     | 'languageChange'
     | 'flyToLocation'
@@ -31,7 +47,9 @@ export type WebviewMessageType =
     | 'updateOverlayLayers'
     | 'updateSelectedFileLayer'
     | 'requestViewState'
-    | 'viewStateChanged';
+    | 'viewStateChanged'
+    | 'geocodingSearch'
+    | 'geocodingSearchResults';
 
 export interface ViewStateChangedMessage {
     type: 'viewStateChanged';
@@ -41,4 +59,14 @@ export interface ViewStateChangedMessage {
         bearing?: number;
         pitch?: number;
     };
+}
+
+export interface GeocodingSearchMessage {
+    type: 'geocodingSearch';
+    query: string;
+}
+
+export interface GeocodingSearchResultsMessage {
+    type: 'geocodingSearchResults';
+    results: GeocodingResult[];
 }

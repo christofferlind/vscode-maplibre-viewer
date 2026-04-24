@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { BoundingBox } from './coordinateParser';
 
 /**
  * Interface for search result data
@@ -6,10 +7,7 @@ import * as vscode from 'vscode';
 export interface SearchResultData {
 	lat: number;
 	lng: number;
-	bbox?: {
-		southwest: { latitude: number; longitude: number };
-		northeast: { latitude: number; longitude: number };
-	};
+	bbox?: BoundingBox;
 }
 
 /**
@@ -33,9 +31,9 @@ interface PhotonFeature {
 		state?: string;
 		osm_value?: string;
 		osm_key?: string;
+		extent?: [number, number, number, number]; // [west, south, east, north]
 	};
 	geometry?: { coordinates: [number, number] };
-	bbox?: [number, number, number, number];
 }
 
 /**
@@ -125,7 +123,8 @@ function parsePhotonResults(
 		const lat = feature.geometry?.coordinates?.[1] || 0;
 		const lng = feature.geometry?.coordinates?.[0] || 0;
 		
-		const bbox = parseBbox(feature.bbox);
+		// Photon API provides bbox in properties.extent as [west, south, east, north]
+		const bbox = parseBbox(feature.properties?.extent);
 		
 		const detail = bbox
 			? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`

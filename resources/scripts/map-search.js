@@ -182,101 +182,49 @@ function initializeSearch() {
  * @param {string} query - Search query
  */
 function performSearch(query) {
-	if (isSearching) return;
-	
 	query = query.trim();
 	
 	if (query.length < 2) {
-		hideSearchResults();
+		searchResults = [];
+		renderSearchResults();
 		return;
 	}
 
 	isSearching = true;
 	showSearchLoading();
 
-	// Get configuration
-	var geocodingApiKey = window.MapConfig ? window.MapConfig.geocodingApiKey : '';
-	var photonSearchUrl = window.MapConfig ? window.MapConfig.photonSearchUrl : 'https://photon.komoot.io/api';
+	// Send message to extension to perform the search
+	sendMessage('geocodingSearch', { query: query });
+}
 
-	// Use MapTiler Geocoding API if API key is configured, otherwise use Photon
-	var apiUrl;
-	if (geocodingApiKey && geocodingApiKey.length > 0) {
-		apiUrl = 'https://api.maptiler.com/geocoding/search.json?query=' + encodeURIComponent(query) + '&key=' + geocodingApiKey;
-	} else {
-		apiUrl = photonSearchUrl + '?q=' + encodeURIComponent(query);
+/**
+ * Handle geocoding search results from the extension
+ * @param {Array} results - Array of geocoding results
+ */
+function handleGeocodingSearchResults(results) {
+	isSearching = false;
+	
+	if (!results || results.length === 0) {
+		searchResults = [];
+		selectedResultIndex = -1;
+		renderSearchResults();
+		return;
 	}
 
-	fetch(apiUrl)
-		.then(function(response) {
-			if (!response.ok) {
-				throw new Error('Geocoding API error: ' + response.status);
-			}
-			return response.json();
-		})
-		.then(function(data) {
-			isSearching = false;
-			
-			// Parse results based on API type
-			var results = [];
-			if (geocodingApiKey && geocodingApiKey.length > 0) {
-				// MapTiler format
-				if (data.features && data.features.length > 0) {
-					results = data.features.slice(0, 10).map(function(feature) {
-						var bbox = null;
-						// MapTiler provides bbox in feature.bbox array [west, south, east, north]
-						if (feature.bbox && Array.isArray(feature.bbox) && feature.bbox.length === 4) {
-							bbox = {
-								west: feature.bbox[0],
-								south: feature.bbox[1],
-								east: feature.bbox[2],
-								north: feature.bbox[3]
-							};
-						}
-						return {
-							name: feature.text || feature.place_name,
-							type: feature.place_type ? feature.place_type[0] : 'place',
-							lng: feature.center[0],
-							lat: feature.center[1],
-							bbox: bbox
-						};
-					});
-				}
-			} else {
-				// Photon format
-				if (data.features && data.features.length > 0) {
-					results = data.features.slice(0, 10).map(function(feature) {
-						var name = feature.properties.name || feature.properties.city || feature.properties.state || 'Unknown';
-						var type = feature.properties.osm_value || feature.properties.osm_key || 'place';
-						var bbox = null;
-						// Photon provides extent as [west, south, east, north]
-						if (feature.properties.extent && Array.isArray(feature.properties.extent) && feature.properties.extent.length === 4) {
-							bbox = {
-								west: feature.properties.extent[0],
-								south: feature.properties.extent[1],
-								east: feature.properties.extent[2],
-								north: feature.properties.extent[3]
-							};
-						}
-						return {
-							name: name,
-							type: type,
-							lng: feature.geometry.coordinates[0],
-							lat: feature.geometry.coordinates[1],
-							bbox: bbox
-						};
-					});
-				}
-			}
+	// Results are already in the correct format from the extension
+	searchResults = results;
+	selectedResultIndex = -1;
+	renderSearchResults();
+}
 
-			searchResults = results;
-			selectedResultIndex = -1;
-			renderSearchResults();
-		})
-		.catch(function(error) {
-			isSearching = false;
-			console.error('Search error:', error);
-			showSearchError('Search failed. Please try again.');
-		});
+/**
+ * Handle geocoding search error
+ * @param {string} message - Error message
+ */
+function handleGeocodingSearchError(message) {
+	isSearching = false;
+	console.error('Search error:', message);
+	showSearchError(message || 'Search failed. Please try again.');
 }
 
 /**
@@ -464,5 +412,7 @@ window.MapSearch = {
 	initialize: initializeSearch,
 	performSearch: performSearch,
 	clearResults: hideSearchResults,
-	applyTransparency: applySearchResultsTransparency
+	applyTransparency: applySearchResultsTransparency,
+	handleGeocodingSearchResults: handleGeocodingSearchResults,
+	handleGeocodingSearchError: handleGeocodingSearchError
 };

@@ -162,6 +162,30 @@ async function handleSearchOnMap(
 		}, 300);
 	});
 
+	// Handle hover/active item change to preview on map
+	quickPick.onDidChangeActive((activeItems) => {
+		const activeItem = activeItems[0];
+		if (activeItem) {
+			// Find the coordinates for the active item
+			const itemKey = `${activeItem.label}-${activeItem.detail}`;
+			const coords = searchResultsMap.get(itemKey);
+			
+			if (coords) {
+				if (coords.bbox) {
+					// Use bounding box to fit the map
+					mapsViewProvider.fitBoundsOnly(coords.bbox);
+					mapEditorProvider.fitBoundsOnly(coords.bbox);
+				} else if (coords.lat !== 0 && coords.lng !== 0) {
+					// Fall back to flying to a point
+					const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+					const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
+					mapsViewProvider.flyToLocation(coords.lat, coords.lng, singlePointZoom);
+					mapEditorProvider.flyToLocation(coords.lat, coords.lng, singlePointZoom);
+				}
+			}
+		}
+	});
+
 	// Initial search if there's selected text
 	if (selectedText.length >= 2) {
 		quickPick.busy = true;

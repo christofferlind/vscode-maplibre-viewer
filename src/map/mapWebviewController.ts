@@ -3,7 +3,8 @@ import { BookmarkManager } from '../bookmarks/bookmarkManager';
 import { MapBookmark, ViewState } from '../bookmarks/bookmarkTypes';
 import { BaseMapStyle, OverlayLayer } from '../layers/layerTypes';
 import { Coordinate } from '../services/coordinateParser';
-import { MapConfig, StoredViewState } from './mapWebviewTypes';
+import { performGeocodingSearch, SearchResultData } from '../services/geocodingSearch';
+import { MapConfig, StoredViewState, GeocodingResult } from './mapWebviewTypes';
 import {
     getMapConfiguration,
     saveViewStateToSettings,
@@ -279,6 +280,57 @@ export abstract class MapWebviewController {
                     MapWebviewController.lastActiveViewType = this.getViewType();
                 }
                 break;
+                
+            case 'geocodingSearch':
+                await this.handleGeocodingSearch(msg.query as string);
+                break;
         }
+    }
+    
+    /**
+     * Handles geocoding search requests from the webview
+     * @param query - The search query
+     */
+    private async handleGeocodingSearch(query: string): Promise<void> {
+        const webview = this.getWebview();
+        if (!webview) {
+            return;
+        }
+        
+        const config = this.getConfiguration();
+        const searchResultsMap = new Map<string, SearchResultData>();
+        
+        const items = await performGeocodingSearch(
+            query,
+            config.geocodingApiKey,
+            config.photonSearchUrl,
+            searchResultsMap
+        );
+        
+        // Convert SearchResultData to GeocodingResult format
+        const results: GeocodingResult[] = [];
+        for (const item of items) {
+            const key = `${item.label}-${item.detail}`;
+            const data = searchResultsMap.get(key);
+            if (data) {
+                results.push({
+                    name: item.label,
+                    type: item.description || 'place',
+                    lat: data.lat,
+                    lng: data.lng,
+                    bbox: data.bbox ? {
+                        west: data.bbox.southwest.longitude,
+                        south: data.bbox.southwest.latitude,
+                        east: data.bbox.northeast.longitude,
+                        north: data.bbox.northeast.latitude
+                    } : undefined
+                });
+            }
+        }
+        
+        webview.postMessage({
+            type: 'geocodingSearchResults',
+            results: results
+        });
     }
 }

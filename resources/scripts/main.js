@@ -10,6 +10,18 @@ var vscode = acquireVsCodeApi();
 var initialViewState = null;
 
 /**
+ * Send a message to the extension
+ * @param {string} type - Message type
+ * @param {Object} data - Message data
+ */
+function sendMessage(type, data) {
+	vscode.postMessage({
+		type: type,
+		...data
+	});
+}
+
+/**
  * Handle messages from the extension
  */
 function setupMessageHandler() {
@@ -101,6 +113,13 @@ function setupMessageHandler() {
 					window.MapOverlays.updateSelectedFileLayerSource(message.geojson);
 				} else {
 					window.MapOverlays.clearSelectedFileLayer();
+				}
+				break;
+
+			case 'geocodingSearchResults':
+				console.log('Received geocodingSearchResults message:', message.results);
+				if (window.MapSearch && window.MapSearch.handleGeocodingSearchResults) {
+					window.MapSearch.handleGeocodingSearchResults(message.results);
 				}
 				break;
 		}
