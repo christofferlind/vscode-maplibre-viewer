@@ -17,6 +17,7 @@ Development guide for AI agents working on the vscode-maplibre-viewer project.
 - Use clear, descriptive names for variables, functions, and classes. Add meaningful comments where the *why* of the code is not immediately obvious.
 - Cover all changes with unit tests, including edge cases.
 - Mock external dependencies to keep tests fast and isolated.
+
 ## Commands
 
 ### File-scoped (preferred - fast feedback)
@@ -131,14 +132,6 @@ resources/
 - File deletion
 - Running full VS Code integration tests (`npm run test:vscode`)
 - Publishing operations (`npm run package`, `vsce publish`)
-
-## PR Requirements
-
-- Title format: `[component] Brief description` (e.g., `[bookmarks] Add search functionality`)
-- Run `npm run compile && npm run lint` before committing
-- Keep diffs small and focused on single feature/fix
-- Tests required for new features (coordinate parsing, adapters)
-- All existing tests must pass
 
 ## Extension API
 
