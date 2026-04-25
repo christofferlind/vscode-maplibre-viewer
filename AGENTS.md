@@ -28,6 +28,7 @@ Development guide for AI agents working on the vscode-maplibre-viewer project.
 npm run compile                    # Compile TypeScript once
 npm run lint                        # Run ESLint on src/
 npm run test                        # Run unit tests (requires compile first)
+npm run test:vscode                 # Run unit tests in vscode
 wc -l <filename>                    # Check line count for a specific file 
 ```
 

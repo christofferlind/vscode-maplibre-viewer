@@ -19,6 +19,7 @@ import { getConfig } from '../services/configService';
  */
 export abstract class MapWebviewController {
     protected _pendingViewStateResolve?: (state: ViewState | undefined) => void;
+    protected _pendingMapCenterResolve?: (center: { center: { latitude: number; longitude: number }; zoom: number; bearing: number; pitch: number } | { error: string }) => void;
     protected _currentBaseMapStyleUrl?: string;
     protected _currentBaseMapId?: string;
 
@@ -248,6 +249,35 @@ export abstract class MapWebviewController {
     }
 
     /**
+     * Gets the current map center from the webview
+     * @returns Promise resolving to the map center or undefined if unavailable
+     */
+    public async getMapCenter(): Promise<{ center: { latitude: number; longitude: number }; zoom: number; bearing: number; pitch: number } | undefined> {
+        const webview = this.getWebview();
+        if (!webview) {
+            return undefined;
+        }
+
+        return new Promise<{ center: { latitude: number; longitude: number }; zoom: number; bearing: number; pitch: number } | undefined>((resolve) => {
+            this._pendingMapCenterResolve = (result) => {
+                if ('error' in result) {
+                    resolve(undefined);
+                } else {
+                    resolve(result);
+                }
+            };
+            webview.postMessage({ type: 'getMapCenter' });
+
+            setTimeout(() => {
+                if (this._pendingMapCenterResolve) {
+                    this._pendingMapCenterResolve = undefined;
+                    resolve(undefined);
+                }
+            }, 5000);
+        });
+    }
+
+    /**
      * Handles messages from the webview
      */
     public async handleWebviewMessage(message: unknown): Promise<void> {
@@ -292,6 +322,23 @@ export abstract class MapWebviewController {
                 // Map is ready, request overlay layers callback
                 console.log('[Extension] Received mapReady message - map is initialized');
                 this._onMapReady?.();
+                break;
+
+            case 'mapCenterResponse':
+                // Handle map center response from webview
+                if (this._pendingMapCenterResolve) {
+                    if (msg.error) {
+                        this._pendingMapCenterResolve({ error: msg.error as string });
+                    } else {
+                        this._pendingMapCenterResolve({
+                            center: msg.center as { latitude: number; longitude: number },
+                            zoom: msg.zoom as number,
+                            bearing: msg.bearing as number,
+                            pitch: msg.pitch as number
+                        });
+                    }
+                    this._pendingMapCenterResolve = undefined;
+                }
                 break;
         }
     }

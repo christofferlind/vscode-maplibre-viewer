@@ -79,6 +79,32 @@ function setupMessageHandler() {
 				window.MapCore.sendViewStateChanged();
 				break;
 
+			case 'getMapCenter':
+				console.log('Received getMapCenter request');
+				var map = window.MapCore.getMap();
+				if (map) {
+					var center = map.getCenter();
+					var zoom = map.getZoom();
+					var bearing = map.getBearing();
+					var pitch = map.getPitch();
+					vscode.postMessage({
+						type: 'mapCenterResponse',
+						center: {
+							latitude: center.lat,
+							longitude: center.lng
+						},
+						zoom: zoom,
+						bearing: bearing,
+						pitch: pitch
+					});
+				} else {
+					vscode.postMessage({
+						type: 'mapCenterResponse',
+						error: 'Map not initialized'
+					});
+				}
+				break;
+
 			case 'flyToBookmark':
 				console.log('Received flyToBookmark message:', message.bookmark);
 				if (message.bookmark) {
