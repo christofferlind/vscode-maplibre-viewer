@@ -13,40 +13,36 @@ window.temporaryMarkers = [];
  * @param {number} [zoom=14] - Zoom level (optional)
  */
 function flyToLocation(latitude, longitude, zoom) {
-	var map = window.MapCore.getMap();
-	if (!map) {
-		console.warn('Map not initialized');
-		return;
-	}
+	if (!window.MapUtils.withMap(function(map) {
+		// Get flyToDuration from config
+		var flyToDuration = window.MapUtils.getConfig('flyToDuration', 1500);
 
-	// Get flyToDuration from config
-	var flyToDuration = window.MapConfig ? window.MapConfig.flyToDuration : 1500;
+		// Use provided zoom or default to 14
+		var zoomLevel = zoom !== undefined ? zoom : 14;
+		
+		console.log('Flying to location:', latitude, longitude, 'at zoom:', zoomLevel);
 
-	// Use provided zoom or default to 14
-	var zoomLevel = zoom !== undefined ? zoom : 14;
-	
-	console.log('Flying to location:', latitude, longitude, 'at zoom:', zoomLevel);
-
-	// Remove any existing temporary markers
-	clearTemporaryMarkers();
-
-	// Fly to the location
-	map.flyTo({
-		center: [longitude, latitude],
-		zoom: zoomLevel,
-		duration: flyToDuration
-	});
-
-	// Add a temporary marker at the location
-	var marker = new maplibregl.Marker()
-		.setLngLat([longitude, latitude])
-		.addTo(map);
-	window.temporaryMarkers.push(marker);
-
-	// Remove the markers after 10 seconds
-	setTimeout(function() {
+		// Remove any existing temporary markers
 		clearTemporaryMarkers();
-	}, 10000);
+
+		// Fly to the location
+		map.flyTo({
+			center: [longitude, latitude],
+			zoom: zoomLevel,
+			duration: flyToDuration
+		});
+
+		// Add a temporary marker at the location
+		var marker = new maplibregl.Marker()
+			.setLngLat([longitude, latitude])
+			.addTo(map);
+		window.temporaryMarkers.push(marker);
+
+		// Remove the markers after 10 seconds
+		setTimeout(function() {
+			clearTemporaryMarkers();
+		}, 10000);
+	})) return;
 }
 
 /**
@@ -67,49 +63,41 @@ function clearTemporaryMarkers() {
  * @param {Object} boundingBox - Bounding box with southwest and northeast corners
  */
 function fitBoundingBox(coordinates, boundingBox) {
-	var map = window.MapCore.getMap();
-	if (!map) {
-		console.warn('Map not initialized');
-		return;
-	}
+	if (!window.MapUtils.withMap(function(map) {
+		console.log('Fitting to bounding box:', coordinates.length, 'coordinates', boundingBox);
 
-	// Get flyToDuration from config
-	var flyToDuration = window.MapConfig ? window.MapConfig.flyToDuration : 1500;
-
-	console.log('Fitting to bounding box:', coordinates.length, 'coordinates', boundingBox);
-
-	// Clear any existing temporary markers
-	clearTemporaryMarkers();
-
-	// Add markers for all coordinates
-	window.temporaryMarkers = window.temporaryMarkers || [];
-	coordinates.forEach(function(coord) {
-		var marker = new maplibregl.Marker()
-			.setLngLat([coord.longitude, coord.latitude])
-			.addTo(map);
-		window.temporaryMarkers.push(marker);
-	});
-
-	// Calculate padding based on number of points
-	var padding = Math.max(50, Math.min(100, 200 / coordinates.length));
-
-	// Fit the map to the bounding box
-	map.fitBounds(
-		[
-			[boundingBox.southwest.longitude, boundingBox.southwest.latitude],
-			[boundingBox.northeast.longitude, boundingBox.northeast.latitude]
-		],
-		{
-			padding: padding,
-			duration: flyToDuration,
-			maxZoom: 16
-		}
-	);
-
-	// Remove the markers after 10 seconds
-	setTimeout(function() {
+		// Clear any existing temporary markers
 		clearTemporaryMarkers();
-	}, 10000);
+
+		// Add markers for all coordinates
+		window.temporaryMarkers = window.temporaryMarkers || [];
+		coordinates.forEach(function(coord) {
+			var marker = new maplibregl.Marker()
+				.setLngLat([coord.longitude, coord.latitude])
+				.addTo(map);
+			window.temporaryMarkers.push(marker);
+		});
+
+		// Calculate padding based on number of points
+		var padding = Math.max(50, Math.min(100, 200 / coordinates.length));
+
+		// Fit the map to the bounding box
+		window.MapUtils.fitBoundsWithDefaults(
+			map,
+			[
+				[boundingBox.southwest.longitude, boundingBox.southwest.latitude],
+				[boundingBox.northeast.longitude, boundingBox.northeast.latitude]
+			],
+			{
+				padding: padding
+			}
+		);
+
+		// Remove the markers after 10 seconds
+		setTimeout(function() {
+			clearTemporaryMarkers();
+		}, 10000);
+	})) return;
 }
 
 /**
@@ -117,29 +105,18 @@ function fitBoundingBox(coordinates, boundingBox) {
  * @param {Object} boundingBox - Bounding box with southwest and northeast corners
  */
 function fitBoundsOnly(boundingBox) {
-	var map = window.MapCore.getMap();
-	if (!map) {
-		console.warn('Map not initialized');
-		return;
-	}
+	if (!window.MapUtils.withMap(function(map) {
+		console.log('Fitting to bounding box (no markers):', boundingBox);
 
-	// Get flyToDuration from config
-	var flyToDuration = window.MapConfig ? window.MapConfig.flyToDuration : 1500;
-
-	console.log('Fitting to bounding box (no markers):', boundingBox);
-
-	// Fit the map to the bounding box
-	map.fitBounds(
-		[
-			[boundingBox.southwest.longitude, boundingBox.southwest.latitude],
-			[boundingBox.northeast.longitude, boundingBox.northeast.latitude]
-		],
-		{
-			padding: 50,
-			duration: flyToDuration,
-			maxZoom: 16
-		}
-	);
+		// Fit the map to the bounding box
+		window.MapUtils.fitBoundsWithDefaults(
+			map,
+			[
+				[boundingBox.southwest.longitude, boundingBox.southwest.latitude],
+				[boundingBox.northeast.longitude, boundingBox.northeast.latitude]
+			]
+		);
+	})) return;
 }
 
 /**
@@ -147,26 +124,22 @@ function fitBoundsOnly(boundingBox) {
  * @param {Object} bookmark - Bookmark object with center, zoom, bearing, pitch
  */
 function flyToBookmark(bookmark) {
-	var map = window.MapCore.getMap();
-	if (!map) {
-		console.warn('Map not initialized');
-		return;
-	}
-
 	if (!bookmark || !bookmark.center) {
 		console.warn('Invalid bookmark data');
 		return;
 	}
 
-	console.log('Flying to bookmark:', bookmark.name, bookmark);
+	if (!window.MapUtils.withMap(function(map) {
+		console.log('Flying to bookmark:', bookmark.name, bookmark);
 
-	map.flyTo({
-		center: [bookmark.center.longitude, bookmark.center.latitude],
-		zoom: bookmark.zoom || 14,
-		bearing: bookmark.bearing || 0,
-		pitch: bookmark.pitch || 0,
-		duration: 1500
-	});
+		map.flyTo({
+			center: [bookmark.center.longitude, bookmark.center.latitude],
+			zoom: bookmark.zoom || 14,
+			bearing: bookmark.bearing || 0,
+			pitch: bookmark.pitch || 0,
+			duration: 1500
+		});
+	})) return;
 }
 
 // Export functions for use in other modules

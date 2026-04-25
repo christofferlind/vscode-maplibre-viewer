@@ -409,3 +409,27 @@ function dmsToDecimal(degrees: number, minutes: number, seconds: number, directi
     // Round to 6 decimal places for precision
     return Math.round(decimal * 1000000) / 1000000;
 }
+
+/**
+ * Formats coordinates as a human-readable string.
+ *
+ * @param lat Latitude value
+ * @param lng Longitude value
+ * @param precision Number of decimal places (default: 4)
+ * @returns Formatted coordinate string (e.g., "59.3293, 18.0686")
+ */
+export function formatCoordinates(lat: number, lng: number, precision = 4): string {
+    return `${lat.toFixed(precision)}, ${lng.toFixed(precision)}`;
+}
+
+/**
+ * Formats view state (zoom, bearing, pitch) as a human-readable string.
+ *
+ * @param zoom Zoom level
+ * @param bearing Bearing/rotation in degrees
+ * @param pitch Pitch/tilt in degrees
+ * @returns Formatted view state string (e.g., "Zoom: 12.0 | Bearing: 45° | Pitch: 30°")
+ */
+export function formatViewState(zoom: number, bearing: number, pitch: number): string {
+    return `Zoom: ${zoom.toFixed(1)} | Bearing: ${bearing.toFixed(0)}° | Pitch: ${pitch.toFixed(0)}°`;
+}

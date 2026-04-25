@@ -4,6 +4,7 @@ import { FileToGeoJsonAdapter } from './api';
 import { parseKmlFile } from './kmlParser';
 import { parseGpxFile } from './gpxParser';
 import { parseCsvFile } from './csvParser';
+import { ensureFeatureCollection } from './geojsonUtils';
 
 /**
  * Result of file validation.
@@ -186,57 +187,6 @@ function convertGeoJsonFile(filePath: string): object {
     }
 
     return ensureFeatureCollection(parsed);
-}
-
-/**
- * Ensures the result is a GeoJSON FeatureCollection.
- * Wraps single Features or Geometry objects into a FeatureCollection.
- */
-function ensureFeatureCollection(obj: unknown): object {
-    if (!obj || typeof obj !== 'object') {
-        throw new Error('Invalid GeoJSON: expected an object');
-    }
-
-    const geojson = obj as Record<string, unknown>;
-
-    // Already a FeatureCollection
-    if (geojson.type === 'FeatureCollection') {
-        if (!Array.isArray(geojson.features)) {
-            throw new Error('Invalid GeoJSON FeatureCollection: "features" must be an array');
-        }
-        return geojson;
-    }
-
-    // Single Feature - wrap in FeatureCollection
-    if (geojson.type === 'Feature') {
-        return {
-            type: 'FeatureCollection',
-            features: [geojson]
-        };
-    }
-
-    // Geometry object - wrap in FeatureCollection
-    const validGeometryTypes = [
-        'Point', 'MultiPoint', 'LineString', 'MultiLineString',
-        'Polygon', 'MultiPolygon', 'GeometryCollection'
-    ];
-    if (typeof geojson.type === 'string' && validGeometryTypes.includes(geojson.type)) {
-        return {
-            type: 'FeatureCollection',
-            features: [
-                {
-                    type: 'Feature',
-                    geometry: geojson,
-                    properties: {}
-                }
-            ]
-        };
-    }
-
-    throw new Error(
-        'Invalid GeoJSON: expected a FeatureCollection, Feature, or Geometry object. ' +
-        `Got type "${String(geojson.type)}"`
-    );
 }
 
 /**

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import { FileToGeoJsonAdapter } from '../services/api';
+import { isValidGeoJson } from '../services/geojsonUtils';
 
 /**
  * GeoJSON file adapter for the MapLibre Viewer extension.
@@ -48,53 +49,3 @@ export const geojsonAdapter: FileToGeoJsonAdapter = {
         }
     }
 };
-
-/**
- * Validates that the parsed object is a valid GeoJSON structure.
- * @param obj The parsed JSON object
- * @returns True if the object appears to be valid GeoJSON
- */
-function isValidGeoJson(obj: any): boolean {
-    if (!obj || typeof obj !== 'object') {
-        return false;
-    }
-
-    // Check for valid GeoJSON types
-    const validTypes = [
-        'FeatureCollection',
-        'Feature',
-        'Point',
-        'MultiPoint',
-        'LineString',
-        'MultiLineString',
-        'Polygon',
-        'MultiPolygon',
-        'GeometryCollection'
-    ];
-
-    // Must have a type property
-    if (typeof obj.type !== 'string') {
-        return false;
-    }
-
-    // Check if type is valid
-    if (!validTypes.includes(obj.type)) {
-        return false;
-    }
-
-    // Additional validation for FeatureCollection
-    if (obj.type === 'FeatureCollection') {
-        if (!Array.isArray(obj.features)) {
-            return false;
-        }
-    }
-
-    // Additional validation for Feature
-    if (obj.type === 'Feature') {
-        if (obj.geometry !== null && typeof obj.geometry !== 'object') {
-            return false;
-        }
-    }
-
-    return true;
-}

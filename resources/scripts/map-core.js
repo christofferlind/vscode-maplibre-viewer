@@ -195,16 +195,7 @@ function saveViewStateToExtension() {
 		return;
 	}
 
-	var center = map.getCenter();
-	var viewState = {
-		center: {
-			lat: center.lat,
-			lng: center.lng
-		},
-		zoom: map.getZoom(),
-		bearing: map.getBearing(),
-		pitch: map.getPitch()
-	};
+	var viewState = window.MapUtils.createViewState(map);
 
 	vscode.postMessage({
 		type: 'viewStateChanged',
@@ -221,16 +212,7 @@ function sendViewStateChanged() {
 		return;
 	}
 
-	var center = map.getCenter();
-	var viewState = {
-		center: {
-			lat: center.lat,
-			lng: center.lng
-		},
-		zoom: map.getZoom(),
-		bearing: map.getBearing(),
-		pitch: map.getPitch()
-	};
+	var viewState = window.MapUtils.createViewState(map);
 
 	console.log('Sending view state:', viewState);
 	vscode.postMessage({
@@ -244,46 +226,43 @@ function sendViewStateChanged() {
  * @param {string} newStyleUrl - The new style URL
  */
 function updateMapStyle(newStyleUrl) {
-	if (!map) {
-		console.warn('Map not initialized');
-		return;
-	}
-
-	if (newStyleUrl === currentStyleUrl) {
-		console.log('Style URL unchanged, skipping update');
-		return;
-	}
-
-	console.log('Updating map style to:', newStyleUrl);
-	showLoadingOverlay('Updating style...');
-
-	currentStyleUrl = newStyleUrl;
-
-	// Store current view state
-	var currentCenter = map.getCenter();
-	var currentZoom = map.getZoom();
-	var currentBearing = map.getBearing();
-	var currentPitch = map.getPitch();
-
-	// Update the style
-	map.setStyle(newStyleUrl, {
-		transformStyle: function(previousStyle, nextStyle) {
-			return nextStyle;
+	if (!window.MapUtils.withMap(function(map) {
+		if (newStyleUrl === currentStyleUrl) {
+			console.log('Style URL unchanged, skipping update');
+			return;
 		}
-	});
 
-	map.jumpTo({
-		center: currentCenter,
-		zoom: currentZoom,
-		bearing: currentBearing,
-		pitch: currentPitch
-	});
+		console.log('Updating map style to:', newStyleUrl);
+		showLoadingOverlay('Updating style...');
 
-	hideLoadingOverlay();
+		currentStyleUrl = newStyleUrl;
 
-	map.once('error', function(e) {
-		console.error('Error updating map style:', e.error);
-	});
+		// Store current view state
+		var currentCenter = map.getCenter();
+		var currentZoom = map.getZoom();
+		var currentBearing = map.getBearing();
+		var currentPitch = map.getPitch();
+
+		// Update the style
+		map.setStyle(newStyleUrl, {
+			transformStyle: function(previousStyle, nextStyle) {
+				return nextStyle;
+			}
+		});
+
+		map.jumpTo({
+			center: currentCenter,
+			zoom: currentZoom,
+			bearing: currentBearing,
+			pitch: currentPitch
+		});
+
+		hideLoadingOverlay();
+
+		map.once('error', function(e) {
+			console.error('Error updating map style:', e.error);
+		});
+	})) return;
 }
 
 /**
@@ -330,47 +309,44 @@ function createRasterStyle(rasterConfig) {
  * @param {Object} basemap - Basemap configuration
  */
 function updateBasemap(basemap) {
-	if (!map) {
-		console.warn('Map not initialized');
-		return;
-	}
+	if (!window.MapUtils.withMap(function(map) {
+		console.log('Updating basemap:', basemap);
 
-	console.log('Updating basemap:', basemap);
+		// Store current view state
+		var currentCenter = map.getCenter();
+		var currentZoom = map.getZoom();
+		var currentBearing = map.getBearing();
+		var currentPitch = map.getPitch();
 
-	// Store current view state
-	var currentCenter = map.getCenter();
-	var currentZoom = map.getZoom();
-	var currentBearing = map.getBearing();
-	var currentPitch = map.getPitch();
+		if (basemap.type === 'raster' && basemap.tileUrl) {
+			// Raster tile basemap
+			console.log('Setting raster basemap:', basemap.tileUrl);
+			showLoadingOverlay('Updating style...');
 
-	if (basemap.type === 'raster' && basemap.tileUrl) {
-		// Raster tile basemap
-		console.log('Setting raster basemap:', basemap.tileUrl);
-		showLoadingOverlay('Updating style...');
+			var rasterStyle = createRasterStyle(basemap);
+			currentStyleUrl = null; // Clear style URL for raster
 
-		var rasterStyle = createRasterStyle(basemap);
-		currentStyleUrl = null; // Clear style URL for raster
+			map.setStyle(rasterStyle, {
+				transformStyle: function(previousStyle, nextStyle) {
+					return nextStyle;
+				}
+			});
 
-		map.setStyle(rasterStyle, {
-			transformStyle: function(previousStyle, nextStyle) {
-				return nextStyle;
-			}
-		});
+			map.jumpTo({
+				center: currentCenter,
+				zoom: currentZoom,
+				bearing: currentBearing,
+				pitch: currentPitch
+			});
 
-		map.jumpTo({
-			center: currentCenter,
-			zoom: currentZoom,
-			bearing: currentBearing,
-			pitch: currentPitch
-		});
-
-		hideLoadingOverlay();
-	} else if (basemap.styleUrl) {
-		// Vector style basemap
-		updateMapStyle(basemap.styleUrl);
-	} else {
-		console.error('Invalid basemap configuration: must have either styleUrl or tileUrl');
-	}
+			hideLoadingOverlay();
+		} else if (basemap.styleUrl) {
+			// Vector style basemap
+			updateMapStyle(basemap.styleUrl);
+		} else {
+			console.error('Invalid basemap configuration: must have either styleUrl or tileUrl');
+		}
+	})) return;
 }
 
 /**
@@ -378,46 +354,43 @@ function updateBasemap(basemap) {
  * @param {string} language - Language code or 'native'
  */
 function changeMapLanguage(language) {
-	if (!map) {
-		console.warn('Map not initialized');
-		return;
-	}
+	if (!window.MapUtils.withMap(function(map) {
+		console.log('Changing map language to:', language);
 
-	console.log('Changing map language to:', language);
-
-	// Determine the text-field expression based on language
-	var textField;
-	if (language === 'native') {
-		// Use native/local names
-		textField = ['get', 'name'];
-	} else {
-		// Use specific language
-		textField = ['get', 'name:' + language];
-	}
-
-	// Get all layers in the current style
-	var style = map.getStyle();
-	if (!style || !style.layers) {
-		console.warn('Could not get style layers');
-		return;
-	}
-
-	// Update each label layer that exists in the style
-	var updatedCount = 0;
-	style.layers.forEach(function(layer) {
-		// Check if this is a label layer (has 'label' in the id and is a symbol layer)
-		if (layer.type === 'symbol' && layer.id &&
-			(layer.id.indexOf('label') !== -1 || layer.id.indexOf('place') !== -1)) {
-			try {
-				map.setLayoutProperty(layer.id, 'text-field', textField);
-				updatedCount++;
-			} catch (e) {
-				console.debug('Could not update layer', layer.id, e.message);
-			}
+		// Determine the text-field expression based on language
+		var textField;
+		if (language === 'native') {
+			// Use native/local names
+			textField = ['get', 'name'];
+		} else {
+			// Use specific language
+			textField = ['get', 'name:' + language];
 		}
-	});
 
-	console.log('Updated', updatedCount, 'label layers to language:', language);
+		// Get all layers in the current style
+		var style = map.getStyle();
+		if (!style || !style.layers) {
+			console.warn('Could not get style layers');
+			return;
+		}
+
+		// Update each label layer that exists in the style
+		var updatedCount = 0;
+		style.layers.forEach(function(layer) {
+			// Check if this is a label layer (has 'label' in the id and is a symbol layer)
+			if (layer.type === 'symbol' && layer.id &&
+				(layer.id.indexOf('label') !== -1 || layer.id.indexOf('place') !== -1)) {
+				try {
+					map.setLayoutProperty(layer.id, 'text-field', textField);
+					updatedCount++;
+				} catch (e) {
+					console.debug('Could not update layer', layer.id, e.message);
+				}
+			}
+		});
+
+		console.log('Updated', updatedCount, 'label layers to language:', language);
+	})) return;
 }
 
 // Export functions for use in other modules

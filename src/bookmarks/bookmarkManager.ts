@@ -2,9 +2,10 @@ import * as vscode from 'vscode';
 import { MapBookmark, BookmarkCollection, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
 import { MapWebviewController } from '../map/mapWebviewController';
-import { MapViewProvider } from '../map/mapViewProvider';
 import { MapEditorProvider } from '../map/mapEditorProvider';
+import { ProviderManager } from '../map/providerManager';
 import { confirmAction, showOperationError } from '../extensionUtils';
+import { formatCoordinates, formatViewState } from '../services/coordinateParser';
 
 /**
  * Storage key for bookmarks in globalState
@@ -259,36 +260,41 @@ export class BookmarkManager {
      * Registers bookmark-related commands with VS Code
      * @param context The extension context
      * @param bookmarkTreeProvider The bookmark tree provider for UI updates
-     * @param mapsViewProvider The map view provider for navigation
+     * @param providerManager The provider manager for navigation
      * @returns Array of disposables for the registered commands
      */
     public registerCommands(
         context: vscode.ExtensionContext,
         bookmarkTreeProvider: BookmarkTreeProvider,
-        mapsViewProvider: MapViewProvider,
-        mapEditorProvider?: MapEditorProvider
+        providerManager: ProviderManager
     ): void {
         // Register command to navigate to a bookmark from the tree view
         context.subscriptions.push(
             vscode.commands.registerCommand('vscodeMaplibreViewer.goToBookmark', (bookmark: MapBookmark) => {
-                mapsViewProvider.flyToBookmark(bookmark);
+                providerManager.flyToBookmark(bookmark);
             })
         );
 
         // Register command to open a bookmark in the Map Editor panel
         context.subscriptions.push(
             vscode.commands.registerCommand('vscodeMaplibreViewer.openBookmarkInEditor', async (bookmark: MapBookmark) => {
+                // Get the MapEditorProvider from the provider manager's providers
+                const providers = providerManager.getProviders();
+                const mapEditorProvider = providers.find((p): p is MapEditorProvider =>
+                    p instanceof MapEditorProvider
+                );
+                
                 if (!mapEditorProvider) {
                     vscode.window.showErrorMessage('Map Editor is not available');
                     return;
                 }
                 
-                // Open the editor panel
-                const panel = await mapEditorProvider.createPanel();
+                // Open the editor panel using the createPanel method
+                await mapEditorProvider.createPanel();
                 
                 // Wait a bit for the panel to initialize, then fly to the bookmark
                 setTimeout(() => {
-                    mapEditorProvider.flyToBookmark(bookmark);
+                    providerManager.flyToBookmark(bookmark);
                 }, 500);
             })
         );
@@ -308,7 +314,11 @@ export class BookmarkManager {
         context.subscriptions.push(
             vscode.commands.registerCommand('vscodeMaplibreViewer.saveBookmark', () => {
                 const isEditor = MapWebviewController.lastActiveViewType === 'mapEditor';
-                const provider = isEditor && mapEditorProvider ? mapEditorProvider : mapsViewProvider;
+                const providers = providerManager.getProviders();
+                // Find the appropriate provider based on the active view type
+                const provider = isEditor
+                    ? providers.find(p => p.constructor.name === 'MapEditorProvider') || providers[0]
+                    : providers.find(p => p.constructor.name === 'MapViewProvider') || providers[0];
                 return this.handleSaveBookmark(bookmarkTreeProvider, provider);
             })
         );
@@ -316,7 +326,7 @@ export class BookmarkManager {
         // Register load bookmark command - opens QuickPick with all bookmarks
         context.subscriptions.push(
             vscode.commands.registerCommand('vscodeMaplibreViewer.loadBookmark', () =>
-                this.handleLoadBookmark(mapsViewProvider, mapEditorProvider)
+                this.handleLoadBookmark(providerManager)
             )
         );
     }
@@ -359,8 +369,8 @@ export class BookmarkManager {
                 const lng = b.center?.longitude ?? 0;
                 items.push({
                     label: `$(bookmark) ${b.name}`,
-                    description: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-                    detail: `Zoom: ${(b.zoom ?? 0).toFixed(1)} | Bearing: ${(b.bearing ?? 0).toFixed(0)}° | Pitch: ${(b.pitch ?? 0).toFixed(0)}°`,
+                    description: formatCoordinates(lat, lng),
+                    detail: formatViewState(b.zoom ?? 0, b.bearing ?? 0, b.pitch ?? 0),
                     bookmark: b
                 });
             });
@@ -450,8 +460,7 @@ export class BookmarkManager {
      * Handles loading a bookmark
      */
     private async handleLoadBookmark(
-        mapsViewProvider: MapViewProvider,
-        mapEditorProvider?: MapEditorProvider
+        providerManager: ProviderManager
     ): Promise<void> {
         const bookmarks = this.getAllBookmarks();
         
@@ -484,10 +493,7 @@ export class BookmarkManager {
             return;
         }
 
-        // Fly to the selected bookmark on both map views
-        mapsViewProvider.flyToBookmark(selected.bookmark);
-        if (mapEditorProvider) {
-            mapEditorProvider.flyToBookmark(selected.bookmark);
-        }
+        // Fly to the selected bookmark on all map views
+        providerManager.flyToBookmark(selected.bookmark);
     }
 }

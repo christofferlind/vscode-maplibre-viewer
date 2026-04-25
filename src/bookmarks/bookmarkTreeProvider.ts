@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { BookmarkManager } from './bookmarkManager';
 import { MapBookmark } from './bookmarkTypes';
+import { formatCoordinates } from '../services/coordinateParser';
 
 /**
  * Command ID for renaming bookmarks
@@ -39,7 +40,7 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<MapBookmark
         // Set description to show coordinates (with null safety for corrupted data)
         const lat = element.center?.latitude ?? 0;
         const lng = element.center?.longitude ?? 0;
-        item.description = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        item.description = formatCoordinates(lat, lng);
         
         // Set tooltip with detailed information
         item.tooltip = this.createTooltip(element);
@@ -182,7 +183,7 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<MapBookmark
         // Use null-safe access for corrupted bookmark data
         const lat = bookmark.center?.latitude ?? 0;
         const lng = bookmark.center?.longitude ?? 0;
-        md.appendMarkdown(`**Coordinates:** ${lat.toFixed(6)}, ${lng.toFixed(6)}\n\n`);
+        md.appendMarkdown(`**Coordinates:** ${formatCoordinates(lat, lng, 6)}\n\n`);
         md.appendMarkdown(`**Zoom:** ${(bookmark.zoom ?? 0).toFixed(1)}\n\n`);
         md.appendMarkdown(`**Bearing:** ${(bookmark.bearing ?? 0).toFixed(0)}°\n\n`);
         md.appendMarkdown(`**Pitch:** ${(bookmark.pitch ?? 0).toFixed(0)}°\n\n`);

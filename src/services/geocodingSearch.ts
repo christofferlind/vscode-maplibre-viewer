@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BoundingBox } from './coordinateParser';
+import { BoundingBox, formatCoordinates } from './coordinateParser';
 
 /**
  * Interface for search result data
@@ -95,7 +95,7 @@ function parseMapTilerResults(
 		
 		const detail = bbox
 			? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`
-			: `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+			: formatCoordinates(lat, lng);
 		const itemKey = `${label}-${detail}`;
 		
 		items.push(createSearchResultItem(label, description, detail));
@@ -128,7 +128,7 @@ function parsePhotonResults(
 		
 		const detail = bbox
 			? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`
-			: `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+			: formatCoordinates(lat, lng);
 		const itemKey = `${label}-${detail}`;
 		
 		items.push(createSearchResultItem(label, description, detail));

@@ -286,19 +286,16 @@ function flyToResult(result) {
 	var map = window.MapCore.getMap();
 	if (!map) return;
 
-	var flyToDuration = window.MapConfig ? window.MapConfig.flyToDuration : 1500;
+	var flyToDuration = window.MapUtils.getConfig('flyToDuration', 1500);
 
 	// If bounding box is available, fit the map to it
 	if (result.bbox) {
-		map.fitBounds(
+		window.MapUtils.fitBoundsWithDefaults(
+			map,
 			[
 				[result.bbox.west, result.bbox.south],
 				[result.bbox.east, result.bbox.north]
-			],
-			{
-				duration: flyToDuration,
-				padding: 50
-			}
+			]
 		);
 	} else {
 		// Fallback to flying to center point with fixed zoom
@@ -323,14 +320,14 @@ function previewResultOnHover(index) {
 
 	// If bounding box is available, fit the map to it for preview
 	if (result.bbox) {
-		map.fitBounds(
+		window.MapUtils.fitBoundsWithDefaults(
+			map,
 			[
 				[result.bbox.west, result.bbox.south],
 				[result.bbox.east, result.bbox.north]
 			],
 			{
-				duration: 500,
-				padding: 50
+				duration: 500
 			}
 		);
 	} else {

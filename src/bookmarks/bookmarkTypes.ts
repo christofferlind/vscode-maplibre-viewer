@@ -1,12 +1,16 @@
+import * as vscode from 'vscode';
+import type { Coordinate } from '../services/coordinateParser';
+
 /**
  * Represents map coordinates with latitude and longitude
+ * Re-exported from coordinateParser for unified type definition
  */
-export interface Coordinates {
-    /** Latitude in degrees (-90 to 90) */
-    latitude: number;
-    /** Longitude in degrees (-180 to 180) */
-    longitude: number;
-}
+export type { Coordinate as Coordinates } from '../services/coordinateParser';
+
+/**
+ * Type alias for use within this file - references Coordinate from coordinateParser
+ */
+type Coordinates = Coordinate;
 
 /**
  * Represents a saved map view bookmark
@@ -84,5 +88,3 @@ export interface BookmarkQuickPickItem extends vscode.QuickPickItem {
     /** The bookmark data associated with this item */
     bookmark: MapBookmark;
 }
-
-import * as vscode from 'vscode';
