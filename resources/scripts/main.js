@@ -31,17 +31,20 @@ function setupMessageHandler() {
 		switch (message.type) {
 			case 'configUpdate':
 				console.log('Received configuration update:', message.config);
-				if (message.config) {
-					if (message.config.flyToDuration !== undefined) {
-						window.MapConfig.flyToDuration = message.config.flyToDuration;
-					}
-					if (message.config.searchResultsTransparency !== undefined) {
-						window.MapConfig.searchResultsTransparency = message.config.searchResultsTransparency;
-						// Apply updated transparency to search results
-						if (window.MapSearch && window.MapSearch.applyTransparency) {
-							window.MapSearch.applyTransparency(message.config.searchResultsTransparency);
-						}
-					}
+				if (!message.config) {
+					break;
+				}
+				
+				if (message.config.flyToDuration !== undefined) {
+					window.MapConfig.flyToDuration = message.config.flyToDuration;
+				}
+				if (message.config.searchResultsTransparency !== undefined) {
+					window.MapConfig.searchResultsTransparency = message.config.searchResultsTransparency;
+				}
+				
+				// Apply updated transparency to search results
+				if (window.MapSearch && window.MapSearch.applyTransparency) {
+					window.MapSearch.applyTransparency(message.config.searchResultsTransparency);
 				}
 				break;
 

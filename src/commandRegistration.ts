@@ -6,6 +6,7 @@ import { ProviderManager } from './map/providerManager';
 import { LANGUAGE_OPTIONS } from './services/languageOptions';
 import { updateCoordinateSelectionState, toggleCoordinateSelectionState } from './extensionUtils';
 import { addCoordinatePattern, clearCustomPatterns } from './services/coordinateParser';
+import { getConfig } from './services/configService';
 
 /**
  * Loads custom coordinate patterns from VS Code settings
@@ -14,9 +15,8 @@ export function loadCustomCoordinatePatterns(): void {
     // Clear any existing custom patterns
     clearCustomPatterns();
     
-    // Get custom patterns from configuration
-    const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-    const patterns = config.get<Array<{name: string; pattern: string; flags?: string}>>('coordinatePatterns');
+    // Get custom patterns from configuration using configService
+    const patterns = getConfig().get<Array<{name: string; pattern: string; flags?: string}>>('coordinatePatterns');
     
     if (!patterns || patterns.length === 0) {
         return;

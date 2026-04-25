@@ -3,10 +3,11 @@
  * Handles geocoding search functionality
  */
 
+import { debounce } from './utils/debounce.js';
+
 // Search state
 var searchResults = [];
 var selectedResultIndex = -1;
-var searchDebounceTimer = null;
 var isSearching = false;
 
 // DOM elements (initialized in initializeSearch)
@@ -99,14 +100,14 @@ function initializeSearch() {
 	var transparency = window.MapConfig ? window.MapConfig.searchResultsTransparency : 20;
 	applySearchResultsTransparency(transparency);
 
+	// Create debounced search function
+	var debouncedSearch = debounce(function(query) {
+		performSearch(query);
+	}, 300);
+
 	// Input event handler with debounce
 	searchInput.addEventListener('input', function() {
 		updateClearButton();
-		
-		// Clear previous timer
-		if (searchDebounceTimer) {
-			clearTimeout(searchDebounceTimer);
-		}
 
 		var query = searchInput.value;
 		
@@ -115,10 +116,8 @@ function initializeSearch() {
 			return;
 		}
 
-		// Debounce search
-		searchDebounceTimer = setTimeout(function() {
-			performSearch(query);
-		}, 300);
+		// Call debounced search
+		debouncedSearch(query);
 	});
 
 	// Keyboard navigation

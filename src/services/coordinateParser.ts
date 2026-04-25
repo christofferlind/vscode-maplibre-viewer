@@ -289,17 +289,38 @@ export function extractCoordinatesFromGeoJson(geojson: any): Coordinate[] {
 
         switch (geometry.type) {
             case 'Point':
-                if (Array.isArray(geometry.coordinates) && geometry.coordinates.length >= 2) {
-                    coordinates.push({
-                        latitude: geometry.coordinates[1],
-                        longitude: geometry.coordinates[0]
-                    });
+                if (!Array.isArray(geometry.coordinates) || geometry.coordinates.length < 2) {
+                    break;
                 }
+                coordinates.push({
+                    latitude: geometry.coordinates[1],
+                    longitude: geometry.coordinates[0]
+                });
                 break;
             case 'MultiPoint':
             case 'LineString':
-                if (Array.isArray(geometry.coordinates)) {
-                    geometry.coordinates.forEach((coord: GeoJsonPosition) => {
+                if (!Array.isArray(geometry.coordinates)) {
+                    break;
+                }
+                geometry.coordinates.forEach((coord: GeoJsonPosition) => {
+                    if (Array.isArray(coord) && coord.length >= 2) {
+                        coordinates.push({
+                            latitude: coord[1],
+                            longitude: coord[0]
+                        });
+                    }
+                });
+                break;
+            case 'MultiLineString':
+            case 'Polygon':
+                if (!Array.isArray(geometry.coordinates)) {
+                    break;
+                }
+                geometry.coordinates.forEach((ring: GeoJsonPosition[]) => {
+                    if (!Array.isArray(ring)) {
+                        return;
+                    }
+                    ring.forEach((coord: GeoJsonPosition) => {
                         if (Array.isArray(coord) && coord.length >= 2) {
                             coordinates.push({
                                 latitude: coord[1],
@@ -307,49 +328,36 @@ export function extractCoordinatesFromGeoJson(geojson: any): Coordinate[] {
                             });
                         }
                     });
-                }
-                break;
-            case 'MultiLineString':
-            case 'Polygon':
-                if (Array.isArray(geometry.coordinates)) {
-                    geometry.coordinates.forEach((ring: GeoJsonPosition[]) => {
-                        if (Array.isArray(ring)) {
-                            ring.forEach((coord: GeoJsonPosition) => {
-                                if (Array.isArray(coord) && coord.length >= 2) {
-                                    coordinates.push({
-                                        latitude: coord[1],
-                                        longitude: coord[0]
-                                    });
-                                }
-                            });
-                        }
-                    });
-                }
+                });
                 break;
             case 'MultiPolygon':
-                if (Array.isArray(geometry.coordinates)) {
-                    geometry.coordinates.forEach((polygon: GeoJsonPosition[][]) => {
-                        if (Array.isArray(polygon)) {
-                            polygon.forEach((ring: GeoJsonPosition[]) => {
-                                if (Array.isArray(ring)) {
-                                    ring.forEach((coord: GeoJsonPosition) => {
-                                        if (Array.isArray(coord) && coord.length >= 2) {
-                                            coordinates.push({
-                                                latitude: coord[1],
-                                                longitude: coord[0]
-                                            });
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
+                if (!Array.isArray(geometry.coordinates)) {
+                    break;
                 }
+                geometry.coordinates.forEach((polygon: GeoJsonPosition[][]) => {
+                    if (!Array.isArray(polygon)) {
+                        return;
+                    }
+                    polygon.forEach((ring: GeoJsonPosition[]) => {
+                        if (!Array.isArray(ring)) {
+                            return;
+                        }
+                        ring.forEach((coord: GeoJsonPosition) => {
+                            if (Array.isArray(coord) && coord.length >= 2) {
+                                coordinates.push({
+                                    latitude: coord[1],
+                                    longitude: coord[0]
+                                });
+                            }
+                        });
+                    });
+                });
                 break;
             case 'GeometryCollection':
-                if (Array.isArray(geometry.geometries)) {
-                    geometry.geometries.forEach((geom: any) => extractFromGeometry(geom));
+                if (!Array.isArray(geometry.geometries)) {
+                    break;
                 }
+                geometry.geometries.forEach((geom: any) => extractFromGeometry(geom));
                 break;
         }
     }

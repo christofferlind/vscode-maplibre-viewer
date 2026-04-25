@@ -91,12 +91,16 @@ export async function handleFileSelection(
                 // Extract coordinates from GeoJSON and fit map to bounding box
                 // Use fitBoundsOnly to avoid creating blue markers - the GeoJSON layer already renders features
                 const coordinates = extractCoordinatesFromGeoJson(geojson);
-                if (coordinates.length > 0) {
-                    const bbox = calculateBoundingBox(coordinates);
-                    if (bbox) {
-                        providerManager.fitBoundsOnly(bbox);
-                    }
+                if (coordinates.length === 0) {
+                    return; // Use the first adapter that can handle the file
                 }
+                
+                const bbox = calculateBoundingBox(coordinates);
+                if (!bbox) {
+                    return; // Use the first adapter that can handle the file
+                }
+                
+                providerManager.fitBoundsOnly(bbox);
                 
                 return; // Use the first adapter that can handle the file
             } catch (error) {

@@ -6,6 +6,7 @@ import { MapEditorProvider } from '../map/mapEditorProvider';
 import { ProviderManager } from '../map/providerManager';
 import { confirmAction, showOperationError } from '../extensionUtils';
 import { formatCoordinates, formatViewState } from '../services/coordinateParser';
+import { formatBookmarkDescriptionFromBookmark } from '../services/bookmarkFormatter';
 
 /**
  * Storage key for bookmarks in globalState
@@ -365,11 +366,9 @@ export class BookmarkManager {
             });
             
             bookmarks.forEach(b => {
-                const lat = b.center?.latitude ?? 0;
-                const lng = b.center?.longitude ?? 0;
                 items.push({
                     label: `$(bookmark) ${b.name}`,
-                    description: formatCoordinates(lat, lng),
+                    description: formatCoordinates(b.center?.latitude ?? 0, b.center?.longitude ?? 0),
                     detail: formatViewState(b.zoom ?? 0, b.bearing ?? 0, b.pitch ?? 0),
                     bookmark: b
                 });
@@ -469,14 +468,12 @@ export class BookmarkManager {
             return;
         }
 
-        // Create QuickPick items from bookmarks
+        // Create QuickPick items from bookmarks using bookmarkFormatter
         const items: (vscode.QuickPickItem & { bookmark: MapBookmark })[] = bookmarks.map(b => {
-            const lat = b.center?.latitude ?? 0;
-            const lng = b.center?.longitude ?? 0;
             return {
                 label: b.name,
-                description: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-                detail: `Zoom: ${(b.zoom ?? 0).toFixed(1)} | Bearing: ${(b.bearing ?? 0).toFixed(0)}° | Pitch: ${(b.pitch ?? 0).toFixed(0)}°`,
+                description: formatBookmarkDescriptionFromBookmark(b),
+                detail: formatViewState(b.zoom ?? 0, b.bearing ?? 0, b.pitch ?? 0),
                 bookmark: b
             };
         });

@@ -11,6 +11,7 @@ import {
     generateWebviewHtml,
     parseViewStateFromMessage
 } from './mapWebviewUtils';
+import { getConfig } from '../services/configService';
 
 /**
  * Abstract base controller for MapLibre webview management
@@ -120,8 +121,7 @@ export abstract class MapWebviewController {
     public flyToLocation(latitude: number, longitude: number, zoom?: number): void {
         const webview = this.getWebview();
         if (webview) {
-            const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-            const defaultZoom = config.get<number>('singlePointZoom') ?? 14;
+            const defaultZoom = getConfig().get<number>('singlePointZoom') ?? 14;
             const zoomLevel = zoom ?? defaultZoom;
             
             webview.postMessage({
@@ -257,16 +257,19 @@ export abstract class MapWebviewController {
             case 'viewStateChanged':
                 const viewState = parseViewStateFromMessage(message);
                 
-                if (viewState) {
+                if (!viewState) {
                     if (this._pendingViewStateResolve) {
-                        this._pendingViewStateResolve(viewState);
+                        this._pendingViewStateResolve(undefined);
                         this._pendingViewStateResolve = undefined;
                     }
-                    await saveViewStateToSettings(viewState, this._currentBaseMapId);
-                } else if (this._pendingViewStateResolve) {
-                    this._pendingViewStateResolve(undefined);
+                    break;
+                }
+                
+                if (this._pendingViewStateResolve) {
+                    this._pendingViewStateResolve(viewState);
                     this._pendingViewStateResolve = undefined;
                 }
+                await saveViewStateToSettings(viewState, this._currentBaseMapId);
                 break;
                 
             case 'contextMenu':

@@ -223,13 +223,14 @@ export function extractSearchTextFromArgs(args: unknown): string {
  */
 export function getSelectedTextFromEditor(): string {
 	const editor = vscode.window.activeTextEditor;
-	
-	if (editor) {
-		const selection = editor.selection;
-		if (!selection.isEmpty) {
-			return editor.document.getText(selection).trim();
-		}
+	if (!editor) {
+		return '';
 	}
 	
-	return '';
+	const selection = editor.selection;
+	if (selection.isEmpty) {
+		return '';
+	}
+	
+	return editor.document.getText(selection).trim();
 }

@@ -10,6 +10,7 @@ import {
     getSupportedExtensionsDisplay
 } from '../services/fileConversionService';
 import { calculateBoundingBoxFromGeoJson, BoundingBox } from '../services/coordinateParser';
+import { getConfig } from '../services/configService';
 
 /**
  * Tree item types for internal use
@@ -538,9 +539,8 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
      * Rebuild the baseMaps array from configuration and external registrations
      */
     private _rebuildBaseMaps(): void {
-        // Get basemaps from configuration
-        const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-        const configBaseMaps = config.get<BaseMapStyle[]>('baseMaps') || [];
+        // Get basemaps from configuration using configService
+        const configBaseMaps = getConfig().get<BaseMapStyle[]>('baseMaps') || [];
         
         // Start with configured basemaps (no defaults)
         this._baseMaps = [...configBaseMaps];

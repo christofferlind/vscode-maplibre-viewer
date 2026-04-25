@@ -206,7 +206,8 @@ function updateLayerVisibility(layer) {
 		var sourceId = 'overlay-' + layerId;
 
 		// For GeoJSON layers, update the source data if provided
-		if (layer.type === 'geojson' && layer.source && layer.source.data) {
+		var isGeoJsonWithData = layer.type === 'geojson' && layer.source && layer.source.data;
+		if (isGeoJsonWithData) {
 			var source = map.getSource(sourceId);
 			if (source) {
 				source.setData(layer.source.data);
@@ -215,19 +216,26 @@ function updateLayerVisibility(layer) {
 
 		// Find all layers associated with this overlay
 		var style = map.getStyle();
-		if (style && style.layers) {
-			style.layers.forEach(function(mapLayer) {
-				if (mapLayer.id.indexOf('overlay-' + layerId) === 0) {
-					try {
-						if (map.getLayer(mapLayer.id)) {
-							map.setLayoutProperty(mapLayer.id, 'visibility', layer.visible ? 'visible' : 'none');
-						}
-					} catch (e) {
-						console.warn('Error updating layer visibility:', mapLayer.id, e);
-					}
-				}
-			});
+		if (!style || !style.layers) {
+			// Update tracking
+			addedOverlayLayers[layerId] = layer;
+			return;
 		}
+
+		style.layers.forEach(function(mapLayer) {
+			if (mapLayer.id.indexOf('overlay-' + layerId) !== 0) {
+				return;
+			}
+			
+			try {
+				if (!map.getLayer(mapLayer.id)) {
+					return;
+				}
+				map.setLayoutProperty(mapLayer.id, 'visibility', layer.visible ? 'visible' : 'none');
+			} catch (e) {
+				console.warn('Error updating layer visibility:', mapLayer.id, e);
+			}
+		});
 
 		// Update tracking
 		addedOverlayLayers[layerId] = layer;

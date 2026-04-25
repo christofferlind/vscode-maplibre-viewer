@@ -15,6 +15,8 @@ import { StoredViewState } from './map/mapWebviewTypes';
 import { handleSearchOnMap } from './searchHandler';
 import { handleTextSelection, handleFileSelection } from './selectionHandler';
 import { loadCustomCoordinatePatterns, registerLanguageCommands, registerCoordinateSelectionCommands } from './commandRegistration';
+import { getConfig, onConfigurationChanged } from './services/configService';
+import { debounce } from './services/debounce';
 
 /**
  * Creates the public API object
@@ -92,8 +94,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	const layerTreeProvider = new LayerTreeProvider(context);
 
 	// Check if there's a saved baseMapId in settings and apply it
-	const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-	const savedViewState = config.get<StoredViewState>('lastViewState');
+	const savedViewState = getConfig().get<StoredViewState>('lastViewState');
 	if (savedViewState?.baseMapId) {
 		// Try to set the saved base map (will fall back if not found)
 		try {
@@ -246,12 +247,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	// Register bookmark-related commands
 	bookmarkManager.registerCommands(context, bookmarkTreeProvider, providerManager);
 
-	// Register configuration change listener
+	// Register configuration change listener using configService
+	context.subscriptions.push(
+		onConfigurationChanged(() => {
+			providerManager.updateConfiguration();
+		})
+	);
+
+	// Register specific configuration change listeners
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('vscodeMaplibreViewer')) {
-				providerManager.updateConfiguration();
-			}
 			// Rebuild basemaps when the baseMaps setting changes
 			if (e.affectsConfiguration('vscodeMaplibreViewer.baseMaps')) {
 				layerTreeProvider.rebuildBaseMaps();
@@ -287,8 +292,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		)
 	);
 
-	// Debounce timer for text selection listener
-	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+	// Create debounced text selection handler
+	const debouncedTextSelection = debounce(() => {
+		handleTextSelection(providerManager);
+	}, 300);
 
 	// Register text selection listener for coordinate parsing
 	const selectionListener = vscode.window.onDidChangeTextEditorSelection(() => {
@@ -298,15 +305,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 			return;
 		}
 
-		// Clear previous timer
-		if (debounceTimer) {
-			clearTimeout(debounceTimer);
-		}
-
-		// Debounce the handler (300ms)
-		debounceTimer = setTimeout(() => {
-			handleTextSelection(providerManager);
-		}, 300);
+		// Call the debounced handler
+		debouncedTextSelection();
 	});
 
 	// Clean up the listener when the extension is deactivated

@@ -114,12 +114,15 @@ function initializeMap(initialViewState) {
 		map.on('error', function(e) {
 			console.error('MapLibre error:', e.error);
 			var errorMsg = 'Unknown error occurred';
-			if (e.error) {
-				if (e.error.message) {
-					errorMsg = e.error.message;
-				} else if (typeof e.error === 'string') {
-					errorMsg = e.error;
-				}
+			if (!e.error) {
+				showErrorOverlay('Failed to load map: ' + errorMsg);
+				return;
+			}
+			
+			if (e.error.message) {
+				errorMsg = e.error.message;
+			} else if (typeof e.error === 'string') {
+				errorMsg = e.error;
 			}
 			showErrorOverlay('Failed to load map: ' + errorMsg);
 		});

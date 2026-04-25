@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { BookmarkManager } from './bookmarkManager';
 import { MapBookmark } from './bookmarkTypes';
 import { formatCoordinates } from '../services/coordinateParser';
+import { TreeDataProviderBase } from '../tree/treeDataProviderBase';
+import { formatBookmarkLabel, formatBookmarkTooltip } from '../services/bookmarkFormatter';
 
 /**
  * Command ID for renaming bookmarks
@@ -11,15 +13,7 @@ export const RENAME_BOOKMARK_COMMAND_ID = 'vscodeMaplibreViewer.renameBookmark';
 /**
  * Tree data provider for displaying map bookmarks in a TreeView
  */
-export class BookmarkTreeProvider implements vscode.TreeDataProvider<MapBookmark> {
-    private _onDidChangeTreeData: vscode.EventEmitter<MapBookmark | undefined | null> =
-        new vscode.EventEmitter<MapBookmark | undefined | null>();
-    
-    /**
-     * Event that fires when the tree data changes
-     */
-    readonly onDidChangeTreeData: vscode.Event<MapBookmark | undefined | null> =
-        this._onDidChangeTreeData.event;
+export class BookmarkTreeProvider extends TreeDataProviderBase<MapBookmark> {
 
     /**
      * Creates a new BookmarkTreeProvider
@@ -27,23 +21,25 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<MapBookmark
      */
     constructor(
         private readonly _bookmarkManager: BookmarkManager
-    ) {}
+    ) {
+        super();
+    }
 
     /**
      * Gets the tree item for a bookmark
      * @param element The bookmark to get the tree item for
      * @returns A TreeItem representing the bookmark
      */
-    getTreeItem(element: MapBookmark): vscode.TreeItem {
-        const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+    override getTreeItem(element: MapBookmark): vscode.TreeItem {
+        const item = new vscode.TreeItem(formatBookmarkLabel(element), vscode.TreeItemCollapsibleState.None);
         
         // Set description to show coordinates (with null safety for corrupted data)
         const lat = element.center?.latitude ?? 0;
         const lng = element.center?.longitude ?? 0;
         item.description = formatCoordinates(lat, lng);
         
-        // Set tooltip with detailed information
-        item.tooltip = this.createTooltip(element);
+        // Set tooltip with detailed information using bookmarkFormatter
+        item.tooltip = formatBookmarkTooltip(element);
         
         // Set the command to navigate to the bookmark when clicked
         item.command = {
@@ -76,12 +72,7 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<MapBookmark
         return Promise.resolve(this._bookmarkManager.getAllBookmarks());
     }
 
-    /**
-     * Refreshes the tree view
-     */
-    refresh(): void {
-        this._onDidChangeTreeData.fire(undefined);
-    }
+    // Note: refresh() method is inherited from TreeDataProviderBase
 
     /**
      * Registers the rename bookmark command with VS Code
@@ -167,33 +158,4 @@ export class BookmarkTreeProvider implements vscode.TreeDataProvider<MapBookmark
         }
     }
 
-    /**
-     * Creates a detailed tooltip for a bookmark
-     * @param bookmark The bookmark to create a tooltip for
-     * @returns Markdown string with bookmark details
-     */
-    private createTooltip(bookmark: MapBookmark): vscode.MarkdownString {
-        const md = new vscode.MarkdownString();
-        md.appendMarkdown(`**${bookmark.name}**\n\n`);
-        
-        if (bookmark.description) {
-            md.appendMarkdown(`${bookmark.description}\n\n`);
-        }
-        
-        // Use null-safe access for corrupted bookmark data
-        const lat = bookmark.center?.latitude ?? 0;
-        const lng = bookmark.center?.longitude ?? 0;
-        md.appendMarkdown(`**Coordinates:** ${formatCoordinates(lat, lng, 6)}\n\n`);
-        md.appendMarkdown(`**Zoom:** ${(bookmark.zoom ?? 0).toFixed(1)}\n\n`);
-        md.appendMarkdown(`**Bearing:** ${(bookmark.bearing ?? 0).toFixed(0)}°\n\n`);
-        md.appendMarkdown(`**Pitch:** ${(bookmark.pitch ?? 0).toFixed(0)}°\n\n`);
-        
-        if (bookmark.tags && bookmark.tags.length > 0) {
-            md.appendMarkdown(`**Tags:** ${bookmark.tags.join(', ')}\n\n`);
-        }
-        
-        md.appendMarkdown(`*Created: ${new Date(bookmark.createdAt).toLocaleString()}*`);
-        
-        return md;
-    }
 }
