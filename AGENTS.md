@@ -17,6 +17,8 @@ Development guide for AI agents working on the vscode-maplibre-viewer project.
 - Use clear, descriptive names for variables, functions, and classes. Add meaningful comments where the *why* of the code is not immediately obvious.
 - Cover all changes with unit tests, including edge cases.
 - Mock external dependencies to keep tests fast and isolated.
+- Guard clauses: Return early on invalid preconditions. No nested conditionals for validation.
+
 
 ## Commands
 
