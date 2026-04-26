@@ -72,7 +72,7 @@ function addOverlayLayer(layer) {
 				// Create layer definitions using the factory
 				var layerOpacity = layer.opacity !== undefined ? layer.opacity : 1;
 				var layerDefinitions = window.MapUtils.createGeoJsonLayerDefinitions(sourceId, {
-					prefix: 'overlay-',
+					prefix: '',
 					circlePaint: {
 						'circle-radius': 6,
 						'circle-color': '#FF0000',
@@ -160,12 +160,14 @@ function removeOverlayLayer(layerId) {
 
 		var sourceId = 'overlay-' + layerId;
 
-		// Remove all layers associated with this overlay
+		// Remove all layers that reference this source
+		// Using source reference is more robust than relying on layer ID prefix,
+		// as it handles both old double-prefixed IDs and new correct IDs
 		var layersToRemove = [];
 		var style = map.getStyle();
 		if (style && style.layers) {
 			style.layers.forEach(function(layer) {
-				if (layer.id.indexOf('overlay-' + layerId) === 0) {
+				if (layer.source === sourceId) {
 					layersToRemove.push(layer.id);
 				}
 			});
@@ -214,7 +216,7 @@ function updateLayerVisibility(layer) {
 			}
 		}
 
-		// Find all layers associated with this overlay
+		// Find all layers associated with this overlay by source reference
 		var style = map.getStyle();
 		if (!style || !style.layers) {
 			// Update tracking
@@ -223,7 +225,7 @@ function updateLayerVisibility(layer) {
 		}
 
 		style.layers.forEach(function(mapLayer) {
-			if (mapLayer.id.indexOf('overlay-' + layerId) !== 0) {
+			if (mapLayer.source !== sourceId) {
 				return;
 			}
 			
