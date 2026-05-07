@@ -9,6 +9,7 @@ export class MockWebview implements vscode.Webview {
     public options: vscode.WebviewOptions = {};
     public html: string = '';
     private _listeners: Array<(e: unknown) => any> = [];
+    private _testHandlers: Map<string, (args: unknown[]) => unknown> = new Map();
     
     public onDidReceiveMessage: vscode.Event<unknown> = (listener: (e: unknown) => any) => {
         this._listeners.push(listener);
@@ -24,6 +25,7 @@ export class MockWebview implements vscode.Webview {
     
     postMessage(message: unknown): Thenable<boolean> {
         this.postedMessages.push(message);
+        this._handleTestQuery(message);
         return Promise.resolve(true);
     }
     
@@ -33,6 +35,48 @@ export class MockWebview implements vscode.Webview {
     
     cspSource: string = 'mock-csp-source';
     
+    /**
+     * Register a handler for a __testQuery method.
+     * When the extension posts a __testQuery for this method,
+     * the handler is called and a __testResponse is simulated back.
+     * @param method - The method name to handle
+     * @param handler - Function that receives args and returns the result
+     */
+    onTestQuery(method: string, handler: (args: unknown[]) => unknown): void {
+        this._testHandlers.set(method, handler);
+    }
+
+    /**
+     * Clears all registered test query handlers
+     */
+    clearTestHandlers(): void {
+        this._testHandlers.clear();
+    }
+
+    private _handleTestQuery(message: unknown): void {
+        const msg = message as Record<string, unknown>;
+        if (msg.type !== '__testQuery') {
+            return;
+        }
+        const method = msg.method as string;
+        const requestId = msg.requestId as number;
+        const args = (msg.args as unknown[]) || [];
+        const handler = this._testHandlers.get(method);
+        let result;
+        if (handler) {
+            try {
+                result = handler(args);
+            } catch (e) {
+                result = undefined;
+            }
+        }
+        this.simulateMessage({
+            type: '__testResponse',
+            requestId: requestId,
+            result: result
+        });
+    }
+
     /**
      * Clears all captured messages
      */

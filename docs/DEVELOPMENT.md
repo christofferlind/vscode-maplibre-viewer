@@ -259,6 +259,50 @@ When a user opens a `.kml` file in VS Code, the MapLibre Viewer extension will:
 
 ## Testing
 
+### Running Tests
+
+```bash
+npm run test                        # Unit tests (fast, no VS Code required)
+npm run test:vscode                 # Full test suite including VS Code integration tests
+```
+
+### Test API (`window.__test`)
+
+The webview exposes a `window.__test` API (`resources/scripts/test-api.js`) for integration tests to inspect internal map renderer state. Tests query it via `__testQuery`/`__testResponse` messages.
+
+**Available methods:**
+
+| Method | Description |
+|--------|-------------|
+| `getOverlayLayers()` | Tracked overlay layer objects |
+| `getMapSources()` | All MapLibre sources currently on the map |
+| `getLayerVisibility(layerId)` | Visibility per sub-layer (`circles`, `lines`, `fills`) |
+| `getOverlaySource(layerId)` | Source info with `exists` flag and type |
+| `isOverlayLayerOnMap(layerId)` | Full map-renderer state check |
+| `getAllOverlayState()` | Comprehensive dump of all overlay state |
+| `isAvailable()` | Sanity check that the API loaded |
+
+**From integration tests** (via `TestableMapWebviewController`):
+
+```typescript
+const controller = new TestableMapWebviewController(extensionUri, bookmarkManager);
+controller.setWebview(mockWebview);
+
+// Query webview state
+const state = await controller.queryWebview('getLayerVisibility', ['my-layer']);
+assert.strictEqual((state as any).circles, 'visible');
+```
+
+**From unit tests** (via `MockWebview.onTestQuery`):
+
+```typescript
+mockWebview.onTestQuery('getOverlayLayers', () => ({
+    'layer-1': { id: 'layer-1', visible: true }
+}));
+
+const layers = await controller.queryWebview('getOverlayLayers');
+```
+
 ### Sample GeoJSON for Testing
 
 Copy this sample GeoJSON to a file (e.g., `sample.geojson`) to test the extension:

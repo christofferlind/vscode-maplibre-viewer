@@ -70,6 +70,7 @@ npm run watch                       # Watch TypeScript for changes
 - Unit tests: `src/test/unit/*.test.ts` - Run with `npm run test`
 - Integration tests: `src/test/integration/*.test.ts` - Run with `npm run test:vscode`
 - Test config: `.vscode-test.mjs` defines test file patterns
+- Test utilities: `src/test/testUtils/` - MockWebview, TestableMapWebviewController, test bookmark factories
 - Pattern: Import from `../../services/` relative paths
 
 ### Test Structure
@@ -80,6 +81,41 @@ suite('Test Suite Name', () => {
         assert.strictEqual(actual, expected);
     });
 });
+```
+
+### __testQuery Protocol (Webview UI Verification)
+
+The extension exposes a `window.__test` API in the webview (`resources/scripts/test-api.js`) for integration tests to inspect internal map renderer state without adding `console.log` to production code. Tests query it via `__testQuery`/`__testResponse` messages.
+
+**Webview-side methods** (callable from tests):
+- `getOverlayLayers()` - Tracked overlay layer objects
+- `getMapSources()` - All MapLibre sources currently on the map
+- `getLayerVisibility(layerId)` - Visibility per sub-layer (`{ circles, lines, fills }`)
+- `getOverlaySource(layerId)` - Source info with `exists` flag
+- `isOverlayLayerOnMap(layerId)` - Full map-renderer state check
+- `getAllOverlayState()` - Comprehensive dump of all overlay state
+- `isAvailable()` - Sanity check that the API loaded
+
+**Extension-side** (for integration tests):
+- `MapWebviewController.queryWebview(method, args?, timeoutMs?)` - Returns a Promise resolving to the webview-side method result. Zero config, works with real webviews in `npm run test:vscode`.
+
+**Unit test support** (`MockWebview`):
+- `mockWebview.onTestQuery(method, handler)` - Registers a handler that auto-responds to `__testQuery` messages for the given method. This enables unit testing the full round-trip without a real webview.
+
+```typescript
+// Unit test example: verify overlay toggle
+mockWebview.onTestQuery('getLayerVisibility', (args) => {
+    const layerId = args[0] as string;
+    return { circles: visibility[layerId], lines: visibility[layerId], fills: visibility[layerId] };
+});
+
+await controller.updateOverlayLayers([{ id: 'test', visible: true, ... }]);
+const state = await controller.queryWebview('getLayerVisibility', ['test']);
+assert.strictEqual((state as any).circles, 'visible');
+
+await layerTreeProvider.toggleLayerVisibility('test');
+const after = await controller.queryWebview('getLayerVisibility', ['test']);
+assert.strictEqual((after as any).circles, 'none');
 ```
 
 ## Project Structure
@@ -106,10 +142,15 @@ src/
 │   ├── coordinateParser.ts   # Regex-based coordinate extraction
 │   └── geocodingSearch.ts    # Photon/MapTiler geocoding
 └── test/
-    ├── unit/                 # Fast unit tests (coordinate parsing)
-    └── integration/          # VS Code integration tests
+    ├── unit/                 # Fast unit tests (coordinate parsing, API protocol)
+    ├── integration/          # VS Code integration tests
+    └── testUtils/            # MockWebview, TestableMapWebviewController, factories
 resources/
 ├── map-view.html             # Webview HTML template
+├── scripts/
+│   ├── main.js               # Message handler (extension ↔ webview)
+│   ├── test-api.js           # window.__test API for UI verification in tests
+│   └── ...                   # map-core.js, map-overlays.js, etc.
 └── maplibre-gl/              # MapLibre GL JS assets
 ```
 

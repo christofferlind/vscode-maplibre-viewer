@@ -96,6 +96,7 @@ export function generateWebviewHtml(
     const mapNavigationJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-navigation.js');
     const mapSearchJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-search.js');
     const mainJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'main.js');
+    const testApiJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'test-api.js');
 
     // Get webview URI for CSS file
     const mainCssUri = getWebviewUri(extensionUri, webview, 'resources', 'styles', 'main.css');
@@ -140,6 +141,7 @@ export function generateWebviewHtml(
     htmlContent = htmlContent.replace(/\$\{mapNavigationJsUri\}/g, mapNavigationJsUri.toString());
     htmlContent = htmlContent.replace(/\$\{mapSearchJsUri\}/g, mapSearchJsUri.toString());
     htmlContent = htmlContent.replace(/\$\{mainJsUri\}/g, mainJsUri.toString());
+    htmlContent = htmlContent.replace(/\$\{testApiJsUri\}/g, testApiJsUri.toString());
 
     // Replace CSS URI
     htmlContent = htmlContent.replace(/\$\{mainCssUri\}/g, mainCssUri.toString());

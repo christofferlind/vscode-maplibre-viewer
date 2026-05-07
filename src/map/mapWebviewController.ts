@@ -23,6 +23,9 @@ export abstract class MapWebviewController {
     protected _currentBaseMapStyleUrl?: string;
     protected _currentBaseMapId?: string;
 
+    private _requestIdCounter = 0;
+    private _pendingTestResolves: Map<number, { resolve: (value: unknown) => void; timeout: ReturnType<typeof setTimeout> }> = new Map();
+
     /**
      * Tracks which webview last triggered a context menu
      * Used by commands to know which view to operate on
@@ -227,6 +230,40 @@ export abstract class MapWebviewController {
     }
 
     /**
+     * Queries the webview's __test API for internal state inspection.
+     * Used by integration tests to verify map renderer behavior.
+     * @param method - Method name on window.__test
+     * @param args - Arguments to pass to the method
+     * @param timeoutMs - Timeout in milliseconds (default 5000)
+     * @returns Promise resolving to the method's return value
+     */
+    public async queryWebview(method: string, args?: unknown[], timeoutMs?: number): Promise<unknown> {
+        const webview = this.getWebview();
+        if (!webview) {
+            return undefined;
+        }
+
+        const requestId = ++this._requestIdCounter;
+        const timeout = timeoutMs || 5000;
+
+        return new Promise<unknown>((resolve) => {
+            const timeoutHandle = setTimeout(() => {
+                this._pendingTestResolves.delete(requestId);
+                resolve(undefined);
+            }, timeout);
+
+            this._pendingTestResolves.set(requestId, { resolve, timeout: timeoutHandle });
+
+            webview.postMessage({
+                type: '__testQuery',
+                requestId: requestId,
+                method: method,
+                args: args || []
+            });
+        });
+    }
+
+    /**
      * Gets the current view state from the webview
      */
     public async getCurrentViewState(): Promise<ViewState | undefined> {
@@ -340,6 +377,16 @@ export abstract class MapWebviewController {
                     this._pendingMapCenterResolve = undefined;
                 }
                 break;
+
+            case '__testResponse':
+                const requestId = msg.requestId as number;
+                const pending = this._pendingTestResolves.get(requestId);
+                if (pending) {
+                    clearTimeout(pending.timeout);
+                    this._pendingTestResolves.delete(requestId);
+                    pending.resolve(msg.result);
+                }
+                break;
         }
     }
 
@@ -354,7 +401,7 @@ export abstract class MapWebviewController {
     public onMapReady(callback: () => void): void {
         this._onMapReady = callback;
     }
-    
+
     /**
      * Handles geocoding search requests from the webview
      * @param query - The search query

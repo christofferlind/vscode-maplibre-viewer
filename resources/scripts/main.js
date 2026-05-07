@@ -151,6 +151,28 @@ function setupMessageHandler() {
 					window.MapSearch.handleGeocodingSearchResults(message.results);
 				}
 				break;
+
+			case '__testQuery':
+				var method = message.method;
+				var args = message.args || [];
+				var result = undefined;
+				var error = undefined;
+				try {
+					if (window.__test && typeof window.__test[method] === 'function') {
+						result = window.__test[method].apply(window.__test, args);
+					} else {
+						error = 'Method not found: ' + method;
+					}
+				} catch (e) {
+					error = e.message || String(e);
+				}
+				vscode.postMessage({
+					type: '__testResponse',
+					requestId: message.requestId,
+					result: result,
+					error: error || undefined
+				});
+				break;
 		}
 	});
 }
