@@ -108,7 +108,7 @@ function getConfig(key, defaultValue) {
  */
 function createGeoJsonLayerDefinitions(sourceId, options) {
 	options = options || {};
-	var prefix = options.prefix || 'overlay-';
+	var prefix = options.prefix !== undefined ? options.prefix : 'overlay-';
 
 	return {
 		circle: {

@@ -3,20 +3,101 @@
  * Handles overlay layer management (adding, removing, updating layers)
  */
 
-// Track added overlay layers by ID
+// Track added overlay layers by ID - maps layer ID to the full layer config
 var addedOverlayLayers = {};
+
+// Snapshot of overlay configs preserved across style changes for self-healing
+var _persistedOverlayLayers = {};
 
 // Selected file layer ID constant
 var SELECTED_FILE_LAYER_ID = 'selected-file';
 
 /**
- * Update overlay layers on the map
+ * Save overlay layer data BEFORE a map style change.
+ * Called by map-core.js just before map.setStyle(), which destroys all
+ * programmatically-added layers and sources. The saved data is used to
+ * self-heal overlay state after the new style loads, independently of
+ * whether the extension sends a fresh updateOverlayLayers message.
+ */
+function persistOverlaysForStyleChange() {
+	console.log('[MapOverlays] Persisting overlay data for style change');
+	_persistedOverlayLayers = {};
+	for (var id in addedOverlayLayers) {
+		if (addedOverlayLayers.hasOwnProperty(id)) {
+			_persistedOverlayLayers[id] = addedOverlayLayers[id];
+		}
+	}
+	console.log('[MapOverlays] Persisted ' + Object.keys(_persistedOverlayLayers).length + ' overlay(s)');
+}
+
+/**
+ * Re-apply overlay layers that were saved before a style change.
+ * Called after the new map style has finished loading. This ensures
+ * overlays survive style changes regardless of extension message timing.
+ */
+function restoreOverlaysAfterStyleChange() {
+	var persistedIds = Object.keys(_persistedOverlayLayers);
+	if (persistedIds.length === 0) {
+		console.log('[MapOverlays] No persisted overlays to restore');
+		return;
+	}
+	console.log('[MapOverlays] Restoring ' + persistedIds.length + ' persisted overlay(s)');
+	// Reset tracking since setStyle() destroyed everything
+	addedOverlayLayers = {};
+	for (var i = 0; i < persistedIds.length; i++) {
+		var id = persistedIds[i];
+		var layer = _persistedOverlayLayers[id];
+		console.log('[MapOverlays] Restoring overlay:', id, layer.name);
+		addOverlayLayer(layer);
+	}
+	// Clear persisted state once restored
+	_persistedOverlayLayers = {};
+}
+
+/**
+ * Reset all overlay tracking state without removing anything from the map.
+ * Called when overlay tracking is known to be stale (e.g., after setStyle()).
+ */
+function resetOverlayTracking() {
+	console.log('[MapOverlays] Resetting overlay tracking state');
+	addedOverlayLayers = {};
+}
+
+/**
+ * Verify that an overlay layer's source and map layers actually exist on the map.
+ * @param {string} layerId - The overlay layer ID
+ * @returns {boolean} True if all sources and layers exist on the map
+ */
+function isOverlayLayerOnMap(layerId) {
+	var map = window.MapCore.getMap();
+	if (!map) {
+		return false;
+	}
+	var sourceId = 'overlay-' + layerId;
+	var source = map.getSource(sourceId);
+	if (!source) {
+		return false;
+	}
+	var style = map.getStyle();
+	if (!style || !style.layers) {
+		return false;
+	}
+	for (var i = 0; i < style.layers.length; i++) {
+		if (style.layers[i].id.indexOf('overlay-' + layerId) === 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Update overlay layers on the map.
+ * Main entry point called by the extension when overlay state changes.
  * @param {Array} layers - Array of layer configurations
  */
 function updateOverlayLayers(layers) {
-	// Queue the operation if map is not ready
 	if (!window.MapCore.isMapReady()) {
-		console.log('Map not ready, queueing updateOverlayLayers operation');
+		console.log('[MapOverlays] Map not ready, queueing updateOverlayLayers');
 		window.MapCore.queueOperation(function() {
 			updateOverlayLayers(layers);
 		});
@@ -24,33 +105,41 @@ function updateOverlayLayers(layers) {
 	}
 
 	var map = window.MapCore.getMap();
-	console.log('Updating overlay layers:', layers);
+	console.log('[MapOverlays] updateOverlayLayers called with ' + layers.length + ' layer(s)');
 
-	// Get current overlay layer IDs
-	var currentLayerIds = Object.keys(addedOverlayLayers);
-	var newLayerIds = layers.map(function(l) { return l.id; });
+	// Build a set of layer IDs that should exist
+	var newLayerIdSet = {};
+	for (var i = 0; i < layers.length; i++) {
+		newLayerIdSet[layers[i].id] = true;
+	}
 
 	// Remove layers that are no longer in the list
-	currentLayerIds.forEach(function(layerId) {
-		if (newLayerIds.indexOf(layerId) === -1) {
-			removeOverlayLayer(layerId);
+	var currentIds = Object.keys(addedOverlayLayers);
+	for (var j = 0; j < currentIds.length; j++) {
+		if (!newLayerIdSet[currentIds[j]]) {
+			removeOverlayLayer(currentIds[j]);
 		}
-	});
+	}
 
-	// Add or update layers
-	layers.forEach(function(layer) {
-		if (addedOverlayLayers[layer.id]) {
-			// Layer already exists, update visibility/opacity if needed
+	// Add or update layers - always verify against actual map state
+	for (var k = 0; k < layers.length; k++) {
+		var layer = layers[k];
+		if (isOverlayLayerOnMap(layer.id)) {
+			console.log('[MapOverlays] Layer ' + layer.id + ' already on map, updating visibility');
 			updateLayerVisibility(layer);
 		} else {
-			// Add new layer
+			console.log('[MapOverlays] Layer ' + layer.id + ' NOT on map, adding fresh');
+			delete addedOverlayLayers[layer.id];
 			addOverlayLayer(layer);
 		}
-	});
+	}
 }
 
 /**
- * Add a single overlay layer
+ * Add a single overlay layer.
+ * Idempotent - if the source or layers already exist on the map, they are
+ * cleaned up first before re-adding to prevent duplicates caused by stale
+ * tracking after map.setStyle() destroys layers.
  * @param {Object} layer - Layer configuration
  */
 function addOverlayLayer(layer) {
@@ -58,9 +147,13 @@ function addOverlayLayer(layer) {
 		console.log('Adding overlay layer:', layer.id, layer.name);
 
 		try {
-			// Add source if it doesn't exist
 			var sourceId = 'overlay-' + layer.id;
-			
+
+			// Clean up any stale layers/sources that may exist from a prior
+			// style that was replaced by map.setStyle(). This handles the case
+			// where the tracking object was reset but map layers lingered.
+			_removeLayerLayersAndSource(map, layer.id);
+
 			if (layer.type === 'geojson') {
 				// GeoJSON source
 				var geojsonSource = {
@@ -157,8 +250,20 @@ function addOverlayLayer(layer) {
 function removeOverlayLayer(layerId) {
 	if (!window.MapUtils.withMap(function(map) {
 		console.log('Removing overlay layer:', layerId);
+		_removeLayerLayersAndSource(map, layerId);
+		// Remove from tracking
+		delete addedOverlayLayers[layerId];
+	})) return;
+}
 
-		var sourceId = 'overlay-' + layerId;
+/**
+ * Internal: Remove all map layers and the source associated with an overlay ID.
+ * Safe to call even if the layers/source don't exist on the map.
+ * @param {object} map - The MapLibre map instance
+ * @param {string} layerId - The overlay layer ID
+ */
+function _removeLayerLayersAndSource(map, layerId) {
+	var sourceId = 'overlay-' + layerId;
 
 		// Remove all layers that reference this source
 		// Using source reference is more robust than relying on layer ID prefix,
@@ -173,29 +278,25 @@ function removeOverlayLayer(layerId) {
 			});
 		}
 
-		// Remove layers
-		layersToRemove.forEach(function(layerIdToRemove) {
-			try {
-				if (map.getLayer(layerIdToRemove)) {
-					map.removeLayer(layerIdToRemove);
-				}
-			} catch (e) {
-				console.warn('Error removing layer:', layerIdToRemove, e);
-			}
-		});
-
-		// Remove source
+	// Remove layers (order doesn't matter for removal)
+	layersToRemove.forEach(function(layerIdToRemove) {
 		try {
-			if (map.getSource(sourceId)) {
-				map.removeSource(sourceId);
+			if (map.getLayer(layerIdToRemove)) {
+				map.removeLayer(layerIdToRemove);
 			}
 		} catch (e) {
-			console.warn('Error removing source:', sourceId, e);
+			console.warn('Error removing layer:', layerIdToRemove, e);
 		}
+	});
 
-		// Remove from tracking
-		delete addedOverlayLayers[layerId];
-	})) return;
+	// Remove source
+	try {
+		if (map.getSource(sourceId)) {
+			map.removeSource(sourceId);
+		}
+	} catch (e) {
+		console.warn('Error removing source:', sourceId, e);
+	}
 }
 
 /**
@@ -318,6 +419,10 @@ function clearSelectedFileLayer() {
 
 // Export functions for use in other modules
 window.MapOverlays = {
+	persistOverlaysForStyleChange: persistOverlaysForStyleChange,
+	restoreOverlaysAfterStyleChange: restoreOverlaysAfterStyleChange,
+	resetOverlayTracking: resetOverlayTracking,
+	isOverlayLayerOnMap: isOverlayLayerOnMap,
 	updateOverlayLayers: updateOverlayLayers,
 	addOverlayLayer: addOverlayLayer,
 	removeOverlayLayer: removeOverlayLayer,

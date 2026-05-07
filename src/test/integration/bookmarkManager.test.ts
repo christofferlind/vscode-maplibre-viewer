@@ -89,6 +89,14 @@ suite('BookmarkManager Test Suite', () => {
             assert.ok(bookmark.id, 'Should have an ID');
             assert.ok(bookmark.createdAt, 'Should have createdAt');
             assert.ok(bookmark.updatedAt, 'Should have updatedAt');
+
+            const persisted = bookmarkManager.getBookmark(bookmark.id);
+            assert.ok(persisted, 'Should be persisted and retrievable');
+            assert.strictEqual(persisted!.name, 'My Bookmark');
+
+            const all = bookmarkManager.getAllBookmarks();
+            assert.strictEqual(all.length, 1, 'Should have exactly one bookmark in collection');
+            assert.strictEqual(all[0].id, bookmark.id);
         });
 
         test('should create a bookmark with description', async () => {
@@ -96,6 +104,10 @@ suite('BookmarkManager Test Suite', () => {
             const bookmark = await bookmarkManager.createBookmark('My Bookmark', viewState, 'A description');
 
             assert.strictEqual(bookmark.description, 'A description');
+
+            const persisted = bookmarkManager.getBookmark(bookmark.id);
+            assert.ok(persisted, 'Should be persisted and retrievable');
+            assert.strictEqual(persisted!.description, 'A description');
         });
 
         test('should trim bookmark name', async () => {
@@ -103,6 +115,10 @@ suite('BookmarkManager Test Suite', () => {
             const bookmark = await bookmarkManager.createBookmark('  Trimmed Name  ', viewState);
 
             assert.strictEqual(bookmark.name, 'Trimmed Name');
+
+            const persisted = bookmarkManager.getBookmark(bookmark.id);
+            assert.ok(persisted, 'Should be persisted and retrievable');
+            assert.strictEqual(persisted!.name, 'Trimmed Name');
         });
 
         test('should trim description', async () => {
@@ -110,6 +126,10 @@ suite('BookmarkManager Test Suite', () => {
             const bookmark = await bookmarkManager.createBookmark('My Bookmark', viewState, '  Trimmed Description  ');
 
             assert.strictEqual(bookmark.description, 'Trimmed Description');
+
+            const persisted = bookmarkManager.getBookmark(bookmark.id);
+            assert.ok(persisted, 'Should be persisted and retrievable');
+            assert.strictEqual(persisted!.description, 'Trimmed Description');
         });
 
         test('should use default bearing and pitch if not provided', async () => {
@@ -123,6 +143,11 @@ suite('BookmarkManager Test Suite', () => {
 
             assert.strictEqual(bookmark.bearing, 0);
             assert.strictEqual(bookmark.pitch, 0);
+
+            const persisted = bookmarkManager.getBookmark(bookmark.id);
+            assert.ok(persisted, 'Should be persisted and retrievable');
+            assert.strictEqual(persisted!.bearing, 0);
+            assert.strictEqual(persisted!.pitch, 0);
         });
 
         test('should preserve bearing and pitch from view state', async () => {
@@ -134,6 +159,11 @@ suite('BookmarkManager Test Suite', () => {
 
             assert.strictEqual(bookmark.bearing, 45);
             assert.strictEqual(bookmark.pitch, 30);
+
+            const persisted = bookmarkManager.getBookmark(bookmark.id);
+            assert.ok(persisted, 'Should be persisted and retrievable');
+            assert.strictEqual(persisted!.bearing, 45);
+            assert.strictEqual(persisted!.pitch, 30);
         });
 
         test('should generate unique IDs for different bookmarks', async () => {
@@ -142,6 +172,16 @@ suite('BookmarkManager Test Suite', () => {
             const bookmark2 = await bookmarkManager.createBookmark('Bookmark 2', viewState);
 
             assert.notStrictEqual(bookmark1.id, bookmark2.id, 'IDs should be unique');
+
+            const persisted1 = bookmarkManager.getBookmark(bookmark1.id);
+            const persisted2 = bookmarkManager.getBookmark(bookmark2.id);
+            assert.ok(persisted1, 'Bookmark 1 should be persisted');
+            assert.ok(persisted2, 'Bookmark 2 should be persisted');
+            assert.strictEqual(persisted1!.name, 'Bookmark 1');
+            assert.strictEqual(persisted2!.name, 'Bookmark 2');
+
+            const all = bookmarkManager.getAllBookmarks();
+            assert.strictEqual(all.length, 2, 'Should have exactly two bookmarks');
         });
     });
 
