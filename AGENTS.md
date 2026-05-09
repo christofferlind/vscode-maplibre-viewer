@@ -64,6 +64,20 @@ npm run watch                       # Watch TypeScript for changes
 - **Services**: Stateless utility modules in `src/services/` (coordinate parsing, geocoding, API)
 - **Adapters**: `FileToGeoJsonAdapter` interface for pluggable file format support
 
+### Style Patterns
+
+Don't write return statements on the same line as conditions (see bellow)
+
+```typescript
+// Don't write like this!
+if (!map) return;
+
+// Write like this!
+if (!map){
+    return;
+} 
+```
+
 ## Testing
 
 - Framework: Mocha with TDD UI (`suite`/`test` pattern)
