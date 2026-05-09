@@ -19,6 +19,18 @@ Development guide for AI agents working on the vscode-maplibre-viewer project.
 - Mock external dependencies to keep tests fast and isolated.
 - Guard clauses: Return early on invalid preconditions. No nested conditionals for validation.
 
+## Code Review Checklist
+
+After making changes to any file, always:
+
+1. Verify the entier file follows all code style rules in this document
+2. Check for common violations:
+   - No statements on same line as `if`/`else` conditions
+   - Guard clauses use multi-line format
+   - Proper brace usage for all blocks
+3. Run `npm run lint` to verify no ESLint errors
+4. Check file line count with `wc -l <filename>` (refactor if >600 lines)
+5. Run `npm run test` to ensure tests pass
 
 ## Commands
 
@@ -102,6 +114,7 @@ suite('Test Suite Name', () => {
 The extension exposes a `window.__test` API in the webview (`resources/scripts/test-api.js`) for integration tests to inspect internal map renderer state without adding `console.log` to production code. Tests query it via `__testQuery`/`__testResponse` messages.
 
 **Webview-side methods** (callable from tests):
+
 - `getOverlayLayers()` - Tracked overlay layer objects
 - `getMapSources()` - All MapLibre sources currently on the map
 - `getLayerVisibility(layerId)` - Visibility per sub-layer (`{ circles, lines, fills }`)
@@ -111,9 +124,11 @@ The extension exposes a `window.__test` API in the webview (`resources/scripts/t
 - `isAvailable()` - Sanity check that the API loaded
 
 **Extension-side** (for integration tests):
+
 - `MapWebviewController.queryWebview(method, args?, timeoutMs?)` - Returns a Promise resolving to the webview-side method result. Zero config, works with real webviews in `npm run test:vscode`.
 
 **Unit test support** (`MockWebview`):
+
 - `mockWebview.onTestQuery(method, handler)` - Registers a handler that auto-responds to `__testQuery` messages for the given method. This enables unit testing the full round-trip without a real webview.
 
 ```typescript
