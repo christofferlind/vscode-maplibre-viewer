@@ -173,6 +173,16 @@ function setupMessageHandler() {
 					error: error || undefined
 				});
 				break;
+
+			case 'mouseMove':
+				console.log('Received mouseMove message:', message.lngLat);
+				if (message.lngLat) {
+					vscode.postMessage({
+						type: 'mouseMove',
+						lngLat: message.lngLat
+					});
+				}
+				break;
 		}
 	});
 }

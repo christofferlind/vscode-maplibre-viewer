@@ -191,6 +191,18 @@ function initializeMap(initialViewState) {
 				}
 			});
 		});
+
+		// Add a listener for mouse move events - send coordinates to statusbar
+		map.on('mousemove', function(e) {
+			var lngLat = e.lngLat;
+			vscode.postMessage({
+				type: 'mouseMove',
+				lngLat: {
+					lng: lngLat.lng,
+					lat: lngLat.lat
+				}
+			});
+		});
 	} catch (e) {
 		console.error('Error initializing map:', e);
 		showErrorOverlay('Failed to initialize map: ' + (e.message || e));

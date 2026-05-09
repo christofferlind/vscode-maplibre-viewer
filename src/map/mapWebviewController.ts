@@ -389,6 +389,13 @@ export abstract class MapWebviewController {
                     pending.resolve(msg.result);
                 }
                 break;
+
+            case 'mouseMove':
+                const mouseLngLat = msg.lngLat as { lng: number; lat: number } | undefined;
+                if (mouseLngLat) {
+                    await vscode.commands.executeCommand('vscodeMaplibreViewer.updateCoordinates', mouseLngLat);
+                }
+                break;
         }
     }
 

@@ -360,7 +360,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 	const defaultBasemapDisposable = api.registerBasemap(defaultBasemap);
 	context.subscriptions.push(defaultBasemapDisposable);
 
-	// Return the API for other extensions to consume
+	// Create statusbar item for coordinate display
+	const coordinateStatusbarItem = vscode.window.createStatusBarItem(
+		vscode.StatusBarAlignment.Right,
+		100
+	);
+	coordinateStatusbarItem.name = 'Map Coordinates';
+	coordinateStatusbarItem.text = 'Map: 0.0000, 0.0000';
+	coordinateStatusbarItem.tooltip = 'Mouse pointer location in WGS84 coordinates';
+	coordinateStatusbarItem.show();
+	context.subscriptions.push(coordinateStatusbarItem);
+
 	// Register command to open the Map Editor panel
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscodeMaplibreViewer.openMapEditor', async () => {
@@ -368,6 +378,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		})
 	);
 
+	// Handle mouse move events from webview to update statusbar
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.updateCoordinates', (lngLat: { lng: number; lat: number }) => {
+			if (lngLat && typeof lngLat.lat === 'number' && typeof lngLat.lng === 'number') {
+				coordinateStatusbarItem.text = `Map: ${lngLat.lat.toFixed(4)}, ${lngLat.lng.toFixed(4)}`;
+			}
+		})
+	);
+
+	// Return the API for other extensions to consume
 	return api;
 }
 
