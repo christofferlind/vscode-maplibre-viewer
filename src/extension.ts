@@ -59,6 +59,10 @@ function createAPI(
 	};
 }
 
+// Module-level variables to preserve view state on deactivation
+let mapsViewProvider: MapViewProvider;
+let mapEditorProvider: MapEditorProvider;
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext): Promise<MapLibreViewerAPI> {
@@ -107,13 +111,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 	// Register the Maps webview provider with the initial active basemap
 	const initialBaseMap = layerTreeProvider.getActiveBaseMap();
-	const mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
+	mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider('mapsView', mapsViewProvider)
 	);
 
-	const mapEditorProvider = new MapEditorProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
+	mapEditorProvider = new MapEditorProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
 
 	// Create the ProviderManager and register both providers
 	const providerManager = new ProviderManager();
@@ -368,4 +372,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export async function deactivate() {
+	await mapsViewProvider.saveCurrentViewState();
+	await mapEditorProvider.saveCurrentViewState();
+}

@@ -125,8 +125,8 @@ export function generateWebviewHtml(
         ? JSON.stringify(config.initialViewState)
         : 'null';
     htmlContent = htmlContent.replace(
-        /var initialViewState = null;/g,
-        `var initialViewState = ${initialViewStateJson};`
+        /initialViewState: null/g,
+        `initialViewState: ${initialViewStateJson}`
     );
     
     // Replace MapLibre asset URIs

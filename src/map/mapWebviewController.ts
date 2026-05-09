@@ -22,6 +22,7 @@ export abstract class MapWebviewController {
     protected _pendingMapCenterResolve?: (center: { center: { latitude: number; longitude: number }; zoom: number; bearing: number; pitch: number } | { error: string }) => void;
     protected _currentBaseMapStyleUrl?: string;
     protected _currentBaseMapId?: string;
+    protected _lastViewState?: ViewState;
 
     private _requestIdCounter = 0;
     private _pendingTestResolves: Map<number, { resolve: (value: unknown) => void; timeout: ReturnType<typeof setTimeout> }> = new Map();
@@ -336,6 +337,7 @@ export abstract class MapWebviewController {
                     this._pendingViewStateResolve(viewState);
                     this._pendingViewStateResolve = undefined;
                 }
+                this._lastViewState = viewState;
                 await saveViewStateToSettings(viewState, this._currentBaseMapId);
                 break;
                 
@@ -400,6 +402,16 @@ export abstract class MapWebviewController {
      */
     public onMapReady(callback: () => void): void {
         this._onMapReady = callback;
+    }
+
+    /**
+     * Saves the current view state to settings
+     * Called when the extension deactivates to preserve viewport
+     */
+    public async saveCurrentViewState(): Promise<void> {
+        if (this._lastViewState) {
+            await saveViewStateToSettings(this._lastViewState, this._currentBaseMapId);
+        }
     }
 
     /**

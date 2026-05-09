@@ -160,6 +160,13 @@ function initializeMap(initialViewState) {
 			}, 500);
 		});
 
+		// Save view state immediately before the webview is unloaded
+		window.addEventListener('beforeunload', function() {
+			if (map) {
+				saveViewStateToExtension();
+			}
+		});
+
 		// Add a listener for the right-click event - send coordinates to extension for native context menu
 		map.on('contextmenu', function(e) {
 			var lngLat = e.lngLat;
