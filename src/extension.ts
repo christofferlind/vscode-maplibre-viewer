@@ -7,6 +7,7 @@ import { LayerTreeProvider } from './layers/layerTreeProvider';
 import { BaseMapStyle, OverlayLayer } from './layers/layerTypes';
 import { MapLibreViewerAPI, BasemapProvider, FileToGeoJsonAdapter } from './services/api';
 import { geojsonAdapter } from './adapters/geojsonAdapter';
+import { gpxAdapter } from './adapters/gpxAdapter';
 import { MapViewProvider } from './map/mapViewProvider';
 import { MapEditorProvider } from './map/mapEditorProvider';
 import { ProviderManager } from './map/providerManager';
@@ -321,6 +322,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
 	// Register the built-in GeoJSON adapter
 	fileToGeoJsonAdapters.push(geojsonAdapter);
+
+	// Register the GPX adapter
+	fileToGeoJsonAdapters.push(gpxAdapter);
 
 	// Set the file adapters on the layer tree provider for drag-and-drop conversion
 	layerTreeProvider.setFileAdapters(fileToGeoJsonAdapters);
