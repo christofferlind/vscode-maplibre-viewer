@@ -46,7 +46,10 @@ export function registerLanguageCommands(context: vscode.ExtensionContext, provi
     const languageCommands: [string, string][] = [
         ['vscodeMaplibreViewer.setLanguageNative', 'native'],
         ['vscodeMaplibreViewer.setLanguageEnglish', 'en'],
-        ['vscodeMaplibreViewer.setLanguageGerman', 'de']
+        ['vscodeMaplibreViewer.setLanguageGerman', 'de'],
+        ['vscodeMaplibreViewer.setLanguageFrench', 'fr'],
+        ['vscodeMaplibreViewer.setLanguageSpanish', 'es'],
+        ['vscodeMaplibreViewer.setLanguageRussian', 'ru']
     ];
 
     languageCommands.forEach(([commandId, languageCode]) => {

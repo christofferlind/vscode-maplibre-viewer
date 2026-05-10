@@ -60,6 +60,61 @@
         "category": "MapLibre Viewer"
       },
       {
+        "command": "vscodeMaplibreViewer.setLanguageFrench",
+        "title": "Map: Set Language to French",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageSpanish",
+        "title": "Map: Set Language to Spanish",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageRussian",
+        "title": "Map: Set Language to Russian",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageChinese",
+        "title": "Map: Set Language to Chinese (Simplified)",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageJapanese",
+        "title": "Map: Set Language to Japanese",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageKorean",
+        "title": "Map: Set Language to Korean",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageItalian",
+        "title": "Map: Set Language to Italian",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguagePortuguese",
+        "title": "Map: Set Language to Portuguese",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageArabic",
+        "title": "Map: Set Language to Arabic",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageHindi",
+        "title": "Map: Set Language to Hindi",
+        "category": "MapLibre Viewer"
+      },
+      {
+        "command": "vscodeMaplibreViewer.setLanguageDutch",
+        "title": "Map: Set Language to Dutch",
+        "category": "MapLibre Viewer"
+      },
+      {
         "command": "vscodeMaplibreViewer.setLanguage",
         "title": "Map: Set Language...",
         "category": "MapLibre Viewer",
@@ -278,12 +333,71 @@
           "group": "2_bookmarks@2"
         },
         {
+          "submenu": "webview/context/setMapLanguage",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
           "command": "vscodeMaplibreViewer.openSettings",
           "when": "true",
-          "group": "3_settings"
+          "group": "4_settings"
+        }
+      ],
+      "webview/context/setMapLanguage": [
+        {
+          "command": "vscodeMaplibreViewer.setLanguage",
+          "when": "true",
+          "group": "1_select"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageNative",
+          "when": "true",
+          "group": "2_select"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageEnglish",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageSpanish",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageFrench",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageRussian",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageHindi",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageArabic",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageChinese",
+          "when": "true",
+          "group": "3_languages"
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "webview/context/setMapLanguage",
+        "label": "Set Map Language",
+        "icon": "$(globe)"
+      }
+    ],
     "configuration": {
       "title": "MapLibre Viewer",
       "properties": {
