@@ -119,8 +119,6 @@ function setupMessageHandler() {
 
 			case 'setBaseMap':
 				console.log('Received setBaseMap message:', message);
-				// Hide loading overlay first to prevent stale state
-				window.MapUtils.hideLoadingOverlay();
 				if (message.basemap) {
 					window.MapCore.updateBasemap(message.basemap);
 				} else if (message.styleUrl) {

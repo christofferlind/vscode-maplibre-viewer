@@ -1,32 +1,7 @@
 /**
  * Map Utilities Module
- * Handles loading and error overlays
+ * Handles error overlays
  */
-
-/**
- * Show loading overlay
- * @param {string} [message='Loading map...'] - Message to display
- */
-function showLoadingOverlay(message) {
-	var overlay = document.getElementById('loading-overlay');
-	var span = overlay ? overlay.querySelector('span') : null;
-	if (span) {
-		span.textContent = message || 'Loading map...';
-	}
-	if (overlay) {
-		overlay.classList.add('visible');
-	}
-}
-
-/**
- * Hide loading overlay
- */
-function hideLoadingOverlay() {
-	var overlay = document.getElementById('loading-overlay');
-	if (overlay) {
-		overlay.classList.remove('visible');
-	}
-}
 
 /**
  * Show error overlay
@@ -41,7 +16,6 @@ function showErrorOverlay(message) {
 	if (overlay) {
 		overlay.classList.add('visible');
 	}
-	hideLoadingOverlay();
 }
 
 /**
@@ -164,8 +138,6 @@ function fitBoundsWithDefaults(map, bounds, options) {
 
 // Export functions for use in other modules
 window.MapUtils = {
-	showLoadingOverlay: showLoadingOverlay,
-	hideLoadingOverlay: hideLoadingOverlay,
 	showErrorOverlay: showErrorOverlay,
 	hideErrorOverlay: hideErrorOverlay,
 	createViewState: createViewState,

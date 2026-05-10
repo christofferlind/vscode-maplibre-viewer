@@ -44,7 +44,7 @@ function setConfig(config) {
  * @returns {boolean} True if map is initialized and loaded
  */
 function isMapReady() {
-	return map !== null && map.isStyleLoaded();
+	return map !== null;
 }
 
 /**
@@ -83,7 +83,6 @@ function processPendingOperations() {
  */
 function initializeMap(initialViewState) {
 	hideErrorOverlay();
-	showLoadingOverlay('Initializing map...');
 
 	try {
 		// Use initial view state if available, otherwise use defaults
@@ -129,24 +128,36 @@ function initializeMap(initialViewState) {
 
 		map.on('load', function() {
 			console.log('[MapCore] load event fired on style');
-			hideLoadingOverlay();
 			hideErrorOverlay();
-			// Self-heal: restore overlays that were persisted before the style
-			// change. This runs independently of extension message timing.
-			// restoreOverlaysAfterStyleChange internally clears its persisted
-			// state after restoring and rebuilds addedOverlayLayers tracking.
-			if (window.MapOverlays && window.MapOverlays.restoreOverlaysAfterStyleChange) {
-				window.MapOverlays.restoreOverlaysAfterStyleChange();
-			}
 			// Process any pending operations queued while map was loading
 			processPendingOperations();
 			// Notify the extension that the map is ready. The extension will
-			// respond with a fresh updateOverlayLayers message which updates
-			// visibility for any layers already on the map from the restore.
+			// respond with a fresh updateOverlayLayers message which performs
+			// a complete reconstruction of overlays from the tree provider state.
 			console.log('[MapCore] Sending mapReady to extension');
 			vscode.postMessage({
 				type: 'mapReady'
 			});
+		});
+
+		// map.on('sourcedata', function() {
+		// 	console.log('[MapCore] Event sourcedata');
+		// });
+
+		// map.on('data', function() {
+		// 	console.log('[MapCore] Event data');
+		// });
+
+		map.on('mapReady', function() {
+			console.log('[MapCore] Event mapReady');
+		});
+
+		map.on('styledata', function() {
+			console.log('[MapCore] Event styledata');
+		});
+
+		map.on('load', function() {
+			console.log('[MapCore] Event load');
 		});
 
 		// Listen for map move events and save view state
@@ -265,14 +276,6 @@ function updateMapStyle(newStyleUrl) {
 		}
 
 		console.log('Updating map style to:', newStyleUrl);
-		showLoadingOverlay('Updating style...');
-
-		// Persist overlay data BEFORE setStyle() destroys layers.
-		// They will be restored in the 'load' event handler.
-		if (window.MapOverlays && window.MapOverlays.persistOverlaysForStyleChange) {
-			window.MapOverlays.persistOverlaysForStyleChange();
-		}
-
 		currentStyleUrl = newStyleUrl;
 
 		// Store current view state
@@ -281,11 +284,18 @@ function updateMapStyle(newStyleUrl) {
 		var currentBearing = map.getBearing();
 		var currentPitch = map.getPitch();
 
-		// Update the style (destroys all programmatic layers/sources)
 		map.setStyle(newStyleUrl, {
 			transformStyle: function(previousStyle, nextStyle) {
 				return nextStyle;
-			}
+			},
+			preserveSources: true
+		});
+
+		map.once('styledata', function(e) {
+			console.log('[MapCore] Post event mapReady after vector style change');
+			vscode.postMessage({
+				type: 'mapReady'
+			});
 		});
 
 		map.jumpTo({
@@ -294,8 +304,6 @@ function updateMapStyle(newStyleUrl) {
 			bearing: currentBearing,
 			pitch: currentPitch
 		});
-
-		hideLoadingOverlay();
 
 		map.once('error', function(e) {
 			console.error('Error updating map style:', e.error);
@@ -350,13 +358,6 @@ function updateBasemap(basemap) {
 	if (!window.MapUtils.withMap(function(map) {
 		console.log('[MapCore] updateBasemap called:', basemap.id, basemap.name);
 
-		// Save overlay data BEFORE setStyle() destroys all layers.
-		// This must happen BEFORE any tracking reset — the persist reads
-		// from addedOverlayLayers and stores a snapshot for self-healing.
-		if (window.MapOverlays && window.MapOverlays.persistOverlaysForStyleChange) {
-			window.MapOverlays.persistOverlaysForStyleChange();
-		}
-
 		// Store current view state
 		var currentCenter = map.getCenter();
 		var currentZoom = map.getZoom();
@@ -366,17 +367,22 @@ function updateBasemap(basemap) {
 		if (basemap.type === 'raster' && basemap.tileUrl) {
 			// Raster tile basemap
 			console.log('[MapCore] Setting raster basemap:', basemap.tileUrl);
-			showLoadingOverlay('Updating style...');
 
 			var rasterStyle = createRasterStyle(basemap);
 			currentStyleUrl = null;
 
-			// setStyle destroys all programmatic layers/sources.
-			// They will be restored in the 'load' event handler.
 			map.setStyle(rasterStyle, {
 				transformStyle: function(previousStyle, nextStyle) {
 					return nextStyle;
-				}
+				},
+				preserveSources: true
+			});
+
+			map.once('styledata', function(e) {
+				console.log('[MapCore] Post event mapReady after raster basemap change');
+				vscode.postMessage({
+					type: 'mapReady'
+				});
 			});
 
 			map.jumpTo({
@@ -386,9 +392,8 @@ function updateBasemap(basemap) {
 				pitch: currentPitch
 			});
 
-			hideLoadingOverlay();
 		} else if (basemap.styleUrl) {
-			// Vector style basemap. updateMapStyle handles persist + setStyle.
+			// Vector style basemap
 			updateMapStyle(basemap.styleUrl);
 		} else {
 			console.error('Invalid basemap configuration: must have either styleUrl or tileUrl');
