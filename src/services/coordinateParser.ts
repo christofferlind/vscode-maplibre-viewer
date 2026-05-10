@@ -53,13 +53,17 @@ export const regexWGS84 = /(?<lat>-?\d+\.?\d*)\s*[,\s]\s*(?<lng>-?\d+\.?\d*)/g;
 // GeoJSON array format: [lng, lat] - first value is longitude, second is latitude
 export const regexGeoJSON = /\[\s*(?<lng>-?\d+\.?\d*)\s*(,|\s)\s*(?<lat>-?\d+\.?\d*)\s*\]/g;
 
+// XML-style attributes: lat="50.085556" lon="14.4183102"
+export const regexXmlAttributes = /lat\s*=\s*["'](?<lat>-?\d+\.?\d*)["']\s+lon\s*=\s*["'](?<lng>-?\d+\.?\d*)["']/gi;
+
 /**
  * Default coordinate patterns built into the parser.
  */
 export const defaultPatterns: RegExp[] = [
     regexGeoJSON,
     regexDMS,
-    regexWGS84
+    regexWGS84,
+    regexXmlAttributes
 ];
 
 /**
@@ -99,6 +103,7 @@ export function getCoordinatePatterns(): RegExp[] {
  * - DMS format: `59°19'45.5"N 18°4'7.0"E`
  * - GeoJSON array: `[18.0686, 59.3293]` (note: GeoJSON is [lng, lat])
  * - URL format: `@59.3293,18.0686`
+ * - XML-style attributes: `lat="50.085556" lon="14.4183102"`
  * 
  * @param text - The text to parse for coordinates
  * @returns A Coordinate object if valid coordinates found, null otherwise
