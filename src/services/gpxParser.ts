@@ -35,17 +35,21 @@ export function parseGpxContent(content: string): object {
 
     // Extract waypoints
     const waypoints = extractWaypoints(content);
-    if (waypoints.length > 0) {
+    for (const wpt of waypoints) {
+        const properties: Record<string, unknown> = {};
+        if (wpt.name) { properties.name = wpt.name; }
+        if (wpt.ele !== undefined) { properties.elevation = wpt.ele; }
+        if (wpt.desc) { properties.description = wpt.desc; }
+        if (wpt.type) { properties.type = wpt.type; }
+        if (wpt.time) { properties.time = wpt.time; }
+
         features.push({
             type: 'Feature',
             geometry: {
-                type: 'MultiPoint',
-                coordinates: waypoints.map(w => [w.lon, w.lat])
+                type: 'Point',
+                coordinates: [wpt.lon, wpt.lat]
             },
-            properties: {
-                name: 'Waypoints',
-                count: waypoints.length
-            }
+            properties
         });
     }
 

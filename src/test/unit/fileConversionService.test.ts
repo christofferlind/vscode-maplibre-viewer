@@ -237,12 +237,16 @@ suite('GpxParser', () => {
 </gpx>`;
         
         const geojson = parseGpxContent(gpx);
-        const gj = geojson as { type: string; features: Array<{ type: string; geometry: { type: string; coordinates: number[][] } }> };
+        const gj = geojson as { type: string; features: Array<{ type: string; geometry: { type: string; coordinates: number[] }; properties: { name?: string } }> };
         
         assert.strictEqual(gj.type, 'FeatureCollection');
-        assert.strictEqual(gj.features.length, 1);
-        assert.strictEqual(gj.features[0].geometry.type, 'MultiPoint');
-        assert.deepStrictEqual(gj.features[0].geometry.coordinates, [[-75.0, 45.0], [-76.0, 46.0]]);
+        assert.strictEqual(gj.features.length, 2);
+        assert.strictEqual(gj.features[0].geometry.type, 'Point');
+        assert.deepStrictEqual(gj.features[0].geometry.coordinates, [-75.0, 45.0]);
+        assert.strictEqual(gj.features[0].properties.name, 'Waypoint 1');
+        assert.strictEqual(gj.features[1].geometry.type, 'Point');
+        assert.deepStrictEqual(gj.features[1].geometry.coordinates, [-76.0, 46.0]);
+        assert.strictEqual(gj.features[1].properties.name, 'Waypoint 2');
     });
 
     test('should parse GPX with route', () => {
