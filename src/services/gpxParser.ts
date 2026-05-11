@@ -10,6 +10,8 @@ interface GpxPoint {
     lon: number;
     ele?: number;
     name?: string;
+    desc?: string;
+    type?: string;
     time?: string;
 }
 
@@ -134,6 +136,18 @@ function extractWaypoints(content: string): GpxPoint[] {
         const nameMatch = /<name[^>]*>([\s\S]*?)<\/name>/i.exec(innerContent);
         if (nameMatch) {
             point.name = nameMatch[1].trim();
+        }
+
+        // Extract description
+        const descMatch = /<desc[^>]*>([\s\S]*?)<\/desc>/i.exec(innerContent);
+        if (descMatch) {
+            point.desc = descMatch[1].trim();
+        }
+
+        // Extract type
+        const typeMatch = /<type[^>]*>([\s\S]*?)<\/type>/i.exec(innerContent);
+        if (typeMatch) {
+            point.type = typeMatch[1].trim();
         }
 
         // Extract time
