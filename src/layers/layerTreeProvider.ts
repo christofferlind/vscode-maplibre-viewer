@@ -341,7 +341,14 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
             const item = new vscode.TreeItem(layer.name, vscode.TreeItemCollapsibleState.None);
             item.description = layer.description;
             item.tooltip = `${layer.name}\nType: ${layer.type}\nVisible: ${layer.visible}`;
-            item.contextValue = layer.visible ? 'visibleOverlayLayer' : 'overlayLayer';
+            
+            // Set context value - use special value for "Selected file" layer to prevent removal
+            if (layer.id === SELECTED_FILE_LAYER_ID) {
+                item.contextValue = layer.visible ? 'visibleSelectedFileLayer' : 'selectedFileLayer';
+            } else {
+                item.contextValue = layer.visible ? 'visibleOverlayLayer' : 'overlayLayer';
+            }
+            
             item.iconPath = layer.visible 
                 ? new vscode.ThemeIcon('eye') 
                 : new vscode.ThemeIcon('eye-closed');
