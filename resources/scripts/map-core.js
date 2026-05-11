@@ -48,6 +48,17 @@ function isMapReady() {
 }
 
 /**
+ * Escape HTML special characters to prevent XSS
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped text
+ */
+function escapeHtml(text) {
+	var div = document.createElement('div');
+	div.textContent = text;
+	return div.innerHTML;
+}
+
+/**
  * Queue an operation to run after the map is loaded
  * @param {Function} operation - Function to execute when map is ready
  */
@@ -213,6 +224,140 @@ function initializeMap(initialViewState) {
 					lat: lngLat.lat
 				}
 			});
+		});
+
+		// Add a listener for click events to show feature popups
+		var popup = null;
+		map.on('click', function(e) {
+			console.log('[MapCore] Click event at:', e.lngLat);
+			var lngLat = e.lngLat;
+			var features = map.queryRenderedFeatures(e.point);
+			console.log('[MapCore] Found', features ? features.length : 0, 'features');
+			
+			if (!features || features.length === 0) {
+				if (popup) {
+					popup.remove();
+					popup = null;
+				}
+				return;
+			}
+			
+			// Log all features found
+			for (var i = 0; i < features.length; i++) {
+				console.log('[MapCore] Feature', i, 'source:', features[i].source, 'layer:', features[i].layer.id);
+			}
+			
+			// Find the first feature from an overlay layer (source starts with 'overlay-')
+			var overlayFeature = null;
+			for (var i = 0; i < features.length; i++) {
+				var feature = features[i];
+				var source = feature.source;
+				if (source && source.indexOf('overlay-') === 0) {
+					overlayFeature = feature;
+					console.log('[MapCore] Found overlay feature:', overlayFeature);
+					break;
+				}
+			}
+			
+			if (overlayFeature) {
+				var properties = overlayFeature.properties || {};
+				console.log('[MapCore] Feature properties:', properties);
+				
+				// Collect all properties including nested ones
+				var allProperties = {};
+				var nameValue = null;
+				var descValue = null;
+				
+				// First check for common name/desc variations at top level
+				nameValue = properties.name || properties.title || properties.label || null;
+				descValue = properties.desc || properties.description || properties.note || properties.comment || null;
+				
+				// Collect all properties, flattening nested objects
+				function flattenProperties(obj, prefix) {
+					for (var key in obj) {
+						if (obj.hasOwnProperty(key)) {
+							var value = obj[key];
+							var fullKey = prefix ? prefix + '.' + key : key;
+							
+							if (value !== null && value !== undefined) {
+								if (typeof value === 'object' && !Array.isArray(value)) {
+									flattenProperties(value, fullKey);
+								} else {
+									allProperties[fullKey] = value;
+								}
+							}
+						}
+					}
+				}
+				
+				flattenProperties(properties, '');
+				
+				// Re-check name/desc from flattened properties
+				if (!nameValue) {
+					nameValue = allProperties.name || allProperties.title || allProperties.label || null;
+				}
+				if (!descValue) {
+					descValue = allProperties.desc || allProperties.description || allProperties.note || allProperties.comment || null;
+				}
+				
+				// Build popup content from feature properties
+				var popupContent = '<div style="max-height: 300px; overflow-y: auto;">';
+				
+				// Show name prominently if it exists
+				if (nameValue) {
+					popupContent += '<h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">' + escapeHtml(String(nameValue)) + '</h3>';
+				}
+				
+				// Show description if it exists
+				if (descValue) {
+					popupContent += '<p style="margin: 0 0 12px 0; font-size: 13px; color: #555; line-height: 1.4;">' + escapeHtml(String(descValue)) + '</p>';
+					popupContent += '<hr style="border: none; border-top: 1px solid #e0e0e0; margin: 8px 0;" />';
+				}
+				
+				popupContent += '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">';
+				
+				var propertyCount = 0;
+				for (var key in allProperties) {
+					if (allProperties.hasOwnProperty(key)) {
+						// Skip name/desc variations as they're shown above
+						if (key === 'name' || key === 'desc' || key === 'title' || key === 'description' || 
+							key === 'label' || key === 'note' || key === 'comment') {
+							continue;
+						}
+						propertyCount++;
+						var value = allProperties[key];
+						popupContent += '<tr style="border-bottom: 1px solid #e0e0e0;">';
+						popupContent += '<td style="padding: 4px; font-weight: 500; color: #666; white-space: nowrap;">' + escapeHtml(key) + '</td>';
+						popupContent += '<td style="padding: 4px; color: #333; word-break: break-word;">' + escapeHtml(String(value)) + '</td>';
+						popupContent += '</tr>';
+					}
+				}
+				
+				if (propertyCount === 0 && !nameValue && !descValue) {
+					popupContent += '<tr><td style="padding: 8px; color: #999;" colspan="2">No properties available</td></tr>';
+				}
+				
+				popupContent += '</table></div>';
+				
+				// Show popup with feature details
+				if (popup) {
+					popup.remove();
+				}
+				popup = new maplibregl.Popup({
+					closeButton: true,
+					closeOnClick: true,
+					maxWidth: '400px'
+				})
+				.setLngLat(lngLat)
+				.setHTML(popupContent)
+				.addTo(map);
+			} else {
+				// Clicked on basemap or non-overlay layer, close popup
+				if (popup) {
+					popup.remove();
+					popup = null;
+				}
+			}
 		});
 	} catch (e) {
 		console.error('Error initializing map:', e);
