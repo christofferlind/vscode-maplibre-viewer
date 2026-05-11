@@ -207,6 +207,11 @@
         "icon": "$(color-mode)"
       },
       {
+        "command": "vscodeMaplibreViewer.showOverlayLayersOnMap",
+        "title": "Show on Map",
+        "category": "MapLibre Viewer"
+      },
+      {
         "command": "vscodeMaplibreViewer.searchOnMap",
         "title": "Search On Map",
         "category": "MapLibre Viewer"
@@ -310,12 +315,17 @@
         {
           "command": "vscodeMaplibreViewer.removeLayer",
           "when": "view == layersView && viewItem == visibleOverlayLayer",
-          "group": "layerActions"
+          "group": "layerActions@2"
         },
         {
           "command": "vscodeMaplibreViewer.removeLayer",
           "when": "view == layersView && viewItem == overlayLayer",
-          "group": "layerActions"
+          "group": "layerActions@2"
+        },
+        {
+          "command": "vscodeMaplibreViewer.showOverlayLayersOnMap",
+          "when": "view == layersView && viewItem == visibleOverlayLayer",
+          "group": "layerActions@1"
         }
       ],
       "editor/context": [

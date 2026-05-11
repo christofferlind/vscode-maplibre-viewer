@@ -18,6 +18,7 @@ import { handleTextSelection, handleFileSelection } from './selectionHandler';
 import { loadCustomCoordinatePatterns, registerLanguageCommands, registerCoordinateSelectionCommands } from './commandRegistration';
 import { getConfig, onConfigurationChanged } from './services/configService';
 import { debounce } from './services/debounce';
+import { calculateBoundingBoxFromGeoJson } from './services/coordinateParser';
 
 /**
  * Creates the public API object
@@ -294,6 +295,51 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 				} catch (error) {
 					showOperationError('remove layer', error);
 				}
+			}
+		})
+	);
+
+	// Register command to show selected overlay layers on map
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.showOverlayLayersOnMap', async (layer: OverlayLayer) => {
+			try {
+				const layers = layer ? [layer] : layerTreeProvider.getOverlayLayers();
+				const bboxes: Array<{ southwest: { latitude: number; longitude: number }; northeast: { latitude: number; longitude: number } }> = [];
+
+				for (const overlayLayer of layers) {
+					if (overlayLayer.source?.data) {
+						const bbox = calculateBoundingBoxFromGeoJson(overlayLayer.source.data);
+						if (bbox) {
+							bboxes.push({
+								southwest: { latitude: bbox.southwest.latitude, longitude: bbox.southwest.longitude },
+								northeast: { latitude: bbox.northeast.latitude, longitude: bbox.northeast.longitude }
+							});
+						}
+					}
+				}
+
+				if (bboxes.length === 0) {
+					vscode.window.showWarningMessage('No valid coordinates found in the selected layer(s)');
+					return;
+				}
+
+				if (bboxes.length === 1) {
+					providerManager.fitBoundsOnly(bboxes[0]);
+				} else {
+					const combinedBbox = {
+						southwest: {
+							latitude: Math.min(...bboxes.map(b => b.southwest.latitude)),
+							longitude: Math.min(...bboxes.map(b => b.southwest.longitude))
+						},
+						northeast: {
+							latitude: Math.max(...bboxes.map(b => b.northeast.latitude)),
+							longitude: Math.max(...bboxes.map(b => b.northeast.longitude))
+						}
+					};
+					providerManager.fitBoundsOnly(combinedBbox);
+				}
+			} catch (error) {
+				showOperationError('show overlay layers on map', error);
 			}
 		})
 	);
