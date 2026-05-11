@@ -201,6 +201,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "vscodeMaplibreViewer.changeLayerColor",
+        "title": "Change Layer Color",
+        "category": "MapLibre Viewer",
+        "icon": "$(color-mode)"
+      },
+      {
         "command": "vscodeMaplibreViewer.searchOnMap",
         "title": "Search On Map",
         "category": "MapLibre Viewer"
@@ -290,6 +296,16 @@
           "command": "vscodeMaplibreViewer.openBookmarkInEditor",
           "when": "view == bookmarksView && viewItem == bookmark",
           "group": "bookmarkActions@3"
+        },
+        {
+          "command": "vscodeMaplibreViewer.changeLayerColor",
+          "when": "view == layersView && viewItem == visibleOverlayLayer",
+          "group": "layerActions"
+        },
+        {
+          "command": "vscodeMaplibreViewer.changeLayerColor",
+          "when": "view == layersView && viewItem == overlayLayer",
+          "group": "layerActions"
         },
         {
           "command": "vscodeMaplibreViewer.removeLayer",

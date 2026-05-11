@@ -440,6 +440,26 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
     }
 
     /**
+     * Updates the color of an overlay layer
+     */
+    async updateLayerColor(layerId: string, color: string): Promise<void> {
+        const layerIndex = this._overlayLayers.findIndex(l => l.id === layerId);
+        if (layerIndex === -1) {
+            throw new Error(`Layer with id '${layerId}' not found`);
+        }
+
+        this._overlayLayers[layerIndex].color = color;
+        await this._extensionContext.globalState.update('overlayLayers', this._overlayLayers);
+        
+        // Notify listeners
+        this._onDidChangeLayers.fire({ 
+            type: 'overlay', 
+            data: this._overlayLayers[layerIndex] 
+        });
+        this.refresh();
+    }
+
+    /**
      * Adds a new overlay layer
      */
     async addOverlayLayer(layer: OverlayLayer): Promise<void> {

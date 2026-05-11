@@ -34,6 +34,7 @@ export interface OverlayLayer {
     source: LayerSource;
     visible: boolean;
     opacity?: number;
+    color?: string;
     minzoom?: number;
     maxzoom?: number;
 }

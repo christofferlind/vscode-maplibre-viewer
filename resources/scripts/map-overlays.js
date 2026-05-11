@@ -118,20 +118,21 @@ function addOverlayLayer(layer) {
 				map.addSource(sourceId, geojsonSource);
 
 				var layerOpacity = layer.opacity !== undefined ? layer.opacity : 1;
+				var layerColor = layer.color || '#FF0000';
 				var layerDefinitions = window.MapUtils.createGeoJsonLayerDefinitions(sourceId, {
 					prefix: '',
 					circlePaint: {
 						'circle-radius': 6,
-						'circle-color': '#FF0000',
+						'circle-color': layerColor,
 						'circle-opacity': layerOpacity
 					},
 					linePaint: {
-						'line-color': '#FF0000',
+						'line-color': layerColor,
 						'line-width': 2,
 						'line-opacity': layerOpacity
 					},
 					fillPaint: {
-						'fill-color': '#FF0000',
+						'fill-color': layerColor,
 						'fill-opacity': layerOpacity * 0.5
 					}
 				});

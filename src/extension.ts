@@ -235,6 +235,55 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 		})
 	);
 
+	// Register command to change layer color
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscodeMaplibreViewer.changeLayerColor', async (layer: OverlayLayer) => {
+			const colorPickers: vscode.QuickPickItem[] = [
+				{ label: '$(circle-filled) Red', detail: '#FF0000' },
+				{ label: '$(circle-filled) Blue', detail: '#0000FF' },
+				{ label: '$(circle-filled) Green', detail: '#00FF00' },
+				{ label: '$(circle-filled) Yellow', detail: '#FFFF00' },
+				{ label: '$(circle-filled) Orange', detail: '#FFA500' },
+				{ label: '$(circle-filled) Purple', detail: '#800080' },
+				{ label: '$(circle-filled) Cyan', detail: '#00FFFF' },
+				{ label: '$(circle-filled) Magenta', detail: '#FF00FF' },
+				{ label: '$(circle-filled) Black', detail: '#000000' },
+				{ label: '$(circle-filled) White', detail: '#FFFFFF' },
+				{ label: '$(color-mode) Custom...', detail: 'custom' }
+			];
+
+			const selected = await vscode.window.showQuickPick(colorPickers, {
+				placeHolder: `Select color for "${layer.name}"`,
+				title: 'Layer Color'
+			});
+
+			if (!selected) {
+				return;
+			}
+
+			let color: string | undefined;
+			if (selected.detail === 'custom') {
+				color = await vscode.window.showInputBox({
+					prompt: 'Enter color value (hex, rgb, or color name)',
+					placeHolder: '#FF0000',
+					value: layer.color || '#FF0000'
+				});
+			} else {
+				color = selected.detail;
+			}
+
+			if (!color) {
+				return;
+			}
+
+			try {
+				await layerTreeProvider.updateLayerColor(layer.id, color);
+			} catch (error) {
+				showOperationError('change layer color', error);
+			}
+		})
+	);
+
 	// Register command to remove an overlay layer
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscodeMaplibreViewer.removeLayer', async (layer: OverlayLayer) => {
