@@ -38,27 +38,35 @@ export function loadCustomCoordinatePatterns(): void {
     }
 }
 
+/** Maps command IDs to language codes */
+const LANGUAGE_COMMANDS: Record<string, string> = {
+    'vscodeMaplibreViewer.setLanguageNative': 'native',
+    'vscodeMaplibreViewer.setLanguageEnglish': 'en',
+    'vscodeMaplibreViewer.setLanguageGerman': 'de',
+    'vscodeMaplibreViewer.setLanguageFrench': 'fr',
+    'vscodeMaplibreViewer.setLanguageSpanish': 'es',
+    'vscodeMaplibreViewer.setLanguageRussian': 'ru',
+    'vscodeMaplibreViewer.setLanguageChinese': 'zh-Hans',
+    'vscodeMaplibreViewer.setLanguageJapanese': 'ja',
+    'vscodeMaplibreViewer.setLanguageKorean': 'ko',
+    'vscodeMaplibreViewer.setLanguageItalian': 'it',
+    'vscodeMaplibreViewer.setLanguagePortuguese': 'pt',
+    'vscodeMaplibreViewer.setLanguageArabic': 'ar',
+    'vscodeMaplibreViewer.setLanguageHindi': 'hi',
+    'vscodeMaplibreViewer.setLanguageDutch': 'nl'
+};
+
 /**
  * Registers language change commands
  */
 export function registerLanguageCommands(context: vscode.ExtensionContext, providerManager: ProviderManager): void {
-    // Register specific language commands
-    const languageCommands: [string, string][] = [
-        ['vscodeMaplibreViewer.setLanguageNative', 'native'],
-        ['vscodeMaplibreViewer.setLanguageEnglish', 'en'],
-        ['vscodeMaplibreViewer.setLanguageGerman', 'de'],
-        ['vscodeMaplibreViewer.setLanguageFrench', 'fr'],
-        ['vscodeMaplibreViewer.setLanguageSpanish', 'es'],
-        ['vscodeMaplibreViewer.setLanguageRussian', 'ru']
-    ];
-
-    languageCommands.forEach(([commandId, languageCode]) => {
+    for (const [commandId, languageCode] of Object.entries(LANGUAGE_COMMANDS)) {
         context.subscriptions.push(
             vscode.commands.registerCommand(commandId, () => {
                 providerManager.setMapLanguage(languageCode);
             })
         );
-    });
+    }
 
     // Register generic language selection command
     context.subscriptions.push(

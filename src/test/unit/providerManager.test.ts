@@ -12,10 +12,10 @@ class MockMapWebviewController {
     public shouldThrow: boolean = false;
 
     flyToBookmark(bookmark: MapBookmark): void {
+        this.flyToBookmarkCalls.push({ bookmark });
         if (this.shouldThrow) {
             throw new Error('Mock provider error');
         }
-        this.flyToBookmarkCalls.push({ bookmark });
     }
 
     clearCalls(): void {
@@ -202,34 +202,30 @@ suite('ProviderManager flyToBookmark Tests', () => {
             providerManager.register(mockProvider3 as any);
             const bookmark = createTestBookmark();
 
-            // Act
-            // Note: The current implementation does NOT catch errors, so this will throw.
-            // This test documents the current behavior.
-            // If we want resilience, we would need to modify ProviderManager.
-            try {
+            // Act - should NOT throw because the implementation now catches errors
+            assert.doesNotThrow(() => {
                 providerManager.flyToBookmark(bookmark);
-            } catch (e) {
-                // Expected to throw from mockProvider2
-            }
+            });
 
-            // Assert - Provider 1 should still have been called before the throw
-            // Provider 3 may or may not be called depending on order
-            assert.ok(
-                mockProvider1.flyToBookmarkCalls.length >= 1,
-                'Provider 1 should have been called'
-            );
+            // Assert - All providers should have been called
+            assert.strictEqual(mockProvider1.flyToBookmarkCalls.length, 1, 'Provider 1 should have been called');
+            assert.strictEqual(mockProvider2.flyToBookmarkCalls.length, 1, 'Provider 2 should have been called');
+            assert.strictEqual(mockProvider3.flyToBookmarkCalls.length, 1, 'Provider 3 should have been called');
         });
 
-        test('should throw when provider throws', () => {
+        test('should not throw when a provider throws', () => {
             // Arrange
             mockProvider1.shouldThrow = true;
             providerManager.register(mockProvider1 as any);
             const bookmark = createTestBookmark();
 
-            // Act & Assert
-            assert.throws(() => {
+            // Act & Assert - should NOT throw since errors are caught
+            assert.doesNotThrow(() => {
                 providerManager.flyToBookmark(bookmark);
-            }, /Mock provider error/);
+            });
+
+            // The throwing provider should still have been called
+            assert.strictEqual(mockProvider1.flyToBookmarkCalls.length, 1);
         });
     });
 

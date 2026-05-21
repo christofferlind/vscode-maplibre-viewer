@@ -6,14 +6,11 @@ import { MapConfig, StoredViewState } from './mapWebviewTypes';
 
 /**
  * Generates a random nonce for Content Security Policy
+ * Uses cryptographically secure random values.
  */
 export function getNonce(): string {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
+    const crypto = require('crypto');
+    return crypto.randomBytes(16).toString('base64');
 }
 
 /**
@@ -22,7 +19,7 @@ export function getNonce(): string {
 export function getMapConfiguration(): MapConfig {
     const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
     const lastViewState = config.get<StoredViewState>('lastViewState');
-    
+
     return {
         geocodingApiKey: config.get<string>('geocodingApiKey') || '',
         photonSearchUrl: config.get<string>('photonSearchUrl') || 'https://photon.komoot.io/api/',
@@ -56,7 +53,7 @@ export async function saveViewStateToSettings(viewState: ViewState, currentBaseM
         pitch: viewState.pitch || 0,
         baseMapId: currentBaseMapId
     };
-    
+
     try {
         await config.update('lastViewState', stateToStore, vscode.ConfigurationTarget.Global);
     } catch (error) {
@@ -72,6 +69,69 @@ export function getWebviewUri(extensionUri: vscode.Uri, webview: vscode.Webview,
     return webview.asWebviewUri(fileUri);
 }
 
+interface TemplateContext {
+    webview: vscode.Webview;
+    config: MapConfig;
+    styleUrl: string;
+    nonce: string;
+    viewType: string;
+    maplibreJsUri: vscode.Uri;
+    maplibreCssUri: vscode.Uri;
+    workerBase64: string;
+    mapUtilsJsUri: vscode.Uri;
+    mapCoreJsUri: vscode.Uri;
+    mapOverlaysJsUri: vscode.Uri;
+    mapNavigationJsUri: vscode.Uri;
+    mapSearchJsUri: vscode.Uri;
+    mainJsUri: vscode.Uri;
+    testApiJsUri: vscode.Uri;
+    mainCssUri: vscode.Uri;
+}
+
+type PlaceholderResolver = (ctx: TemplateContext) => string;
+
+/**
+ * Template placeholder replacement map.
+ * Each resolver receives the shared context object.
+ */
+const HTML_PLACEHOLDERS: Record<string, PlaceholderResolver> = {
+    cspSource: (ctx) => ctx.webview.cspSource,
+    nonce: (ctx) => ctx.nonce,
+    mapStyleUrl: (ctx) => ctx.styleUrl,
+    geocodingApiKey: (ctx) => ctx.config.geocodingApiKey,
+    photonSearchUrl: (ctx) => ctx.config.photonSearchUrl,
+    enableSearch: (ctx) => String(ctx.config.enableSearch),
+    searchResultsTransparency: (ctx) => String(ctx.config.searchResultsTransparency),
+    flyToDuration: (ctx) => String(ctx.config.flyToDuration),
+    maplibreJsUri: (ctx) => ctx.maplibreJsUri.toString(),
+    maplibreCssUri: (ctx) => ctx.maplibreCssUri.toString(),
+    maplibreWorkerBase64: (ctx) => ctx.workerBase64,
+    mapUtilsJsUri: (ctx) => ctx.mapUtilsJsUri.toString(),
+    mapCoreJsUri: (ctx) => ctx.mapCoreJsUri.toString(),
+    mapOverlaysJsUri: (ctx) => ctx.mapOverlaysJsUri.toString(),
+    mapNavigationJsUri: (ctx) => ctx.mapNavigationJsUri.toString(),
+    mapSearchJsUri: (ctx) => ctx.mapSearchJsUri.toString(),
+    mainJsUri: (ctx) => ctx.mainJsUri.toString(),
+    testApiJsUri: (ctx) => ctx.testApiJsUri.toString(),
+    mainCssUri: (ctx) => ctx.mainCssUri.toString(),
+    viewType: (ctx) => ctx.viewType,
+};
+
+/**
+ * Single-pass template replacement engine for webview HTML.
+ * Prevents O(n*m) complexity from sequential .replace() calls.
+ */
+function renderTemplate(html: string, context: TemplateContext): string {
+    const pattern = /\$\{(\w+)\}/g;
+    return html.replace(pattern, (match, key) => {
+        const resolver = HTML_PLACEHOLDERS[key];
+        if (resolver) {
+            return resolver(context);
+        }
+        return match;
+    });
+}
+
 /**
  * Generates HTML for the webview from template
  */
@@ -85,11 +145,8 @@ export function generateWebviewHtml(
     const nonce = getNonce();
     const styleUrl = currentBaseMapStyleUrl || 'https://demotiles.maplibre.org/style.json';
 
-    // Get webview URIs for local MapLibre assets
     const maplibreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.js');
     const maplibreCssUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
-
-    // Get webview URIs for modular JS files
     const mapUtilsJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-utils.js');
     const mapCoreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-core.js');
     const mapOverlaysJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-overlays.js');
@@ -97,30 +154,37 @@ export function generateWebviewHtml(
     const mapSearchJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-search.js');
     const mainJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'main.js');
     const testApiJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'test-api.js');
-
-    // Get webview URI for CSS file
     const mainCssUri = getWebviewUri(extensionUri, webview, 'resources', 'styles', 'main.css');
 
-    // Read the worker script and encode it as base64 for inline Blob URL
     const workerPath = path.join(extensionUri.fsPath, 'resources', 'maplibre-gl', 'maplibre-gl-worker.js');
     const workerContent = fs.readFileSync(workerPath, 'utf8');
     const workerBase64 = Buffer.from(workerContent).toString('base64');
 
-    // Read the HTML template from the resources folder
     const htmlPath = path.join(extensionUri.fsPath, 'resources', 'map-view.html');
     let htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
-    // Replace the placeholders with actual values
-    htmlContent = htmlContent.replace(/\$\{cspSource\}/g, webview.cspSource);
-    htmlContent = htmlContent.replace(/\$\{nonce\}/g, nonce);
-    htmlContent = htmlContent.replace(/\$\{mapStyleUrl\}/g, styleUrl);
-    htmlContent = htmlContent.replace(/\$\{geocodingApiKey\}/g, config.geocodingApiKey);
-    htmlContent = htmlContent.replace(/\$\{photonSearchUrl\}/g, config.photonSearchUrl);
-    htmlContent = htmlContent.replace(/\$\{enableSearch\}/g, String(config.enableSearch));
-    htmlContent = htmlContent.replace(/\$\{searchResultsTransparency\}/g, String(config.searchResultsTransparency));
-    htmlContent = htmlContent.replace(/\$\{flyToDuration\}/g, String(config.flyToDuration));
-    
-    // Replace initial view state placeholder
+    const context: TemplateContext = {
+        webview,
+        config,
+        styleUrl,
+        nonce,
+        viewType: viewType || 'mapsView',
+        maplibreJsUri,
+        maplibreCssUri,
+        workerBase64,
+        mapUtilsJsUri,
+        mapCoreJsUri,
+        mapOverlaysJsUri,
+        mapNavigationJsUri,
+        mapSearchJsUri,
+        mainJsUri,
+        testApiJsUri,
+        mainCssUri,
+    };
+
+    htmlContent = renderTemplate(htmlContent, context);
+
+    // Handle the special initialViewState replacement (not a simple placeholder)
     const initialViewStateJson = config.initialViewState
         ? JSON.stringify(config.initialViewState)
         : 'null';
@@ -128,26 +192,6 @@ export function generateWebviewHtml(
         /initialViewState: null/g,
         `initialViewState: ${initialViewStateJson}`
     );
-    
-    // Replace MapLibre asset URIs
-    htmlContent = htmlContent.replace(/\$\{maplibreJsUri\}/g, maplibreJsUri.toString());
-    htmlContent = htmlContent.replace(/\$\{maplibreCssUri\}/g, maplibreCssUri.toString());
-    htmlContent = htmlContent.replace(/\$\{maplibreWorkerBase64\}/g, workerBase64);
-
-    // Replace modular JS file URIs
-    htmlContent = htmlContent.replace(/\$\{mapUtilsJsUri\}/g, mapUtilsJsUri.toString());
-    htmlContent = htmlContent.replace(/\$\{mapCoreJsUri\}/g, mapCoreJsUri.toString());
-    htmlContent = htmlContent.replace(/\$\{mapOverlaysJsUri\}/g, mapOverlaysJsUri.toString());
-    htmlContent = htmlContent.replace(/\$\{mapNavigationJsUri\}/g, mapNavigationJsUri.toString());
-    htmlContent = htmlContent.replace(/\$\{mapSearchJsUri\}/g, mapSearchJsUri.toString());
-    htmlContent = htmlContent.replace(/\$\{mainJsUri\}/g, mainJsUri.toString());
-    htmlContent = htmlContent.replace(/\$\{testApiJsUri\}/g, testApiJsUri.toString());
-
-    // Replace CSS URI
-    htmlContent = htmlContent.replace(/\$\{mainCssUri\}/g, mainCssUri.toString());
-
-    // Replace view type identifier
-    htmlContent = htmlContent.replace(/\$\{viewType\}/g, viewType || 'mapsView');
 
     return htmlContent;
 }
@@ -158,7 +202,7 @@ export function generateWebviewHtml(
 export function parseViewStateFromMessage(message: unknown): ViewState | undefined {
     const msg = message as Record<string, unknown>;
     const viewState = msg.viewState as Record<string, unknown> | undefined;
-    
+
     if (viewState && viewState.center) {
         const center = viewState.center as Record<string, number>;
         return {

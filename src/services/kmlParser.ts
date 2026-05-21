@@ -282,12 +282,16 @@ function convertGeometry(kmlGeom: KmlGeometry): object | undefined {
 /**
  * Decodes common XML entities in a string.
  */
+/**
+ * Decodes common XML entities in a string.
+ * Handles the five predefined XML entities and numeric character references.
+ */
 function decodeXmlEntities(text: string): string {
     return text
-        .replace(/&/g, '&')
-        .replace(/</g, '<')
-        .replace(/>/g, '>')
-        .replace(/"/g, '"')
-        .replace(/'/g, "'")
-        .replace(/'/g, "'");
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&#(\d+);/g, (_match, dec) => String.fromCharCode(parseInt(dec, 10)));
 }

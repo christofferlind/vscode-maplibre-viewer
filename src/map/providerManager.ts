@@ -47,9 +47,13 @@ export class ProviderManager {
         ...args: Parameters<MapWebviewController[K]>
     ): void {
         this.providers.forEach(provider => {
-            const fn = provider[method];
-            if (typeof fn === 'function') {
-                (fn as (...args: unknown[]) => void).call(provider, ...args);
+            try {
+                const fn = provider[method];
+                if (typeof fn === 'function') {
+                    (fn as (...args: unknown[]) => void).call(provider, ...args);
+                }
+            } catch (error) {
+                console.error(`ProviderManager.broadcast error calling ${String(method)}:`, error);
             }
         });
     }

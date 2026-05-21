@@ -3,7 +3,30 @@
  * Handles geocoding search functionality
  */
 
-import { debounce } from './utils/debounce.js';
+// Minimal debounce utility inlined for classic-script compatibility
+function debounce(func, wait) {
+	var timeoutId;
+
+	function debounced() {
+		var args = arguments;
+		if (timeoutId !== undefined) {
+			clearTimeout(timeoutId);
+		}
+		timeoutId = setTimeout(function() {
+			func.apply(null, args);
+			timeoutId = undefined;
+		}, wait);
+	}
+
+	debounced.cancel = function() {
+		if (timeoutId !== undefined) {
+			clearTimeout(timeoutId);
+			timeoutId = undefined;
+		}
+	};
+
+	return debounced;
+}
 
 // Search state
 var searchResults = [];

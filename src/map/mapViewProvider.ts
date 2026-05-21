@@ -44,13 +44,6 @@ export class MapViewProvider extends MapWebviewController implements vscode.Webv
         webviewView.webview.options = this.getWebviewOptions();
         webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
 
-        // Handle messages from the webview
-        webviewView.webview.onDidReceiveMessage(
-            (message: unknown) => {
-                this.handleWebviewMessage(message);
-            },
-            undefined,
-            []
-        );
+        this.setupMessageListener(webviewView.webview);
     }
 }

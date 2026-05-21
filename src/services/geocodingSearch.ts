@@ -139,6 +139,20 @@ function parsePhotonResults(
 }
 
 /**
+ * Fetches with a configurable timeout to prevent hanging requests.
+ */
+async function fetchWithTimeout(url: string, timeoutMs = 10000): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        return response;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+/**
  * Performs a geocoding search and returns QuickPick items
  * @param query The search query
  * @param geocodingApiKey Optional MapTiler API key
@@ -147,49 +161,40 @@ function parsePhotonResults(
  * @returns Promise resolving to array of QuickPick items
  */
 export async function performGeocodingSearch(
-	query: string,
-	geocodingApiKey: string | undefined,
-	photonSearchUrl: string,
-	searchResultsMap: Map<string, SearchResultData>
+    query: string,
+    geocodingApiKey: string | undefined,
+    photonSearchUrl: string,
+    searchResultsMap: Map<string, SearchResultData>
 ): Promise<vscode.QuickPickItem[]> {
-	if (query.trim().length < 2) {
-		return [];
-	}
+    if (query.trim().length < 2) {
+        return [];
+    }
 
-	try {
-		// Build API URL
-		let apiUrl: string;
-		if (geocodingApiKey && geocodingApiKey.length > 0) {
-			apiUrl = `https://api.maptiler.com/geocoding/search.json?query=${encodeURIComponent(query)}&key=${geocodingApiKey}`;
-		} else {
-			apiUrl = `${photonSearchUrl}?q=${encodeURIComponent(query)}`;
-		}
+    // Build API URL
+    let apiUrl: string;
+    if (geocodingApiKey && geocodingApiKey.length > 0) {
+        apiUrl = `https://api.maptiler.com/geocoding/search.json?query=${encodeURIComponent(query)}&key=${geocodingApiKey}`;
+    } else {
+        apiUrl = `${photonSearchUrl}?q=${encodeURIComponent(query)}`;
+    }
 
-		// Fetch results
-		const response = await fetch(apiUrl);
-		if (!response.ok) {
-			throw new Error(`Geocoding API error: ${response.status}`);
-		}
+    // Fetch results with timeout
+    const response = await fetchWithTimeout(apiUrl, 10000);
+    if (!response.ok) {
+        throw new Error(`Geocoding API error: ${response.status}`);
+    }
 
-		const data = await response.json() as GeocodingResponse;
+    const data = await response.json() as GeocodingResponse;
 
-		// Clear previous results
-		searchResultsMap.clear();
+    // Clear previous results
+    searchResultsMap.clear();
 
-		// Parse results based on API type
-		if (geocodingApiKey && geocodingApiKey.length > 0) {
-			return parseMapTilerResults(data.features as MapTilerFeature[], searchResultsMap);
-		} else {
-			return parsePhotonResults(data.features as PhotonFeature[], searchResultsMap);
-		}
-	} catch (error) {
-		console.error('Geocoding search failed:', error);
-		return [{
-			label: 'Search failed. Please try again.',
-			description: '',
-			detail: ''
-		}];
-	}
+    // Parse results based on API type
+    if (geocodingApiKey && geocodingApiKey.length > 0) {
+        return parseMapTilerResults(data.features as MapTilerFeature[], searchResultsMap);
+    } else {
+        return parsePhotonResults(data.features as PhotonFeature[], searchResultsMap);
+    }
 }
 
 /**

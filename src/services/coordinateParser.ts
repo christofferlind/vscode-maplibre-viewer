@@ -223,22 +223,21 @@ export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordina
 
 /**
  * Removes duplicate coordinates (within a small tolerance).
+ * Uses a Set for O(n) deduplication.
  */
 function deduplicateCoordinates(coordinates: Coordinate[]): Coordinate[] {
-    const unique: Coordinate[] = [];
     const tolerance = 0.000001;
-    
+    const seen = new Set<string>();
+    const unique: Coordinate[] = [];
+
     for (const coord of coordinates) {
-        const isDuplicate = unique.some(existing => 
-            Math.abs(existing.latitude - coord.latitude) < tolerance &&
-            Math.abs(existing.longitude - coord.longitude) < tolerance
-        );
-        
-        if (!isDuplicate) {
+        const key = `${Math.round(coord.latitude / tolerance)},${Math.round(coord.longitude / tolerance)}`;
+        if (!seen.has(key)) {
+            seen.add(key);
             unique.push(coord);
         }
     }
-    
+
     return unique;
 }
 

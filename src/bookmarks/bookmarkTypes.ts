@@ -1,16 +1,14 @@
 import * as vscode from 'vscode';
-import type { Coordinate } from '../services/coordinateParser';
 
 /**
- * Represents map coordinates with latitude and longitude
- * Re-exported from coordinateParser for unified type definition
+ * Re-export Coordinate type alias for use in this module
  */
 export type { Coordinate as Coordinates } from '../services/coordinateParser';
 
 /**
- * Type alias for use within this file - references Coordinate from coordinateParser
+ * Local alias for internal use
  */
-type Coordinates = Coordinate;
+type Coordinates = import('../services/coordinateParser').Coordinate;
 
 /**
  * Represents a saved map view bookmark

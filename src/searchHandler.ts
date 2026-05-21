@@ -37,10 +37,17 @@ export async function handleSearchOnMap(
     const searchResultsMap = new Map<string, SearchResultData>();
 
     // Create debounced search function
-    const debouncedSearch = debounce(async (value: string) => {
+    const debouncedSearch = debounce(async (value: unknown) => {
+        const query = value as string;
         quickPick.busy = true;
-        quickPick.items = await performGeocodingSearch(value, geocodingApiKey, photonSearchUrl, searchResultsMap);
-        quickPick.busy = false;
+        try {
+            quickPick.items = await performGeocodingSearch(query, geocodingApiKey, photonSearchUrl, searchResultsMap);
+        } catch {
+            quickPick.items = [];
+            vscode.window.showErrorMessage('Search failed. Please try again.');
+        } finally {
+            quickPick.busy = false;
+        }
     }, 300);
 
     // Handle input changes with debounce
@@ -83,9 +90,13 @@ export async function handleSearchOnMap(
     // Initial search if there's selected text
     if (selectedText.length >= 2) {
         quickPick.busy = true;
-        const items = await performGeocodingSearch(selectedText, geocodingApiKey, photonSearchUrl, searchResultsMap);
-        quickPick.items = items;
-        quickPick.busy = false;
+        try {
+            quickPick.items = await performGeocodingSearch(selectedText, geocodingApiKey, photonSearchUrl, searchResultsMap);
+        } catch {
+            quickPick.items = [];
+        } finally {
+            quickPick.busy = false;
+        }
     }
 
     // Handle selection

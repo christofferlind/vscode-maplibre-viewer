@@ -1,5 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { BookmarkManager } from './bookmarks/bookmarkManager';
 import { BookmarkTreeProvider } from './bookmarks/bookmarkTreeProvider';
@@ -20,478 +18,407 @@ import { getConfig, onConfigurationChanged } from './services/configService';
 import { debounce } from './services/debounce';
 import { calculateBoundingBoxFromGeoJson } from './services/coordinateParser';
 
-/**
- * Creates the public API object
- */
-function createAPI(
-	layerTreeProvider: LayerTreeProvider,
-	onDidChangeActiveBasemapEmitter: vscode.EventEmitter<BaseMapStyle>,
-	fileToGeoJsonAdapters: FileToGeoJsonAdapter[]
-): MapLibreViewerAPI {
-	return {
-		registerBasemap: (provider: BasemapProvider) => {
-			// Convert BasemapProvider to BaseMapStyle
-			const basemap: BaseMapStyle = {
-				id: provider.id,
-				name: provider.name,
-				styleUrl: provider.styleUrl,
-				type: provider.type,
-				tileUrl: provider.tileUrl,
-				tileSize: provider.tileSize,
-				attribution: provider.attribution,
-				minzoom: provider.minzoom,
-				maxzoom: provider.maxzoom,
-				description: provider.description
-			};
-			return layerTreeProvider.registerBasemap(basemap);
-		},
-		getBasemaps: () => layerTreeProvider.getBasemaps(),
-		getActiveBasemap: () => layerTreeProvider.getActiveBaseMap(),
-		onDidChangeActiveBasemap: onDidChangeActiveBasemapEmitter.event,
-		registerFileToGeoJsonAdapter: (adapter: FileToGeoJsonAdapter) => {
-			fileToGeoJsonAdapters.push(adapter);
-			return new vscode.Disposable(() => {
-				const index = fileToGeoJsonAdapters.indexOf(adapter);
-				if (index !== -1) {
-					fileToGeoJsonAdapters.splice(index, 1);
-				}
-			});
-		},
-		getFileToGeoJsonAdapters: () => [...fileToGeoJsonAdapters]
-	};
-}
-
-// Module-level variables to preserve view state on deactivation
 let mapsViewProvider: MapViewProvider;
 let mapEditorProvider: MapEditorProvider;
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+/**
+ * Activates the extension.
+ */
 export async function activate(context: vscode.ExtensionContext): Promise<MapLibreViewerAPI> {
+    console.log('Congratulations, your extension "vscode-maplibre-viewer" is now active!');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "vscode-maplibre-viewer" is now active!');
+    loadCustomCoordinatePatterns();
 
-	// Load custom coordinate patterns from settings
-	loadCustomCoordinatePatterns();
+    const coordinateSelectionEnabled = getCoordinateSelectionState(context);
+    await vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', coordinateSelectionEnabled);
 
-	// Initialize coordinate selection state from globalState (default: true)
-	// MUST be set BEFORE registering the webview view provider
-	const coordinateSelectionEnabled = getCoordinateSelectionState(context);
-	
-	// Set the context variable for the toolbar icon
-	vscode.commands.executeCommand('setContext', 'maplibreView.coordinateSelectionEnabled', coordinateSelectionEnabled);
+    const bookmarkManager = new BookmarkManager(context.globalState);
+    const bookmarkTreeProvider = new BookmarkTreeProvider(bookmarkManager);
+    bookmarkTreeProvider.registerCommands(context);
 
-	// Initialize BookmarkManager with globalState for persistence
-	const bookmarkManager = new BookmarkManager(context.globalState);
+    context.subscriptions.push(
+        vscode.window.registerTreeDataProvider('bookmarksView', bookmarkTreeProvider)
+    );
 
-	// Initialize and register the Bookmark Tree Provider
-	const bookmarkTreeProvider = new BookmarkTreeProvider(bookmarkManager);
+    const layerTreeProvider = new LayerTreeProvider(context);
 
-	// Register bookmark tree provider commands (rename, etc.)
-	bookmarkTreeProvider.registerCommands(context);
+    const savedViewState = getConfig().get<StoredViewState>('lastViewState');
+    if (savedViewState?.baseMapId) {
+        try {
+            await layerTreeProvider.setActiveBaseMap(savedViewState.baseMapId);
+        } catch {
+            console.log('Saved base map not found, using default');
+        }
+    }
 
-	context.subscriptions.push(
-		vscode.window.registerTreeDataProvider('bookmarksView', bookmarkTreeProvider)
-	);
+    const initialBaseMap = layerTreeProvider.getActiveBaseMap();
+    mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider('mapsView', mapsViewProvider)
+    );
 
-	// Initialize and register the Layer Tree Provider
-	const layerTreeProvider = new LayerTreeProvider(context);
+    mapEditorProvider = new MapEditorProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
 
-	// Check if there's a saved baseMapId in settings and apply it
-	const savedViewState = getConfig().get<StoredViewState>('lastViewState');
-	if (savedViewState?.baseMapId) {
-		// Try to set the saved base map (will fall back if not found)
-		try {
-			await layerTreeProvider.setActiveBaseMap(savedViewState.baseMapId);
-		} catch {
-			// Base map not found, will use default
-			console.log('Saved base map not found, using default');
-		}
-	}
+    const providerManager = new ProviderManager();
+    providerManager.register(mapsViewProvider);
+    providerManager.register(mapEditorProvider);
 
-	// Register the Maps webview provider with the initial active basemap
-	const initialBaseMap = layerTreeProvider.getActiveBaseMap();
-	mapsViewProvider = new MapViewProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
+    const layersTreeView = vscode.window.createTreeView('layersView', {
+        treeDataProvider: layerTreeProvider,
+        dragAndDropController: layerTreeProvider,
+        showCollapseAll: true
+    });
+    context.subscriptions.push(layersTreeView);
 
-	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider('mapsView', mapsViewProvider)
-	);
+    const sendVisibleOverlayLayers = () => {
+        providerManager.updateOverlayLayers(layerTreeProvider.getVisibleOverlayLayers());
+    };
 
-	mapEditorProvider = new MapEditorProvider(context.extensionUri, bookmarkManager, initialBaseMap?.styleUrl, initialBaseMap?.id);
+    mapsViewProvider.onMapReady(sendVisibleOverlayLayers);
+    mapEditorProvider.onMapReady(sendVisibleOverlayLayers);
 
-	// Create the ProviderManager and register both providers
-	const providerManager = new ProviderManager();
-	providerManager.register(mapsViewProvider);
-	providerManager.register(mapEditorProvider);
+    layerTreeProvider.onDidChangeLayers((event) => {
+        if (event.type === 'baseMap') {
+            providerManager.setBaseMap(event.data as BaseMapStyle);
+        } else if (event.type === 'overlay') {
+            sendVisibleOverlayLayers();
+        }
+    });
 
-	// Register the layers tree view with drag-and-drop support
-	// Note: We use createTreeView instead of registerTreeDataProvider to enable drag-and-drop
-	const layersTreeView = vscode.window.createTreeView('layersView', {
-		treeDataProvider: layerTreeProvider,
-		dragAndDropController: layerTreeProvider,
-		showCollapseAll: true
-	});
-	context.subscriptions.push(layersTreeView);
+    layerTreeProvider.onDidAddLayerViaDragDrop((event) => {
+        if (event.bbox) {
+            providerManager.fitBoundsOnly(event.bbox);
+        }
+    });
 
-	// Function to send current visible overlay layers to webview providers
-	const sendVisibleOverlayLayers = () => {
-		const visibleLayers = layerTreeProvider.getVisibleOverlayLayers();
-		providerManager.updateOverlayLayers(visibleLayers);
-	};
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.setBaseMap', async (baseMap: BaseMapStyle) => {
+            try {
+                await layerTreeProvider.setActiveBaseMap(baseMap.id);
+            } catch (error) {
+                showOperationError('set base map', error);
+            }
+        })
+    );
 
-	// Register callbacks for when webviews' maps are ready
-	mapsViewProvider.onMapReady(sendVisibleOverlayLayers);
-	mapEditorProvider.onMapReady(sendVisibleOverlayLayers);
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.toggleLayer', async (layer: OverlayLayer) => {
+            try {
+                await layerTreeProvider.toggleLayerVisibility(layer.id);
+            } catch (error) {
+                showOperationError('toggle layer', error);
+            }
+        })
+    );
 
-	// Listen for layer changes and update the webview
-	layerTreeProvider.onDidChangeLayers((event) => {
-		if (event.type === 'baseMap') {
-			providerManager.setBaseMap(event.data as BaseMapStyle);
-		} else if (event.type === 'overlay') {
-			const visibleLayers = layerTreeProvider.getVisibleOverlayLayers();
-			providerManager.updateOverlayLayers(visibleLayers);
-		}
-	});
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.addLayer', async () => {
+            const layerType = await vscode.window.showQuickPick(
+                ['GeoJSON URL', 'Vector Tiles URL'],
+                { placeHolder: 'Select layer type' }
+            );
 
-	// Listen for layers added via drag-and-drop and zoom the map to fit
-	layerTreeProvider.onDidAddLayerViaDragDrop((event) => {
-		if (event.bbox) {
-			providerManager.fitBoundsOnly(event.bbox);
-		}
-	});
+            if (!layerType) {
+                return;
+            }
 
-	// Register command to set active base map
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.setBaseMap', async (baseMap: BaseMapStyle) => {
-			try {
-				await layerTreeProvider.setActiveBaseMap(baseMap.id);
-			} catch (error) {
-				showOperationError('set base map', error);
-			}
-		})
-	);
+            const name = await vscode.window.showInputBox({
+                prompt: 'Enter a name for this layer',
+                placeHolder: 'e.g., My Points of Interest'
+            });
 
-	// Register command to toggle layer visibility
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.toggleLayer', async (layer: OverlayLayer) => {
-			try {
-				await layerTreeProvider.toggleLayerVisibility(layer.id);
-			} catch (error) {
-				showOperationError('toggle layer', error);
-			}
-		})
-	);
+            if (!name) {
+                return;
+            }
 
-	// Register command to add a new overlay layer
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.addLayer', async () => {
-			const layerType = await vscode.window.showQuickPick(
-				['GeoJSON URL', 'Vector Tiles URL'],
-				{ placeHolder: 'Select layer type' }
-			);
+            const url = await vscode.window.showInputBox({
+                prompt: 'Enter the URL for this layer',
+                placeHolder: layerType === 'GeoJSON URL'
+                    ? 'https://example.com/data.geojson'
+                    : 'https://example.com/tiles/{z}/{x}/{y}.pbf'
+            });
 
-			if (!layerType) {
-				return;
-			}
+            if (!url) {
+                return;
+            }
 
-			const name = await vscode.window.showInputBox({
-				prompt: 'Enter a name for this layer',
-				placeHolder: 'e.g., My Points of Interest'
-			});
+            const newLayer: OverlayLayer = {
+                id: `layer-${Date.now()}`,
+                name,
+                type: layerType === 'GeoJSON URL' ? 'geojson' : 'vector',
+                source: {
+                    type: layerType === 'GeoJSON URL' ? 'geojson' : 'vector',
+                    data: layerType === 'GeoJSON URL' ? url : undefined,
+                    url: layerType === 'Vector Tiles URL' ? url : undefined
+                },
+                visible: true
+            };
 
-			if (!name) {
-				return;
-			}
+            try {
+                await layerTreeProvider.addOverlayLayer(newLayer);
+            } catch (error) {
+                showOperationError('add layer', error);
+            }
+        })
+    );
 
-			const url = await vscode.window.showInputBox({
-				prompt: 'Enter the URL for this layer',
-				placeHolder: layerType === 'GeoJSON URL'
-					? 'https://example.com/data.geojson'
-					: 'https://example.com/tiles/{z}/{x}/{y}.pbf'
-			});
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.changeLayerColor', async (layer: OverlayLayer) => {
+            const colorPickers: vscode.QuickPickItem[] = [
+                { label: '$(circle-filled) Red', detail: '#FF0000' },
+                { label: '$(circle-filled) Blue', detail: '#0000FF' },
+                { label: '$(circle-filled) Green', detail: '#00FF00' },
+                { label: '$(circle-filled) Yellow', detail: '#FFFF00' },
+                { label: '$(circle-filled) Orange', detail: '#FFA500' },
+                { label: '$(circle-filled) Purple', detail: '#800080' },
+                { label: '$(circle-filled) Cyan', detail: '#00FFFF' },
+                { label: '$(circle-filled) Magenta', detail: '#FF00FF' },
+                { label: '$(circle-filled) Black', detail: '#000000' },
+                { label: '$(circle-filled) White', detail: '#FFFFFF' },
+                { label: '$(color-mode) Custom...', detail: 'custom' }
+            ];
 
-			if (!url) {
-				return;
-			}
+            const selected = await vscode.window.showQuickPick(colorPickers, {
+                placeHolder: `Select color for "${layer.name}"`,
+                title: 'Layer Color'
+            });
 
-			const newLayer: OverlayLayer = {
-				id: `layer-${Date.now()}`,
-				name,
-				type: layerType === 'GeoJSON URL' ? 'geojson' : 'vector',
-				source: {
-					type: layerType === 'GeoJSON URL' ? 'geojson' : 'vector',
-					data: layerType === 'GeoJSON URL' ? url : undefined,
-					url: layerType === 'Vector Tiles URL' ? url : undefined
-				},
-				visible: true
-			};
+            if (!selected) {
+                return;
+            }
 
-			try {
-				await layerTreeProvider.addOverlayLayer(newLayer);
-			} catch (error) {
-				showOperationError('add layer', error);
-			}
-		})
-	);
+            let color: string | undefined;
+            if (selected.detail === 'custom') {
+                color = await vscode.window.showInputBox({
+                    prompt: 'Enter color value (hex, rgb, or color name)',
+                    placeHolder: '#FF0000',
+                    value: layer.color || '#FF0000'
+                });
+            } else {
+                color = selected.detail;
+            }
 
-	// Register command to change layer color
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.changeLayerColor', async (layer: OverlayLayer) => {
-			const colorPickers: vscode.QuickPickItem[] = [
-				{ label: '$(circle-filled) Red', detail: '#FF0000' },
-				{ label: '$(circle-filled) Blue', detail: '#0000FF' },
-				{ label: '$(circle-filled) Green', detail: '#00FF00' },
-				{ label: '$(circle-filled) Yellow', detail: '#FFFF00' },
-				{ label: '$(circle-filled) Orange', detail: '#FFA500' },
-				{ label: '$(circle-filled) Purple', detail: '#800080' },
-				{ label: '$(circle-filled) Cyan', detail: '#00FFFF' },
-				{ label: '$(circle-filled) Magenta', detail: '#FF00FF' },
-				{ label: '$(circle-filled) Black', detail: '#000000' },
-				{ label: '$(circle-filled) White', detail: '#FFFFFF' },
-				{ label: '$(color-mode) Custom...', detail: 'custom' }
-			];
+            if (!color) {
+                return;
+            }
 
-			const selected = await vscode.window.showQuickPick(colorPickers, {
-				placeHolder: `Select color for "${layer.name}"`,
-				title: 'Layer Color'
-			});
+            try {
+                await layerTreeProvider.updateLayerColor(layer.id, color);
+            } catch (error) {
+                showOperationError('change layer color', error);
+            }
+        })
+    );
 
-			if (!selected) {
-				return;
-			}
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.removeLayer', async (layer: OverlayLayer) => {
+            if (await confirmAction(`Are you sure you want to remove layer "${layer.name}"?`, 'Remove')) {
+                try {
+                    await layerTreeProvider.removeOverlayLayer(layer.id);
+                    vscode.window.showInformationMessage(`Layer "${layer.name}" removed`);
+                } catch (error) {
+                    showOperationError('remove layer', error);
+                }
+            }
+        })
+    );
 
-			let color: string | undefined;
-			if (selected.detail === 'custom') {
-				color = await vscode.window.showInputBox({
-					prompt: 'Enter color value (hex, rgb, or color name)',
-					placeHolder: '#FF0000',
-					value: layer.color || '#FF0000'
-				});
-			} else {
-				color = selected.detail;
-			}
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.showOverlayLayersOnMap', async (layer: OverlayLayer) => {
+            try {
+                const layers = layer ? [layer] : layerTreeProvider.getOverlayLayers();
+                const bboxes: Array<{ southwest: { latitude: number; longitude: number }; northeast: { latitude: number; longitude: number } }> = [];
 
-			if (!color) {
-				return;
-			}
+                for (const overlayLayer of layers) {
+                    if (overlayLayer.source?.data) {
+                        const bbox = calculateBoundingBoxFromGeoJson(overlayLayer.source.data);
+                        if (bbox) {
+                            bboxes.push({
+                                southwest: { latitude: bbox.southwest.latitude, longitude: bbox.southwest.longitude },
+                                northeast: { latitude: bbox.northeast.latitude, longitude: bbox.northeast.longitude }
+                            });
+                        }
+                    }
+                }
 
-			try {
-				await layerTreeProvider.updateLayerColor(layer.id, color);
-			} catch (error) {
-				showOperationError('change layer color', error);
-			}
-		})
-	);
+                if (bboxes.length === 0) {
+                    vscode.window.showWarningMessage('No valid coordinates found in the selected layer(s)');
+                    return;
+                }
 
-	// Register command to remove an overlay layer
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.removeLayer', async (layer: OverlayLayer) => {
-			if (await confirmAction(`Are you sure you want to remove layer "${layer.name}"?`, 'Remove')) {
-				try {
-					await layerTreeProvider.removeOverlayLayer(layer.id);
-					vscode.window.showInformationMessage(`Layer "${layer.name}" removed`);
-				} catch (error) {
-					showOperationError('remove layer', error);
-				}
-			}
-		})
-	);
+                if (bboxes.length === 1) {
+                    providerManager.fitBoundsOnly(bboxes[0]);
+                } else {
+                    const combinedBbox = {
+                        southwest: {
+                            latitude: Math.min(...bboxes.map(b => b.southwest.latitude)),
+                            longitude: Math.min(...bboxes.map(b => b.southwest.longitude))
+                        },
+                        northeast: {
+                            latitude: Math.max(...bboxes.map(b => b.northeast.latitude)),
+                            longitude: Math.max(...bboxes.map(b => b.northeast.longitude))
+                        }
+                    };
+                    providerManager.fitBoundsOnly(combinedBbox);
+                }
+            } catch (error) {
+                showOperationError('show overlay layers on map', error);
+            }
+        })
+    );
 
-	// Register command to show selected overlay layers on map
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.showOverlayLayersOnMap', async (layer: OverlayLayer) => {
-			try {
-				const layers = layer ? [layer] : layerTreeProvider.getOverlayLayers();
-				const bboxes: Array<{ southwest: { latitude: number; longitude: number }; northeast: { latitude: number; longitude: number } }> = [];
+    bookmarkManager.registerCommands(context, bookmarkTreeProvider, providerManager);
 
-				for (const overlayLayer of layers) {
-					if (overlayLayer.source?.data) {
-						const bbox = calculateBoundingBoxFromGeoJson(overlayLayer.source.data);
-						if (bbox) {
-							bboxes.push({
-								southwest: { latitude: bbox.southwest.latitude, longitude: bbox.southwest.longitude },
-								northeast: { latitude: bbox.northeast.latitude, longitude: bbox.northeast.longitude }
-							});
-						}
-					}
-				}
+    context.subscriptions.push(
+        onConfigurationChanged(() => {
+            providerManager.updateConfiguration();
+        })
+    );
 
-				if (bboxes.length === 0) {
-					vscode.window.showWarningMessage('No valid coordinates found in the selected layer(s)');
-					return;
-				}
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            if (e.affectsConfiguration('vscodeMaplibreViewer.baseMaps')) {
+                layerTreeProvider.rebuildBaseMaps();
+            }
+            if (e.affectsConfiguration('vscodeMaplibreViewer.coordinatePatterns')) {
+                loadCustomCoordinatePatterns();
+                vscode.window.showInformationMessage('Custom coordinate patterns reloaded.');
+            }
+        })
+    );
 
-				if (bboxes.length === 1) {
-					providerManager.fitBoundsOnly(bboxes[0]);
-				} else {
-					const combinedBbox = {
-						southwest: {
-							latitude: Math.min(...bboxes.map(b => b.southwest.latitude)),
-							longitude: Math.min(...bboxes.map(b => b.southwest.longitude))
-						},
-						northeast: {
-							latitude: Math.max(...bboxes.map(b => b.northeast.latitude)),
-							longitude: Math.max(...bboxes.map(b => b.northeast.longitude))
-						}
-					};
-					providerManager.fitBoundsOnly(combinedBbox);
-				}
-			} catch (error) {
-				showOperationError('show overlay layers on map', error);
-			}
-		})
-	);
+    registerLanguageCommands(context, providerManager);
+    registerCoordinateSelectionCommands(context);
 
-	// Register bookmark-related commands
-	bookmarkManager.registerCommands(context, bookmarkTreeProvider, providerManager);
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.openSettings', () => {
+            vscode.commands.executeCommand(
+                'workbench.action.openSettings',
+                'vscodeMaplibreViewer'
+            );
+        })
+    );
 
-	// Register configuration change listener using configService
-	context.subscriptions.push(
-		onConfigurationChanged(() => {
-			providerManager.updateConfiguration();
-		})
-	);
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.searchOnMap', (args?: unknown) =>
+            handleSearchOnMap(args, providerManager)
+        )
+    );
 
-	// Register specific configuration change listeners
-	context.subscriptions.push(
-		vscode.workspace.onDidChangeConfiguration((e) => {
-			// Rebuild basemaps when the baseMaps setting changes
-			if (e.affectsConfiguration('vscodeMaplibreViewer.baseMaps')) {
-				layerTreeProvider.rebuildBaseMaps();
-			}
-			// Reload custom coordinate patterns when the setting changes
-			if (e.affectsConfiguration('vscodeMaplibreViewer.coordinatePatterns')) {
-				loadCustomCoordinatePatterns();
-				vscode.window.showInformationMessage('Custom coordinate patterns reloaded.');
-			}
-		})
-	);
+    const debouncedTextSelection = debounce(() => {
+        handleTextSelection(providerManager);
+    }, 300);
 
-	// Register language change commands
-	registerLanguageCommands(context, providerManager);
+    const selectionListener = vscode.window.onDidChangeTextEditorSelection(() => {
+        const isEnabled = getCoordinateSelectionState(context);
+        if (!isEnabled) {
+            return;
+        }
+        debouncedTextSelection();
+    });
+    context.subscriptions.push(selectionListener);
 
-	// Register coordinate selection commands
-	registerCoordinateSelectionCommands(context);
+    const fileToGeoJsonAdapters: FileToGeoJsonAdapter[] = [];
+    fileToGeoJsonAdapters.push(geojsonAdapter);
+    fileToGeoJsonAdapters.push(gpxAdapter);
+    layerTreeProvider.setFileAdapters(fileToGeoJsonAdapters);
 
-	// Register open settings command
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.openSettings', () => {
-			vscode.commands.executeCommand(
-				'workbench.action.openSettings',
-				'vscodeMaplibreViewer'
-			);
-		})
-	);
+    const fileSelectionListener = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+        if (!editor) {
+            return;
+        }
+        await handleFileSelection(editor, layerTreeProvider, providerManager, fileToGeoJsonAdapters);
+    });
+    context.subscriptions.push(fileSelectionListener);
 
-	// Register search on map command - shows filtered dialog with selected text as default
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.searchOnMap', (args?: unknown) =>
-			handleSearchOnMap(args, providerManager)
-		)
-	);
+    const onDidChangeActiveBasemapEmitter = new vscode.EventEmitter<BaseMapStyle>();
 
-	// Create debounced text selection handler
-	const debouncedTextSelection = debounce(() => {
-		handleTextSelection(providerManager);
-	}, 300);
+    layerTreeProvider.onDidChangeLayers((event) => {
+        if (event.type === 'baseMap') {
+            onDidChangeActiveBasemapEmitter.fire(event.data as BaseMapStyle);
+        }
+    });
 
-	// Register text selection listener for coordinate parsing
-	const selectionListener = vscode.window.onDidChangeTextEditorSelection(() => {
-		// Check if coordinate selection is enabled
-		const isEnabled = getCoordinateSelectionState(context);
-		if (!isEnabled) {
-			return;
-		}
+    const api = createAPI(layerTreeProvider, onDidChangeActiveBasemapEmitter, fileToGeoJsonAdapters);
 
-		// Call the debounced handler
-		debouncedTextSelection();
-	});
+    const defaultBasemap: BasemapProvider = {
+        id: 'maplibre-demotiles',
+        name: 'Demotiles',
+        type: 'vector',
+        styleUrl: 'https://demotiles.maplibre.org/style.json'
+    };
+    const defaultBasemapDisposable = api.registerBasemap(defaultBasemap);
+    context.subscriptions.push(defaultBasemapDisposable);
 
-	// Clean up the listener when the extension is deactivated
-	context.subscriptions.push(selectionListener);
+    const coordinateStatusbarItem = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Right,
+        100
+    );
+    coordinateStatusbarItem.name = 'Map Coordinates';
+    coordinateStatusbarItem.text = 'Map: 0.0000, 0.0000';
+    coordinateStatusbarItem.tooltip = 'Mouse pointer location in WGS84 coordinates';
+    coordinateStatusbarItem.show();
+    context.subscriptions.push(coordinateStatusbarItem);
 
-	// Registry for file-to-GeoJSON adapters
-	const fileToGeoJsonAdapters: FileToGeoJsonAdapter[] = [];
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.openMapEditor', async () => {
+            await mapEditorProvider.createPanel();
+        })
+    );
 
-	// Register the built-in GeoJSON adapter
-	fileToGeoJsonAdapters.push(geojsonAdapter);
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.updateCoordinates', (lngLat: { lng: number; lat: number }) => {
+            if (lngLat && typeof lngLat.lat === 'number' && typeof lngLat.lng === 'number') {
+                coordinateStatusbarItem.text = `Map: ${lngLat.lat.toFixed(4)}, ${lngLat.lng.toFixed(4)}`;
+            }
+        })
+    );
 
-	// Register the GPX adapter
-	fileToGeoJsonAdapters.push(gpxAdapter);
-
-	// Set the file adapters on the layer tree provider for drag-and-drop conversion
-	layerTreeProvider.setFileAdapters(fileToGeoJsonAdapters);
-
-	// Register file selection listener for the navigator view
-	const fileSelectionListener = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
-		if (!editor) {
-			return;
-		}
-		
-		await handleFileSelection(editor, layerTreeProvider, providerManager, fileToGeoJsonAdapters);
-	});
-
-	// Clean up the file selection listener when the extension is deactivated
-	context.subscriptions.push(fileSelectionListener);
-
-	// Create an event emitter for active basemap changes (for external API)
-	const onDidChangeActiveBasemapEmitter = new vscode.EventEmitter<BaseMapStyle>();
-	
-	// Listen to layer changes and forward only basemap changes
-	layerTreeProvider.onDidChangeLayers((event) => {
-		if (event.type === 'baseMap') {
-			onDidChangeActiveBasemapEmitter.fire(event.data as BaseMapStyle);
-		}
-	});
-
-	// Export the public API for external extensions
-	const api = createAPI(layerTreeProvider, onDidChangeActiveBasemapEmitter, fileToGeoJsonAdapters);
-
-	// Register the default basemap using our own API
-	const defaultBasemap: BasemapProvider = {
-		id: 'maplibre-demotiles',
-		name: 'Demotiles',
-		type: 'vector',
-		styleUrl: 'https://demotiles.maplibre.org/style.json'
-	};
-	const defaultBasemapDisposable = api.registerBasemap(defaultBasemap);
-	context.subscriptions.push(defaultBasemapDisposable);
-
-	// Create statusbar item for coordinate display
-	const coordinateStatusbarItem = vscode.window.createStatusBarItem(
-		vscode.StatusBarAlignment.Right,
-		100
-	);
-	coordinateStatusbarItem.name = 'Map Coordinates';
-	coordinateStatusbarItem.text = 'Map: 0.0000, 0.0000';
-	coordinateStatusbarItem.tooltip = 'Mouse pointer location in WGS84 coordinates';
-	coordinateStatusbarItem.show();
-	context.subscriptions.push(coordinateStatusbarItem);
-
-	// Register command to open the Map Editor panel
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.openMapEditor', async () => {
-			await mapEditorProvider.createPanel();
-		})
-	);
-
-	// Handle mouse move events from webview to update statusbar
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscodeMaplibreViewer.updateCoordinates', (lngLat: { lng: number; lat: number }) => {
-			if (lngLat && typeof lngLat.lat === 'number' && typeof lngLat.lng === 'number') {
-				coordinateStatusbarItem.text = `Map: ${lngLat.lat.toFixed(4)}, ${lngLat.lng.toFixed(4)}`;
-			}
-		})
-	);
-
-	// Return the API for other extensions to consume
-	return api;
+    return api;
 }
 
-// This method is called when your extension is deactivated
-export async function deactivate() {
-	await mapsViewProvider.saveCurrentViewState();
-	await mapEditorProvider.saveCurrentViewState();
+export async function deactivate(): Promise<void> {
+    if (mapsViewProvider) {
+        await mapsViewProvider.saveCurrentViewState();
+    }
+    if (mapEditorProvider) {
+        await mapEditorProvider.saveCurrentViewState();
+    }
+}
+
+function createAPI(
+    layerTreeProvider: LayerTreeProvider,
+    onDidChangeActiveBasemapEmitter: vscode.EventEmitter<BaseMapStyle>,
+    fileToGeoJsonAdapters: FileToGeoJsonAdapter[]
+): MapLibreViewerAPI {
+    return {
+        registerBasemap: (provider: BasemapProvider) => {
+            const basemap: BaseMapStyle = {
+                id: provider.id,
+                name: provider.name,
+                styleUrl: provider.styleUrl,
+                type: provider.type,
+                tileUrl: provider.tileUrl,
+                tileSize: provider.tileSize,
+                attribution: provider.attribution,
+                minzoom: provider.minzoom,
+                maxzoom: provider.maxzoom,
+                description: provider.description
+            };
+            return layerTreeProvider.registerBasemap(basemap);
+        },
+        getBasemaps: () => layerTreeProvider.getBasemaps(),
+        getActiveBasemap: () => layerTreeProvider.getActiveBaseMap(),
+        onDidChangeActiveBasemap: onDidChangeActiveBasemapEmitter.event,
+        registerFileToGeoJsonAdapter: (adapter: FileToGeoJsonAdapter) => {
+            fileToGeoJsonAdapters.push(adapter);
+            return new vscode.Disposable(() => {
+                const index = fileToGeoJsonAdapters.indexOf(adapter);
+                if (index !== -1) {
+                    fileToGeoJsonAdapters.splice(index, 1);
+                }
+            });
+        },
+        getFileToGeoJsonAdapters: () => [...fileToGeoJsonAdapters]
+    };
 }
