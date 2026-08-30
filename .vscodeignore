@@ -4,6 +4,10 @@ src/**
 scripts/**
 .gitignore
 .yarnrc
+AGENTS.md
+**/AGENTS.md
+.ovsx-token
+**/.ovsx-token
 vsc-extension-quickstart.md
 **/tsconfig.json
 **/eslint.config.mjs
