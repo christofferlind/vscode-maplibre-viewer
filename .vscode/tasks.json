@@ -16,6 +16,25 @@
 				"kind": "build",
 				"isDefault": true
 			}
+		},
+		{
+			"label": "package-vsix",
+			"type": "npm",
+			"script": "package",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "publish-openvsx",
+			"type": "shell",
+			"command": "npx ovsx publish --pat \"$(cat .ovsx-token | tr -d '[:space:]')\"",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always"
+			},
+			"dependsOn": "package-vsix"
 		}
 	]
 }

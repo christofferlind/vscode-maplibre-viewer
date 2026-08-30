@@ -4,6 +4,7 @@
   "publisher": "christofferlind",
   "description": "MapLibre Viewer",
   "version": "0.5.0",
+  "license": "MIT",
   "repository": {
     "type": "github",
     "url": "https://github.com/christofferlind/vscode-maplibre-viewer"
@@ -578,7 +579,8 @@
     "test": "npm run compile && mocha --ui tdd out/test/unit/**/*.test.js",
     "test:vscode": "npm run compile && npm run lint && rm -rf /tmp/vscode-mlv-test && npx @vscode/test-cli",
     "copy-assets": "node scripts/copy-maplibre-assets.js",
-    "package": "vsce package"
+    "package": "vsce package",
+    "publish:ovsx": "ovsx publish --pat $OVSX_PAT"
   },
   "dependencies": {
     "maplibre-gl": "^4.7.1"
