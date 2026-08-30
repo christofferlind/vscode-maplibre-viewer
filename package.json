@@ -5,6 +5,7 @@
   "description": "MapLibre Viewer",
   "version": "0.5.0",
   "license": "MIT",
+  "icon": "media/map.png",
   "repository": {
     "type": "github",
     "url": "https://github.com/christofferlind/vscode-maplibre-viewer"
