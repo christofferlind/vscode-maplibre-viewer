@@ -2,7 +2,10 @@
 
 A VS Code extension that provides an interactive map viewer powered by MapLibre GL JS and vector tiles. Perfect for visualizing geographic data and coordinates directly in your editor.
 
-## Features
+---
+
+<details open>
+<summary><strong>✨ Features</strong></summary>
 
 ### 🗺️ Interactive Map View
 
@@ -26,7 +29,203 @@ The coordinate parser intelligently handles:
 - Negative coordinates
 - Coordinate validation
 
-#### Custom Coordinate Patterns
+### 🌐 Multi-Language Map Labels
+
+Support for 60+ languages for map labels:
+
+- Native/Local place names
+- English, German, French, Spanish, Russian
+- Chinese (Simplified & Traditional), Japanese, Korean
+- Arabic, Hindi, Dutch, Polish, Turkish
+- And many more...
+
+Quick access via:
+- **Map: Set Language to Native** - Use local place names
+- **Map: Set Language to English** - Use English labels
+- **Map: Set Language to German** - Use German labels
+- **Map: Set Language...** - Open language picker with all options
+
+### 🔖 Bookmark Management
+
+Save and manage your favorite map locations:
+
+- **Bookmark Current View**: Save current map position (center, zoom, bearing, pitch) as a named bookmark
+- **Load Bookmark**: Quick-pick dialog to navigate to saved bookmarks
+- **Persistent Storage**: Bookmarks are saved globally and persist across sessions
+- **Duplicate Handling**: Prompts to overwrite existing bookmarks with same name
+
+### 🔍 Search Functionality
+
+- **Geocoding Search**: Search for places directly from the map view
+- **MapTiler Integration**: Configure your MapTiler API key for enhanced search functionality
+- **Photon Fallback**: Free Photon geocoding service available when MapTiler API key is not configured
+- **Toggle Search**: Enable/disable search via settings
+- **Search On Map**: Right-click on selected text in the editor or terminal to search for that location on the map
+
+### 🛠️ Toolbar Icons
+
+The map view toolbar provides quick access to:
+
+- **Language Selector** - Change map label language
+- **Coordinate Toggle** - Enable/disable coordinate detection
+- **Bookmark** - Save current view as bookmark
+- **Settings** - Open map settings
+
+</details>
+
+<details>
+<summary><strong>⬇️ Installation</strong></summary>
+
+1. Open VS Code
+2. Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
+3. Search for "MapLibre Viewer"
+4. Click Install
+
+</details>
+
+<details>
+<summary><strong>🚀 Usage</strong></summary>
+
+1. Click the **Maps** icon in the activity bar (left sidebar)
+2. The map view will open in the sidebar panel
+3. Interact with the map using mouse/trackpad:
+   - **Pan**: Click and drag
+   - **Zoom**: Scroll wheel or +/- buttons
+   - **Rotate**: Right-click and drag
+   - **Tilt**: Ctrl + drag
+
+### Coordinate Detection
+
+1. Select text containing coordinates in any editor
+2. The map will automatically fly to that location
+3. Toggle detection on/off via the toolbar icon
+
+### Bookmarks
+
+1. **Save**: Use "Map: Bookmark Current View" command or toolbar
+2. **Load**: Use "Map: Load Bookmark..." command
+3. Bookmarks are stored globally and persist across sessions
+
+### Viewing GeoJSON Files
+
+The MapLibre Viewer extension can automatically render GeoJSON files on an interactive map. Here's how to use this feature:
+
+#### Step-by-Step Walkthrough
+
+1. **Create or open a GeoJSON file** in VS Code with a `.geojson` or `.json` extension
+2. **Select the file** in the editor or file explorer
+3. The extension will automatically detect compatible file types and render the data on the map
+4. The map viewport will automatically fit to the bounding box of all features
+
+For a sample GeoJSON file for testing, see the [DEVELOPMENT.md](docs/DEVELOPMENT.md#testing) documentation.
+
+#### Automatic Bounding Box Fitting
+
+When a GeoJSON file is loaded, the extension automatically:
+
+1. **Extracts all coordinates** from every feature in the collection (supports Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, and GeometryCollection)
+2. **Calculates the bounding box** using the `calculateBoundingBox` function to determine the geographic extent
+3. **Fits the map viewport** to show all features using `fitMapToGeoJSON`, ensuring the entire dataset is visible with appropriate padding
+
+This means you don't need to manually pan or zoom—the map will automatically center on your data.
+
+#### Supported File Extensions
+
+The extension supports GeoJSON files through the built-in adapter for:
+
+- `.geojson` - Standard GeoJSON files
+- `.json` - JSON files containing GeoJSON data
+
+Additional file formats (KML, GPX, Shapefile, etc.) can be supported by installing extensions that register custom `FileToGeoJsonAdapter` implementations.
+
+#### Tips for Best Results
+
+- **Valid GeoJSON**: Ensure your file contains valid GeoJSON following [RFC 7946](https://tools.ietf.org/html/rfc7946)
+- **Coordinate Order**: Remember GeoJSON uses `[longitude, latitude]` order (x, y)
+- **Feature Properties**: Add meaningful properties to your features for future identification
+- **Large Files**: For large datasets, consider splitting into smaller files for faster rendering
+
+</details>
+
+<details>
+<summary><strong>⚙️ Configuration</strong></summary>
+
+Customize the extension via VS Code settings:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `vscodeMaplibreViewer.geocodingApiKey` | API key for MapTiler geocoding service | `""` (empty) |
+| `vscodeMaplibreViewer.photonSearchUrl` | URL for Photon geocoding search service | `"https://photon.komoot.io/api/"` |
+| `vscodeMaplibreViewer.enableSearch` | Enable search functionality | `true` |
+| `vscodeMaplibreViewer.flyToDuration` | Animation duration in ms | `500` |
+| `vscodeMaplibreViewer.singlePointZoom` | Zoom level for single coordinate points | `10` |
+| `vscodeMaplibreViewer.baseMaps` | Custom basemap styles | `[]` (empty) |
+| `vscodeMaplibreViewer.coordinatePatterns` | Custom coordinate detection patterns | `[]` (empty) |
+
+</details>
+
+<details>
+<summary><strong>🗺️ Custom Basemaps</strong></summary>
+
+You can contribute custom basemaps in two ways:
+
+#### Via Configuration (settings.json)
+
+Add custom basemaps in your VS Code settings. The extension supports both **vector styles** (MapLibre style JSON) and **raster tiles** (XYZ tile servers):
+
+```json
+{
+  "vscodeMaplibreViewer.baseMaps": [
+    {
+      "id": "osm-standard",
+      "name": "OpenStreetMap",
+      "styleUrl": "https://demotiles.maplibre.org/style.json",
+      "description": "OpenStreetMap default style"
+    },
+    {
+      "id": "maptiler-streets",
+      "name": "MapTiler Streets",
+      "styleUrl": "https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY",
+      "description": "MapTiler streets style"
+    },
+    {
+      "id": "custom-satellite",
+      "name": "My Satellite",
+      "styleUrl": "https://my-server.com/styles/satellite/style.json"
+    },
+    {
+      "id": "custom-imagery",
+      "name": "Custom Imagery",
+      "type": "raster",
+      "tileUrl": "https://my-tile-server.com/{z}/{x}/{y}.png",
+      "tileSize": 512,
+      "minzoom": 0,
+      "maxzoom": 18
+    }
+  ]
+}
+```
+
+**Basemap Properties:**
+- `id` (required): Unique identifier for the basemap
+- `name` (required): Display name shown in the Layers View
+- `type` (optional): Type of basemap - `'vector'` for style JSON, `'raster'` for raster tiles. Defaults to `'vector'` if `styleUrl` is provided.
+- `styleUrl` (optional): URL to the MapLibre style JSON (for vector basemaps)
+- `tileUrl` (optional): Raster tile URL template with `{z}/{x}/{y}` placeholders (for raster basemaps)
+- `tileSize` (optional): Tile size for raster sources (default: 256)
+- `minzoom` (optional): Minimum zoom level for raster tiles
+- `maxzoom` (optional): Maximum zoom level for raster tiles
+- `description` (optional): Description shown in tooltips
+- `thumbnail` (optional): Thumbnail image URL for the basemap
+
+**Note:** A basemap must have either `styleUrl` (for vector) or `tileUrl` (for raster).
+
+For programmatic registration of basemaps from other extensions, see the [Extension API](docs/DEVELOPMENT.md#extension-api) documentation.
+
+</details>
+
+<details>
+<summary><strong>📐 Custom Coordinate Patterns</strong></summary>
 
 You can extend the coordinate parser with custom patterns to detect coordinate formats specific to your workflow or data sources. This is useful for proprietary formats, regional coordinate systems, or specialized notation.
 
@@ -98,111 +297,10 @@ If a pattern fails to load, check the **Output** panel (View > Output) for error
 
 For adding patterns programmatically via the extension API, see the [DEVELOPMENT.md](docs/DEVELOPMENT.md#extension-api) documentation.
 
-### 🌐 Multi-Language Map Labels
+</details>
 
-Support for 60+ languages for map labels:
-
-- Native/Local place names
-- English, German, French, Spanish, Russian
-- Chinese (Simplified & Traditional), Japanese, Korean
-- Arabic, Hindi, Dutch, Polish, Turkish
-- And many more...
-
-Quick access via:
-- **Map: Set Language to Native** - Use local place names
-- **Map: Set Language to English** - Use English labels
-- **Map: Set Language to German** - Use German labels
-- **Map: Set Language...** - Open language picker with all options
-
-### 🔖 Bookmark Management
-
-Save and manage your favorite map locations:
-
-- **Bookmark Current View**: Save current map position (center, zoom, bearing, pitch) as a named bookmark
-- **Load Bookmark**: Quick-pick dialog to navigate to saved bookmarks
-- **Persistent Storage**: Bookmarks are saved globally and persist across sessions
-- **Duplicate Handling**: Prompts to overwrite existing bookmarks with same name
-
-### 🔍 Search Functionality
-
-- **Geocoding Search**: Search for places directly from the map view
-- **MapTiler Integration**: Configure your MapTiler API key for enhanced search functionality
-- **Photon Fallback**: Free Photon geocoding service available when MapTiler API key is not configured
-- **Toggle Search**: Enable/disable search via settings
-- **Search On Map**: Right-click on selected text in the editor or terminal to search for that location on the map
-
-### ⚙️ Configuration
-
-Customize the extension via VS Code settings:
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `vscodeMaplibreViewer.geocodingApiKey` | API key for MapTiler geocoding service | `""` (empty) |
-| `vscodeMaplibreViewer.photonSearchUrl` | URL for Photon geocoding search service | `"https://photon.komoot.io/api/"` |
-| `vscodeMaplibreViewer.enableSearch` | Enable search functionality | `true` |
-| `vscodeMaplibreViewer.flyToDuration` | Animation duration in ms | `500` |
-| `vscodeMaplibreViewer.singlePointZoom` | Zoom level for single coordinate points | `10` |
-| `vscodeMaplibreViewer.baseMaps` | Custom basemap styles | `[]` (empty) |
-| `vscodeMaplibreViewer.coordinatePatterns` | Custom coordinate detection patterns | `[]` (empty) |
-
-### 🗺️ Custom Basemaps
-
-You can contribute custom basemaps in two ways:
-
-#### Via Configuration (settings.json)
-
-Add custom basemaps in your VS Code settings. The extension supports both **vector styles** (MapLibre style JSON) and **raster tiles** (XYZ tile servers):
-
-```json
-{
-  "vscodeMaplibreViewer.baseMaps": [
-    {
-      "id": "osm-standard",
-      "name": "OpenStreetMap",
-      "styleUrl": "https://demotiles.maplibre.org/style.json",
-      "description": "OpenStreetMap default style"
-    },
-    {
-      "id": "maptiler-streets",
-      "name": "MapTiler Streets",
-      "styleUrl": "https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY",
-      "description": "MapTiler streets style"
-    },
-    {
-      "id": "custom-satellite",
-      "name": "My Satellite",
-      "styleUrl": "https://my-server.com/styles/satellite/style.json"
-    },
-    {
-      "id": "custom-imagery",
-      "name": "Custom Imagery",
-      "type": "raster",
-      "tileUrl": "https://my-tile-server.com/{z}/{x}/{y}.png",
-      "tileSize": 512,
-      "minzoom": 0,
-      "maxzoom": 18
-    }
-  ]
-}
-```
-
-**Basemap Properties:**
-- `id` (required): Unique identifier for the basemap
-- `name` (required): Display name shown in the Layers View
-- `type` (optional): Type of basemap - `'vector'` for style JSON, `'raster'` for raster tiles. Defaults to `'vector'` if `styleUrl` is provided.
-- `styleUrl` (optional): URL to the MapLibre style JSON (for vector basemaps)
-- `tileUrl` (optional): Raster tile URL template with `{z}/{x}/{y}` placeholders (for raster basemaps)
-- `tileSize` (optional): Tile size for raster sources (default: 256)
-- `minzoom` (optional): Minimum zoom level for raster tiles
-- `maxzoom` (optional): Maximum zoom level for raster tiles
-- `description` (optional): Description shown in tooltips
-- `thumbnail` (optional): Thumbnail image URL for the basemap
-
-**Note:** A basemap must have either `styleUrl` (for vector) or `tileUrl` (for raster).
-
-For programmatic registration of basemaps from other extensions, see the [Extension API](docs/DEVELOPMENT.md#extension-api) documentation.
-
-### 🎯 Commands
+<details>
+<summary><strong>🎯 Commands</strong></summary>
 
 All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
@@ -226,101 +324,30 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 | `Add Overlay Layer` | Add a new overlay layer |
 | `Remove Layer` | Remove an overlay layer |
 
-### 🛠️ Toolbar Icons
+</details>
 
-The map view toolbar provides quick access to:
-
-- **Language Selector** - Change map label language
-- **Coordinate Toggle** - Enable/disable coordinate detection
-- **Bookmark** - Save current view as bookmark
-- **Settings** - Open map settings
-
-## Installation
-
-1. Open VS Code
-2. Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
-3. Search for "MapLibre Viewer"
-4. Click Install
-
-## Usage Examples
-
-### Viewing GeoJSON Files
-
-The MapLibre Viewer extension can automatically render GeoJSON files on an interactive map. Here's how to use this feature:
-
-#### Step-by-Step Walkthrough
-
-1. **Create or open a GeoJSON file** in VS Code with a `.geojson` or `.json` extension
-2. **Select the file** in the editor or file explorer
-3. The extension will automatically detect compatible file types and render the data on the map
-4. The map viewport will automatically fit to the bounding box of all features
-
-For a sample GeoJSON file for testing, see the [DEVELOPMENT.md](docs/DEVELOPMENT.md#testing) documentation.
-
-#### Automatic Bounding Box Fitting
-
-When a GeoJSON file is loaded, the extension automatically:
-
-1. **Extracts all coordinates** from every feature in the collection (supports Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon, and GeometryCollection)
-2. **Calculates the bounding box** using the `calculateBoundingBox` function to determine the geographic extent
-3. **Fits the map viewport** to show all features using `fitMapToGeoJSON`, ensuring the entire dataset is visible with appropriate padding
-
-This means you don't need to manually pan or zoom—the map will automatically center on your data.
-
-#### Supported File Extensions
-
-The extension supports GeoJSON files through the built-in adapter for:
-
-- `.geojson` - Standard GeoJSON files
-- `.json` - JSON files containing GeoJSON data
-
-Additional file formats (KML, GPX, Shapefile, etc.) can be supported by installing extensions that register custom `FileToGeoJsonAdapter` implementations.
-
-#### Tips for Best Results
-
-- **Valid GeoJSON**: Ensure your file contains valid GeoJSON following [RFC 7946](https://tools.ietf.org/html/rfc7946)
-- **Coordinate Order**: Remember GeoJSON uses `[longitude, latitude]` order (x, y)
-- **Feature Properties**: Add meaningful properties to your features for future identification
-- **Large Files**: For large datasets, consider splitting into smaller files for faster rendering
-
-## Usage
-
-1. Click the **Maps** icon in the activity bar (left sidebar)
-2. The map view will open in the sidebar panel
-3. Interact with the map using mouse/trackpad:
-   - **Pan**: Click and drag
-   - **Zoom**: Scroll wheel or +/- buttons
-   - **Rotate**: Right-click and drag
-   - **Tilt**: Ctrl + drag
-
-### Coordinate Detection
-
-1. Select text containing coordinates in any editor
-2. The map will automatically fly to that location
-3. Toggle detection on/off via the toolbar icon
-
-### Bookmarks
-
-1. **Save**: Use "Map: Bookmark Current View" command or toolbar
-2. **Load**: Use "Map: Load Bookmark..." command
-3. Bookmarks are stored globally and persist across sessions
-
-## Requirements
+<details>
+<summary><strong>📦 Requirements</strong></summary>
 
 - VS Code 1.110.0 or higher
 - For enhanced search functionality: MapTiler API key (or use the free Photon geocoding service)
 
-## License
+</details>
 
-MIT
-
-## Contributing
+<details>
+<summary><strong>🤝 Contributing</strong></summary>
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 For development instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
-## Acknowledgments
+### License
+
+MIT
+
+### Acknowledgments
 
 - [MapLibre GL JS](https://maplibre.org/) - Open source vector tile rendering
 - [VS Code Extension API](https://code.visualstudio.com/api) - Extension development
+
+</details>
