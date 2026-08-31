@@ -171,7 +171,16 @@ You can contribute custom basemaps in two ways:
 
 #### Via Configuration (settings.json)
 
-Add custom basemaps in your VS Code settings. The extension supports both **vector styles** (MapLibre style JSON) and **raster tiles** (XYZ tile servers):
+Add custom basemaps in your VS Code `settings.json` under `vscodeMaplibreViewer.baseMaps`. The extension supports two basemap types:
+
+- **Vector basemaps** — render from a MapLibre style JSON document (`styleUrl`)
+- **Raster basemaps** — render from an XYZ raster tile server (`tileUrl`)
+
+You can mix both types in the same `baseMaps` array.
+
+##### Vector basemaps (MapLibre style JSON)
+
+A vector basemap points at a [MapLibre style JSON](https://maplibre.org/maplibre-style-spec/) document. The `type` field is optional and defaults to `'vector'` when `styleUrl` is provided.
 
 ```json
 {
@@ -179,19 +188,39 @@ Add custom basemaps in your VS Code settings. The extension supports both **vect
     {
       "id": "osm-standard",
       "name": "OpenStreetMap",
+      "type": "vector",
       "styleUrl": "https://demotiles.maplibre.org/style.json",
       "description": "OpenStreetMap default style"
     },
     {
       "id": "maptiler-streets",
       "name": "MapTiler Streets",
+      "type": "vector",
       "styleUrl": "https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY",
       "description": "MapTiler streets style"
-    },
+    }
+  ]
+}
+```
+
+Vector basemaps only require `id`, `name`, and `styleUrl`. The style JSON describes its own sources, layers, and glyphs/sprites, so no tile URL or zoom range is needed.
+
+##### Raster basemaps (XYZ tile servers)
+
+A raster basemap pulls image tiles from an XYZ tile URL template. Set `type` to `'raster'` and provide a `tileUrl` with `{z}/{x}/{y}` placeholders. Use `tileSize`, `minzoom`, and `maxzoom` to control tiling behavior.
+
+```json
+{
+  "vscodeMaplibreViewer.baseMaps": [
     {
-      "id": "custom-satellite",
-      "name": "My Satellite",
-      "styleUrl": "https://my-server.com/styles/satellite/style.json"
+      "id": "osm-raster",
+      "name": "OpenStreetMap Raster",
+      "type": "raster",
+      "tileUrl": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "tileSize": 256,
+      "minzoom": 0,
+      "maxzoom": 19,
+      "attribution": "© OpenStreetMap contributors"
     },
     {
       "id": "custom-imagery",
@@ -206,19 +235,50 @@ Add custom basemaps in your VS Code settings. The extension supports both **vect
 }
 ```
 
-**Basemap Properties:**
-- `id` (required): Unique identifier for the basemap
-- `name` (required): Display name shown in the Layers View
-- `type` (optional): Type of basemap - `'vector'` for style JSON, `'raster'` for raster tiles. Defaults to `'vector'` if `styleUrl` is provided.
-- `styleUrl` (optional): URL to the MapLibre style JSON (for vector basemaps)
-- `tileUrl` (optional): Raster tile URL template with `{z}/{x}/{y}` placeholders (for raster basemaps)
-- `tileSize` (optional): Tile size for raster sources (default: 256)
-- `minzoom` (optional): Minimum zoom level for raster tiles
-- `maxzoom` (optional): Maximum zoom level for raster tiles
-- `description` (optional): Description shown in tooltips
-- `thumbnail` (optional): Thumbnail image URL for the basemap
+The `{z}/{x}/{y}` placeholders are replaced at render time with the tile's zoom level (`z`), column (`x`), and row (`y`). `tileSize` is typically `256` for standard tiles or `512` for high-DPI tiles.
 
-**Note:** A basemap must have either `styleUrl` (for vector) or `tileUrl` (for raster).
+##### Combining vector and raster basemaps
+
+You can register both types side by side and switch between them from the Layers View:
+
+```json
+{
+  "vscodeMaplibreViewer.baseMaps": [
+    {
+      "id": "vector-streets",
+      "name": "Vector Streets",
+      "styleUrl": "https://demotiles.maplibre.org/style.json"
+    },
+    {
+      "id": "raster-satellite",
+      "name": "Raster Satellite",
+      "type": "raster",
+      "tileUrl": "https://my-tile-server.com/satellite/{z}/{x}/{y}.jpg",
+      "tileSize": 256,
+      "maxzoom": 18,
+      "attribution": "© My Imagery Provider"
+    }
+  ]
+}
+```
+
+##### Basemap properties reference
+
+| Property | Required | Applies to | Description |
+|----------|----------|------------|-------------|
+| `id` | Yes | Both | Unique identifier for the basemap |
+| `name` | Yes | Both | Display name shown in the Layers View |
+| `type` | No | Both | `'vector'` or `'raster'`. Defaults to `'vector'` when `styleUrl` is set. |
+| `styleUrl` | One of | Vector | URL to the MapLibre style JSON document |
+| `tileUrl` | One of | Raster | XYZ tile URL template with `{z}/{x}/{y}` placeholders |
+| `tileSize` | No | Raster | Tile size in pixels (default: `256`) |
+| `minzoom` | No | Raster | Minimum zoom level for tiles |
+| `maxzoom` | No | Raster | Maximum zoom level for tiles |
+| `attribution` | No | Raster | Attribution text for the tiles |
+| `description` | No | Both | Description shown in tooltips |
+| `thumbnail` | No | Both | Thumbnail image URL for the basemap |
+
+> **Note:** A basemap must have either `styleUrl` (vector) or `tileUrl` (raster). Vector basemaps ignore `tileUrl`, `tileSize`, `minzoom`, and `maxzoom` because those values come from the style JSON.
 
 For programmatic registration of basemaps from other extensions, see the [Extension API](docs/DEVELOPMENT.md#extension-api) documentation.
 
