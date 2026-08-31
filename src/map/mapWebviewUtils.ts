@@ -80,6 +80,8 @@ interface TemplateContext {
     workerBase64: string;
     mapUtilsJsUri: vscode.Uri;
     mapCoreJsUri: vscode.Uri;
+    mapBasemapJsUri: vscode.Uri;
+    mapPopupJsUri: vscode.Uri;
     mapOverlaysJsUri: vscode.Uri;
     mapNavigationJsUri: vscode.Uri;
     mapSearchJsUri: vscode.Uri;
@@ -108,6 +110,8 @@ const HTML_PLACEHOLDERS: Record<string, PlaceholderResolver> = {
     maplibreWorkerBase64: (ctx) => ctx.workerBase64,
     mapUtilsJsUri: (ctx) => ctx.mapUtilsJsUri.toString(),
     mapCoreJsUri: (ctx) => ctx.mapCoreJsUri.toString(),
+    mapBasemapJsUri: (ctx) => ctx.mapBasemapJsUri.toString(),
+    mapPopupJsUri: (ctx) => ctx.mapPopupJsUri.toString(),
     mapOverlaysJsUri: (ctx) => ctx.mapOverlaysJsUri.toString(),
     mapNavigationJsUri: (ctx) => ctx.mapNavigationJsUri.toString(),
     mapSearchJsUri: (ctx) => ctx.mapSearchJsUri.toString(),
@@ -149,6 +153,8 @@ export function generateWebviewHtml(
     const maplibreCssUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
     const mapUtilsJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-utils.js');
     const mapCoreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-core.js');
+    const mapBasemapJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-basemap.js');
+    const mapPopupJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-popup.js');
     const mapOverlaysJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-overlays.js');
     const mapNavigationJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-navigation.js');
     const mapSearchJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-search.js');
@@ -174,6 +180,8 @@ export function generateWebviewHtml(
         workerBase64,
         mapUtilsJsUri,
         mapCoreJsUri,
+        mapBasemapJsUri,
+        mapPopupJsUri,
         mapOverlaysJsUri,
         mapNavigationJsUri,
         mapSearchJsUri,

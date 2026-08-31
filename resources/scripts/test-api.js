@@ -94,6 +94,15 @@ window.__test = {
     },
 
     /**
+     * Check whether the map load error overlay is currently visible.
+     * @returns {boolean} True if the error overlay is showing
+     */
+    isErrorOverlayVisible: function() {
+        var overlay = document.getElementById('error-overlay');
+        return overlay ? overlay.classList.contains('visible') : false;
+    },
+
+    /**
      * Check if the test API is available
      * @returns {boolean} Always true
      */

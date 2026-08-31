@@ -2,8 +2,8 @@
   "name": "vscode-maplibre-viewer",
   "displayName": "vscode-maplibre-viewer",
   "publisher": "christofferlind",
-  "description": "MapLibre Viewer",
-  "version": "0.5.2",
+  "description": "Offline map viewer for VS Code powered by MapLibre GL JS. Visualize local GeoJSON files, fly to coordinates, toggle overlays, and bookmark views.",
+  "version": "0.5.3",
   "license": "MIT",
   "icon": "media/map.png",
   "repository": {
