@@ -542,6 +542,11 @@
             "required": ["name", "pattern"]
           }
         },
+        "vscodeMaplibreViewer.alwaysShowDemoTiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the MapLibre Demo Tiles basemap even if other base maps are configured"
+        },
         "vscodeMaplibreViewer.lastViewState": {
           "type": "object",
           "default": {

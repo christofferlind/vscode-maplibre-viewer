@@ -277,7 +277,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('vscodeMaplibreViewer.baseMaps')) {
+            if (e.affectsConfiguration('vscodeMaplibreViewer.baseMaps')
+                || e.affectsConfiguration('vscodeMaplibreViewer.alwaysShowDemoTiles')) {
+                updateDemoBasemapRegistration();
                 layerTreeProvider.rebuildBaseMaps();
             }
             if (e.affectsConfiguration('vscodeMaplibreViewer.coordinatePatterns')) {
@@ -341,14 +343,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     const api = createAPI(layerTreeProvider, onDidChangeActiveBasemapEmitter, fileToGeoJsonAdapters);
 
-    const defaultBasemap: BasemapProvider = {
+    const demoBasemap: BasemapProvider = {
         id: 'maplibre-demotiles',
         name: 'Demotiles',
         type: 'vector',
         styleUrl: 'https://demotiles.maplibre.org/style.json'
     };
-    const defaultBasemapDisposable = api.registerBasemap(defaultBasemap);
-    context.subscriptions.push(defaultBasemapDisposable);
+    let demoBasemapDisposable: vscode.Disposable | undefined;
+
+    const updateDemoBasemapRegistration = (): void => {
+        const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+        const customBasemaps = config.get<BaseMapStyle[]>('baseMaps', []);
+        const alwaysShowDemoTiles = config.get<boolean>('alwaysShowDemoTiles', false);
+        const shouldShow = customBasemaps.length === 0 || alwaysShowDemoTiles;
+
+        if (shouldShow && !demoBasemapDisposable) {
+            demoBasemapDisposable = api.registerBasemap(demoBasemap);
+        } else if (!shouldShow && demoBasemapDisposable) {
+            demoBasemapDisposable.dispose();
+            demoBasemapDisposable = undefined;
+        }
+    };
+
+    updateDemoBasemapRegistration();
 
     const coordinateStatusbarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
