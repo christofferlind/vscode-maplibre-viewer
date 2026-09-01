@@ -3,7 +3,7 @@
   "displayName": "vscode-maplibre-viewer",
   "publisher": "christofferlind",
   "description": "Offline map viewer for VS Code powered by MapLibre GL JS. Visualize local GeoJSON files, fly to coordinates, toggle overlays, and bookmark views.",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "license": "MIT",
   "icon": "media/map.png",
   "repository": {
@@ -332,16 +332,29 @@
       ],
       "editor/context": [
         {
+          "submenu": "editor/context/maplibreViewer",
+          "group": "1_modification"
+        }
+      ],
+      "editor/context/maplibreViewer": [
+        {
           "command": "vscodeMaplibreViewer.searchOnMap",
           "when": "editorHasSelection",
-          "group": "navigation"
+          "group": "1_modification"
         }
       ],
       "terminal/context": [
         {
+          "submenu": "terminal/context/maplibreViewer",
+          "when": "terminalTextSelected",
+          "group": "1_modification"
+        }
+      ],
+      "terminal/context/maplibreViewer": [
+        {
           "command": "vscodeMaplibreViewer.searchOnMap",
-          "when": "terminalFocus",
-          "group": "1_search"
+          "when": "terminalTextSelected",
+          "group": "1_modification"
         }
       ],
       "webview/context": [
@@ -372,51 +385,15 @@
         }
       ],
       "webview/context/setMapLanguage": [
-        {
-          "command": "vscodeMaplibreViewer.setLanguage",
-          "when": "true",
-          "group": "1_select"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageNative",
-          "when": "true",
-          "group": "2_select"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageEnglish",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageSpanish",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageFrench",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageRussian",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageHindi",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageArabic",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageChinese",
-          "when": "true",
-          "group": "3_languages"
-        }
+        { "command": "vscodeMaplibreViewer.setLanguage", "when": "true", "group": "1_select" },
+        { "command": "vscodeMaplibreViewer.setLanguageNative", "when": "true", "group": "2_select" },
+        { "command": "vscodeMaplibreViewer.setLanguageEnglish", "when": "true", "group": "3_languages" },
+        { "command": "vscodeMaplibreViewer.setLanguageSpanish", "when": "true", "group": "3_languages" },
+        { "command": "vscodeMaplibreViewer.setLanguageFrench", "when": "true", "group": "3_languages" },
+        { "command": "vscodeMaplibreViewer.setLanguageRussian", "when": "true", "group": "3_languages" },
+        { "command": "vscodeMaplibreViewer.setLanguageHindi", "when": "true", "group": "3_languages" },
+        { "command": "vscodeMaplibreViewer.setLanguageArabic", "when": "true", "group": "3_languages" },
+        { "command": "vscodeMaplibreViewer.setLanguageChinese", "when": "true", "group": "3_languages" }
       ]
     },
     "submenus": [
@@ -424,6 +401,16 @@
         "id": "webview/context/setMapLanguage",
         "label": "Set Map Language",
         "icon": "$(globe)"
+      },
+      {
+        "id": "editor/context/maplibreViewer",
+        "label": "MapLibre Viewer",
+        "icon": "$(map)"
+      },
+      {
+        "id": "terminal/context/maplibreViewer",
+        "label": "MapLibre Viewer",
+        "icon": "$(map)"
       }
     ],
     "configuration": {
@@ -481,39 +468,14 @@
                 "enum": ["vector", "raster"],
                 "description": "Type of basemap: 'vector' for style JSON, 'raster' for raster tiles. Defaults to 'vector' if styleUrl is provided."
               },
-              "styleUrl": {
-                "type": "string",
-                "description": "URL to the MapLibre style JSON (for vector basemaps)"
-              },
-              "tileUrl": {
-                "type": "string",
-                "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')"
-              },
-              "tileSize": {
-                "type": "number",
-                "default": 256,
-                "description": "Tile size for raster sources (default: 256)"
-              },
-              "attribution": {
-                "type": "string",
-                "description": "Attribution text for the tiles"
-              },
-              "minzoom": {
-                "type": "number",
-                "description": "Minimum zoom level for raster tiles"
-              },
-              "maxzoom": {
-                "type": "number",
-                "description": "Maximum zoom level for raster tiles"
-              },
-              "description": {
-                "type": "string",
-                "description": "Optional description of the basemap"
-              },
-              "thumbnail": {
-                "type": "string",
-                "description": "Optional thumbnail image URL for the basemap"
-              }
+              "styleUrl": { "type": "string", "description": "URL to the MapLibre style JSON (for vector basemaps)" },
+              "tileUrl": { "type": "string", "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')" },
+              "tileSize": { "type": "number", "default": 256, "description": "Tile size for raster sources (default: 256)" },
+              "attribution": { "type": "string", "description": "Attribution text for the tiles" },
+              "minzoom": { "type": "number", "description": "Minimum zoom level for raster tiles" },
+              "maxzoom": { "type": "number", "description": "Maximum zoom level for raster tiles" },
+              "description": { "type": "string", "description": "Optional description of the basemap" },
+              "thumbnail": { "type": "string", "description": "Optional thumbnail image URL for the basemap" }
             },
             "required": ["id", "name"]
           }

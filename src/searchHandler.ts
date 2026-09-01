@@ -6,6 +6,32 @@ import { ProviderManager } from './map/providerManager';
 import { performGeocodingSearch, extractSearchTextFromArgs, getSelectedTextFromEditor, SearchResultData } from './services/geocodingSearch';
 import { getConfig } from './services/configService';
 import { debounce } from './services/debounce';
+import { isTerminalContextArgs, resolveSelectedTextFromTerminalProbe } from './services/terminalSelection';
+
+/**
+ * Copies the active terminal's selection to the clipboard and returns it.
+ *
+ * The terminal context menu only forwards a serialized instance id, never the selected text,
+ * so the selection must be read indirectly. The user's clipboard is restored afterwards.
+ *
+ * @returns The trimmed selected text, or an empty string when nothing is selected.
+ */
+async function getSelectedTextFromTerminal(): Promise<string> {
+    if (!vscode.window.activeTerminal) {
+        return '';
+    }
+
+    const before = await vscode.env.clipboard.readText();
+    try {
+        await vscode.commands.executeCommand('workbench.action.terminal.copySelection');
+        const after = await vscode.env.clipboard.readText();
+        return resolveSelectedTextFromTerminalProbe({ before, after });
+    } finally {
+        if ((await vscode.env.clipboard.readText()) !== before) {
+            await vscode.env.clipboard.writeText(before);
+        }
+    }
+}
 
 /**
  * Handles search on map command
@@ -14,11 +40,15 @@ export async function handleSearchOnMap(
     args: unknown,
     providerManager: ProviderManager
 ): Promise<void> {
-    // Try to get text from args first, then from editor
+    // Try to get text from args first, then from editor, then from the terminal selection
     let selectedText = extractSearchTextFromArgs(args);
-    
+
     if (!selectedText) {
         selectedText = getSelectedTextFromEditor();
+    }
+
+    if (!selectedText && isTerminalContextArgs(args)) {
+        selectedText = await getSelectedTextFromTerminal();
     }
 
     // Get configuration for geocoding using configService
