@@ -11,6 +11,11 @@
 // Selected file layer ID constant
 var SELECTED_FILE_LAYER_ID = 'selected-file';
 
+// Tracks the most recently synced overlay configurations so the test API can
+// inspect what was last applied to the map. Kept as one stable object (cleared
+// and re-populated in place) so exported references remain live.
+var syncedOverlayLayers = {};
+
 /**
  * Update overlay layers on the map.
  * Main entry point called by the extension when overlay state changes.
@@ -87,11 +92,17 @@ function syncAllOverlays(layers) {
 		}
 		
 		console.log('[MapOverlays] syncAllOverlays: adding ' + layers.length + ' layer(s) from tree provider state');
+
+		// Track the full set of layers we were asked to render so the test API
+		// can report what the last update contained. Mutate the stable object
+		// in place so exported references to it stay live.
+		clearSyncedOverlayLayers();
 		for (var n = 0; n < layers.length; n++) {
 			var layer = layers[n];
 			if (layer.visible !== false) {
 				addOverlayLayer(layer);
 			}
+			syncedOverlayLayers[layers[n].id] = layers[n];
 		}
 	})) {
 		return;
@@ -359,6 +370,47 @@ function clearSelectedFileLayer() {
 	}
 }
 
+/**
+ * Remove all entries from the tracked overlay layers map.
+ * The object identity is preserved so exported references stay valid.
+ */
+function clearSyncedOverlayLayers() {
+	var id;
+	for (id in syncedOverlayLayers) {
+		if (syncedOverlayLayers.hasOwnProperty(id)) {
+			delete syncedOverlayLayers[id];
+		}
+	}
+}
+
+/**
+ * Check if an overlay layer's source and style layers are actually present on
+ * the current map. This is a live map-renderer check (unlike the tracked
+ * layers, which reflect the last update request sent to the webview).
+ * @param {string} layerId - The overlay layer ID
+ * @returns {boolean} True if the source and at least one style layer exist
+ */
+function isOverlayLayerOnMap(layerId) {
+	var map = window.MapCore && window.MapCore.getMap();
+	if (!map) {
+		return false;
+	}
+	var sourceId = 'overlay-' + layerId;
+	if (!map.getSource(sourceId)) {
+		return false;
+	}
+	var style = map.getStyle();
+	if (!style || !style.layers) {
+		return false;
+	}
+	for (var i = 0; i < style.layers.length; i++) {
+		if (style.layers[i].source === sourceId) {
+			return true;
+		}
+	}
+	return false;
+}
+
 // Export functions for use in other modules
 window.MapOverlays = {
 	updateOverlayLayers: updateOverlayLayers,
@@ -366,5 +418,7 @@ window.MapOverlays = {
 	removeOverlayLayer: removeOverlayLayer,
 	updateLayerVisibility: updateLayerVisibility,
 	updateSelectedFileLayerSource: updateSelectedFileLayerSource,
-	clearSelectedFileLayer: clearSelectedFileLayer
+	clearSelectedFileLayer: clearSelectedFileLayer,
+	isOverlayLayerOnMap: isOverlayLayerOnMap,
+	addedOverlayLayers: syncedOverlayLayers
 };
