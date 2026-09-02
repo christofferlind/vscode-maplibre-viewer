@@ -249,7 +249,7 @@ export abstract class MapWebviewController {
             webview.postMessage({ type: 'requestViewState' });
 
             setTimeout(() => {
-                if (this._pendingViewStateResolve) {
+                if (this._pendingViewStateResolve === resolve) {
                     this._pendingViewStateResolve = undefined;
                     resolve(undefined);
                 }
@@ -278,7 +278,7 @@ export abstract class MapWebviewController {
             webview.postMessage({ type: 'getMapCenter' });
 
             setTimeout(() => {
-                if (this._pendingMapCenterResolve) {
+                if (this._pendingMapCenterResolve === resolve) {
                     this._pendingMapCenterResolve = undefined;
                     resolve(undefined);
                 }

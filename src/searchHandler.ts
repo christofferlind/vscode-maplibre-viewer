@@ -109,12 +109,10 @@ export async function handleSearchOnMap(
             providerManager.fitBoundsOnly(coords.bbox);
             return;
         }
-        
-        if (coords.lat !== 0 && coords.lng !== 0) {
-            // Fall back to flying to a point
-            const singlePointZoom = getConfig().get<number>('singlePointZoom') ?? 14;
-            providerManager.flyToLocation(coords.lat, coords.lng, singlePointZoom);
-        }
+
+        // Fall back to flying to a point
+        const singlePointZoom = getConfig().get<number>('singlePointZoom') ?? 14;
+        providerManager.flyToLocation(coords.lat, coords.lng, singlePointZoom);
     });
 
     // Initial search if there's selected text
@@ -149,7 +147,7 @@ export async function handleSearchOnMap(
         if (coords.bbox) {
             // Use bounding box to fit the map
             providerManager.fitBoundsOnly(coords.bbox);
-        } else if (coords.lat !== 0 && coords.lng !== 0) {
+        } else {
             // Fall back to flying to a point
             const singlePointZoom = getConfig().get<number>('singlePointZoom') ?? 14;
             providerManager.flyToLocation(coords.lat, coords.lng, singlePointZoom);

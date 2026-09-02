@@ -3,7 +3,7 @@
  */
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { parseCoordinate, parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromGeoJson } from './services/coordinateParser';
+import { parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromGeoJson } from './services/coordinateParser';
 import { LayerTreeProvider } from './layers/layerTreeProvider';
 import { ProviderManager } from './map/providerManager';
 import { FileToGeoJsonAdapter } from './services/api';
@@ -43,12 +43,6 @@ export function handleTextSelection(providerManager: ProviderManager): void {
         const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
         const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
         providerManager.flyToLocation(coordinates[0].latitude, coordinates[0].longitude, singlePointZoom);
-    } else {
-        // Fallback: try single coordinate parsing for backward compatibility
-        const coordinate = parseCoordinate(selectedText);
-        if (coordinate) {
-            providerManager.flyToLocation(coordinate.latitude, coordinate.longitude);
-        }
     }
 }
 
@@ -64,16 +58,16 @@ export async function handleFileSelection(
     const filePath = editor.document.uri.fsPath;
     console.log(`File selected in navigator: ${filePath}`);
 
-    // Only clear the layer if it has content
-    if (!layerTreeProvider.isSelectedFileLayerEmpty()) {
-        await layerTreeProvider.updateSelectedFileLayer(null);
-    }
-
     // Check if the "Selected file" layer is enabled
     const selectedFileLayer = layerTreeProvider.getSelectedFileLayer();
     if (selectedFileLayer && !selectedFileLayer.visible) {
         console.log('Selected file layer is disabled, skipping file processing');
         return;
+    }
+
+    // Only clear the layer if it has content
+    if (!layerTreeProvider.isSelectedFileLayerEmpty()) {
+        await layerTreeProvider.updateSelectedFileLayer(null);
     }
 
     // Check all registered file-to-GeoJSON adapters

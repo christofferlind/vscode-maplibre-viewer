@@ -215,8 +215,8 @@ export function parseViewStateFromMessage(message: unknown): ViewState | undefin
         const center = viewState.center as Record<string, number>;
         return {
             center: {
-                latitude: center.lat || center.latitude,
-                longitude: center.lng || center.longitude
+                latitude: center.lat ?? center.latitude,
+                longitude: center.lng ?? center.longitude
             },
             zoom: viewState.zoom as number,
             bearing: (viewState.bearing as number) || 0,
