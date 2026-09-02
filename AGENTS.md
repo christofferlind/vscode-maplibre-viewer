@@ -65,7 +65,7 @@ if (!map) {
 2. Confirm no statements share a line with `if`/`else`; guard clauses are multi-line.
 3. Run `npm run lint` — zero ESLint errors.
 4. Run `wc -l <file>` — refactor if > 600 lines.
-5. Run `npm run test` — all tests pass.
+5. Run `npm run clean:test` — all tests pass.
 
 ## Commands
 

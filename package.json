@@ -541,6 +541,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile && npm run copy-assets",
+    "clean:test": "rm -rf ./out/ && npm run compile && npm run test",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src",
