@@ -7,6 +7,7 @@ import { parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromG
 import { LayerTreeProvider } from './layers/layerTreeProvider';
 import { ProviderManager } from './map/providerManager';
 import { FileToGeoJsonAdapter } from './services/api';
+import { showOperationError } from './extensionUtils';
 
 /**
  * Handles text selection for coordinate parsing
@@ -65,11 +66,6 @@ export async function handleFileSelection(
         return;
     }
 
-    // Only clear the layer if it has content
-    if (!layerTreeProvider.isSelectedFileLayerEmpty()) {
-        await layerTreeProvider.updateSelectedFileLayer(null);
-    }
-
     // Check all registered file-to-GeoJSON adapters
     const fileExtension = path.extname(filePath).toLowerCase();
     for (const adapter of fileToGeoJsonAdapters) {
@@ -99,6 +95,7 @@ export async function handleFileSelection(
                 return; // Use the first adapter that can handle the file
             } catch (error) {
                 console.error(`Error converting file with ${adapter.getName()} adapter:`, error);
+                showOperationError(`convert file with ${adapter.getName()} adapter`, error);
             }
         }
     }

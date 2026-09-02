@@ -82,14 +82,26 @@ export class BookmarkManager {
     private getCollection(): BookmarkCollection {
         const collection = this._globalState.get<BookmarkCollection>(BOOKMARKS_STORAGE_KEY);
         
-        if (!collection) {
+        if (!collection || typeof collection !== 'object' || !Array.isArray(collection.bookmarks)) {
             return {
                 version: 1,
                 bookmarks: [],
                 lastUpdated: new Date().toISOString()
             };
         }
-        
+
+        const validBookmarks = collection.bookmarks.filter((b) => validateBookmark(b));
+
+        if (validBookmarks.length !== collection.bookmarks.length) {
+            const cleaned: BookmarkCollection = {
+                version: collection.version ?? 1,
+                bookmarks: validBookmarks,
+                lastUpdated: new Date().toISOString()
+            };
+            void this._globalState.update(BOOKMARKS_STORAGE_KEY, cleaned);
+            return cleaned;
+        }
+
         return collection;
     }
     

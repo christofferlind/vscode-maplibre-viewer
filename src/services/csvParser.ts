@@ -20,6 +20,7 @@ const LONGITUDE_NAMES = new Set([
 interface CsvParseResult {
     headers: string[];
     rows: Record<string, string>[];
+    lineNumbers: number[];
 }
 
 /**
@@ -55,35 +56,91 @@ function parseCsv(text: string): CsvParseResult {
         throw new Error('CSV file must have a header row and at least one data row');
     }
 
-    const headers = parseCsvLine(lines[0]);
+    const headers = parseCsvLine(lines[0].line);
     if (headers.length < 2) {
         throw new Error('CSV file must have at least 2 columns');
     }
 
     const rows: Record<string, string>[] = [];
     for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) { continue; } // Skip empty lines
+        const line = lines[i].line.trim();
+        if (!line) {
+            continue;
+        }
 
         const values = parseCsvLine(line);
-        if (values.length === 0) { continue; }
+        if (values.length === 0) {
+            continue;
+        }
         const row: Record<string, string> = {};
         for (let j = 0; j < headers.length; j++) {
             row[headers[j]] = j < values.length ? values[j] : '';
         }
+        row.__lineNumber = String(lines[i].lineNumber);
         rows.push(row);
     }
 
-    return { headers, rows };
+    if (rows.length === 0) {
+        throw new Error('CSV file must have a header row and at least one data row');
+    }
+
+    const cleaned: Record<string, string>[] = rows.map((row) => {
+        const { __lineNumber, ...rest } = row;
+        return rest;
+    });
+
+    return { headers, rows: cleaned, lineNumbers: rows.map((row) => Number(row.__lineNumber)) };
 }
 
 /**
- * Splits CSV text into individual lines, handling various line endings.
+ * Splits CSV text into records, treating newlines inside quoted fields as
+ * part of the field rather than a record separator. \r\n, \n, and \r are
+ * all treated as record separators outside quotes. Each record carries its
+ * 1-based line number in the original text.
  */
-function splitLines(text: string): string[] {
-    // Normalize line endings
-    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    return normalized.split('\n');
+function splitLines(text: string): { line: string; lineNumber: number }[] {
+    const records: { line: string; lineNumber: number }[] = [];
+    let current = '';
+    let inQuotes = false;
+    let lineNumber = 1;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+
+        if (inQuotes) {
+            if (char === '"' && text[i + 1] === '"') {
+                current += '""';
+                i++;
+                continue;
+            }
+            if (char === '"') {
+                inQuotes = false;
+            }
+            current += char;
+            continue;
+        }
+
+        if (char === '"') {
+            inQuotes = true;
+            current += char;
+        } else if (char === '\n') {
+            records.push({ line: current, lineNumber });
+            current = '';
+            lineNumber++;
+        } else if (char === '\r') {
+            if (text[i + 1] === '\n') {
+                i++;
+            }
+            records.push({ line: current, lineNumber });
+            current = '';
+            lineNumber++;
+        } else {
+            current += char;
+        }
+    }
+
+    records.push({ line: current, lineNumber });
+    return records;
 }
 
 /**
@@ -93,6 +150,7 @@ function parseCsvLine(line: string): string[] {
     const values: string[] = [];
     let current = '';
     let inQuotes = false;
+    let wasQuoted = false;
     let i = 0;
 
     while (i < line.length) {
@@ -113,9 +171,11 @@ function parseCsvLine(line: string): string[] {
         } else {
             if (char === '"') {
                 inQuotes = true;
+                wasQuoted = true;
             } else if (char === ',') {
-                values.push(current.trim());
+                values.push(wasQuoted ? current : current.trim());
                 current = '';
+                wasQuoted = false;
             } else {
                 current += char;
             }
@@ -123,7 +183,7 @@ function parseCsvLine(line: string): string[] {
         i++;
     }
 
-    values.push(current.trim());
+    values.push(wasQuoted ? current : current.trim());
     return values;
 }
 
@@ -176,17 +236,17 @@ function convertToGeoJson(parsed: CsvParseResult, fileName?: string): object {
         const lng = parseFloat(lngStr.replace(',', '.'));
 
         if (isNaN(lat) || isNaN(lng)) {
-            errors.push(`Row ${i + 2}: invalid coordinates (lat="${latStr}", lng="${lngStr}")`);
+            errors.push(`Row ${parsed.lineNumbers[i]}: invalid coordinates (lat="${latStr}", lng="${lngStr}")`);
             continue;
         }
 
         if (lat < -90 || lat > 90) {
-            errors.push(`Row ${i + 2}: latitude out of range (${lat})`);
+            errors.push(`Row ${parsed.lineNumbers[i]}: latitude out of range (${lat})`);
             continue;
         }
 
         if (lng < -180 || lng > 180) {
-            errors.push(`Row ${i + 2}: longitude out of range (${lng})`);
+            errors.push(`Row ${parsed.lineNumbers[i]}: longitude out of range (${lng})`);
             continue;
         }
 

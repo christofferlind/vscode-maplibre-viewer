@@ -49,10 +49,13 @@ export class MapEditorProvider extends MapWebviewController {
             this.getWebviewOptions()
         );
 
-        this._panel.iconPath = new vscode.ThemeIcon('map');
+        const panel = this._panel;
+        panel.iconPath = new vscode.ThemeIcon('map');
 
-        this._panel.onDidDispose(() => {
-            this._panel = undefined;
+        panel.onDidDispose(() => {
+            if (this._panel === panel) {
+                this._panel = undefined;
+            }
         });
 
         this._panel.webview.options = this.getWebviewOptions();

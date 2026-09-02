@@ -34,17 +34,42 @@ function setupMessageHandler() {
 				if (!message.config) {
 					break;
 				}
-				
+
 				if (message.config.flyToDuration !== undefined) {
 					window.MapConfig.flyToDuration = message.config.flyToDuration;
 				}
 				if (message.config.searchResultsTransparency !== undefined) {
 					window.MapConfig.searchResultsTransparency = message.config.searchResultsTransparency;
 				}
-				
+				if (message.config.enableSearch !== undefined) {
+					window.MapConfig.enableSearch = message.config.enableSearch;
+				}
+				if (message.config.geocodingApiKey !== undefined) {
+					window.MapConfig.geocodingApiKey = message.config.geocodingApiKey;
+				}
+				if (message.config.photonSearchUrl !== undefined) {
+					window.MapConfig.photonSearchUrl = message.config.photonSearchUrl;
+				}
+
 				// Apply updated transparency to search results
 				if (window.MapSearch && window.MapSearch.applyTransparency) {
 					window.MapSearch.applyTransparency(message.config.searchResultsTransparency);
+				}
+
+				// Show or hide the search container according to enableSearch
+				if (window.MapConfig.enableSearch) {
+					var searchContainer = document.getElementById('search-container');
+					if (searchContainer) {
+						searchContainer.style.display = 'block';
+					}
+				} else {
+					var searchContainer = document.getElementById('search-container');
+					if (searchContainer) {
+						searchContainer.style.display = 'none';
+					}
+					if (window.MapSearch && window.MapSearch.clearResults) {
+						window.MapSearch.clearResults();
+					}
 				}
 				break;
 
@@ -147,6 +172,13 @@ function setupMessageHandler() {
 				console.log('Received geocodingSearchResults message:', message.results);
 				if (window.MapSearch && window.MapSearch.handleGeocodingSearchResults) {
 					window.MapSearch.handleGeocodingSearchResults(message.results);
+				}
+				break;
+
+			case 'geocodingSearchError':
+				console.log('Received geocodingSearchError message:', message.message);
+				if (window.MapSearch && window.MapSearch.handleGeocodingSearchError) {
+					window.MapSearch.handleGeocodingSearchError(message.message);
 				}
 				break;
 

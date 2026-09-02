@@ -42,6 +42,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     const layerTreeProvider = new LayerTreeProvider(context);
 
+    const onDidChangeActiveBasemapEmitter = new vscode.EventEmitter<BaseMapStyle>();
+
+    const fileToGeoJsonAdapters: FileToGeoJsonAdapter[] = [];
+    fileToGeoJsonAdapters.push(geojsonAdapter);
+    fileToGeoJsonAdapters.push(gpxAdapter);
+    layerTreeProvider.setFileAdapters(fileToGeoJsonAdapters);
+
+    const api = createAPI(layerTreeProvider, onDidChangeActiveBasemapEmitter, fileToGeoJsonAdapters);
+
+    const demoBasemap: BasemapProvider = {
+        id: 'maplibre-demotiles',
+        name: 'Demotiles',
+        type: 'vector',
+        styleUrl: 'https://demotiles.maplibre.org/style.json'
+    };
+    let demoBasemapDisposable: vscode.Disposable | undefined;
+
+    const updateDemoBasemapRegistration = (): void => {
+        const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+        const customBasemaps = config.get<BaseMapStyle[]>('baseMaps', []);
+        const alwaysShowDemoTiles = config.get<boolean>('alwaysShowDemoTiles', false);
+        const shouldShow = customBasemaps.length === 0 || alwaysShowDemoTiles;
+
+        if (shouldShow && !demoBasemapDisposable) {
+            demoBasemapDisposable = api.registerBasemap(demoBasemap);
+        } else if (!shouldShow && demoBasemapDisposable) {
+            demoBasemapDisposable.dispose();
+            demoBasemapDisposable = undefined;
+        }
+    };
+
+    updateDemoBasemapRegistration();
+
     const savedViewState = getConfig().get<StoredViewState>('lastViewState');
     if (savedViewState?.baseMapId) {
         try {
@@ -80,6 +113,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
     layerTreeProvider.onDidChangeLayers((event) => {
         if (event.type === 'baseMap') {
             providerManager.setBaseMap(event.data as BaseMapStyle);
+            onDidChangeActiveBasemapEmitter.fire(event.data as BaseMapStyle);
         } else if (event.type === 'overlay') {
             sendVisibleOverlayLayers();
         }
@@ -131,11 +165,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
                 return;
             }
 
+            if (layerType === 'Vector Tiles URL') {
+                vscode.window.showInformationMessage('Vector tile overlays are not yet supported.');
+                return;
+            }
+
             const url = await vscode.window.showInputBox({
                 prompt: 'Enter the URL for this layer',
-                placeHolder: layerType === 'GeoJSON URL'
-                    ? 'https://example.com/data.geojson'
-                    : 'https://example.com/tiles/{z}/{x}/{y}.pbf'
+                placeHolder: 'https://example.com/data.geojson'
             });
 
             if (!url) {
@@ -145,11 +182,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
             const newLayer: OverlayLayer = {
                 id: `layer-${Date.now()}`,
                 name,
-                type: layerType === 'GeoJSON URL' ? 'geojson' : 'vector',
+                type: 'geojson',
                 source: {
-                    type: layerType === 'GeoJSON URL' ? 'geojson' : 'vector',
-                    data: layerType === 'GeoJSON URL' ? url : undefined,
-                    url: layerType === 'Vector Tiles URL' ? url : undefined
+                    type: 'geojson',
+                    data: url
                 },
                 visible: true
             };
@@ -164,6 +200,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     context.subscriptions.push(
         vscode.commands.registerCommand('vscodeMaplibreViewer.changeLayerColor', async (layer: OverlayLayer) => {
+            if (!layer) {
+                return;
+            }
             const colorPickers: vscode.QuickPickItem[] = [
                 { label: '$(circle-filled) Red', detail: '#FF0000' },
                 { label: '$(circle-filled) Blue', detail: '#0000FF' },
@@ -212,6 +251,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     context.subscriptions.push(
         vscode.commands.registerCommand('vscodeMaplibreViewer.removeLayer', async (layer: OverlayLayer) => {
+            if (!layer) {
+                return;
+            }
             if (await confirmAction(`Are you sure you want to remove layer "${layer.name}"?`, 'Remove')) {
                 try {
                     await layerTreeProvider.removeOverlayLayer(layer.id);
@@ -320,52 +362,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
     });
     context.subscriptions.push(selectionListener);
 
-    const fileToGeoJsonAdapters: FileToGeoJsonAdapter[] = [];
-    fileToGeoJsonAdapters.push(geojsonAdapter);
-    fileToGeoJsonAdapters.push(gpxAdapter);
-    layerTreeProvider.setFileAdapters(fileToGeoJsonAdapters);
-
-    const fileSelectionListener = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+    const fileSelectionListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
         if (!editor) {
             return;
         }
-        await handleFileSelection(editor, layerTreeProvider, providerManager, fileToGeoJsonAdapters);
+        (async () => {
+            try {
+                await handleFileSelection(editor, layerTreeProvider, providerManager, fileToGeoJsonAdapters);
+            } catch (error) {
+                showOperationError('handle file selection', error);
+            }
+        })();
     });
     context.subscriptions.push(fileSelectionListener);
-
-    const onDidChangeActiveBasemapEmitter = new vscode.EventEmitter<BaseMapStyle>();
-
-    layerTreeProvider.onDidChangeLayers((event) => {
-        if (event.type === 'baseMap') {
-            onDidChangeActiveBasemapEmitter.fire(event.data as BaseMapStyle);
-        }
-    });
-
-    const api = createAPI(layerTreeProvider, onDidChangeActiveBasemapEmitter, fileToGeoJsonAdapters);
-
-    const demoBasemap: BasemapProvider = {
-        id: 'maplibre-demotiles',
-        name: 'Demotiles',
-        type: 'vector',
-        styleUrl: 'https://demotiles.maplibre.org/style.json'
-    };
-    let demoBasemapDisposable: vscode.Disposable | undefined;
-
-    const updateDemoBasemapRegistration = (): void => {
-        const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-        const customBasemaps = config.get<BaseMapStyle[]>('baseMaps', []);
-        const alwaysShowDemoTiles = config.get<boolean>('alwaysShowDemoTiles', false);
-        const shouldShow = customBasemaps.length === 0 || alwaysShowDemoTiles;
-
-        if (shouldShow && !demoBasemapDisposable) {
-            demoBasemapDisposable = api.registerBasemap(demoBasemap);
-        } else if (!shouldShow && demoBasemapDisposable) {
-            demoBasemapDisposable.dispose();
-            demoBasemapDisposable = undefined;
-        }
-    };
-
-    updateDemoBasemapRegistration();
 
     const coordinateStatusbarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,

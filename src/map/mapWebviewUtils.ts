@@ -99,9 +99,9 @@ type PlaceholderResolver = (ctx: TemplateContext) => string;
 const HTML_PLACEHOLDERS: Record<string, PlaceholderResolver> = {
     cspSource: (ctx) => ctx.webview.cspSource,
     nonce: (ctx) => ctx.nonce,
-    mapStyleUrl: (ctx) => ctx.styleUrl,
-    geocodingApiKey: (ctx) => ctx.config.geocodingApiKey,
-    photonSearchUrl: (ctx) => ctx.config.photonSearchUrl,
+    mapStyleUrl: (ctx) => JSON.stringify(ctx.styleUrl),
+    geocodingApiKey: (ctx) => JSON.stringify(ctx.config.geocodingApiKey),
+    photonSearchUrl: (ctx) => JSON.stringify(ctx.config.photonSearchUrl),
     enableSearch: (ctx) => String(ctx.config.enableSearch),
     searchResultsTransparency: (ctx) => String(ctx.config.searchResultsTransparency),
     flyToDuration: (ctx) => String(ctx.config.flyToDuration),

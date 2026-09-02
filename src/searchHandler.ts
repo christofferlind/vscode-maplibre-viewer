@@ -43,12 +43,12 @@ export async function handleSearchOnMap(
     // Try to get text from args first, then from editor, then from the terminal selection
     let selectedText = extractSearchTextFromArgs(args);
 
-    if (!selectedText) {
-        selectedText = getSelectedTextFromEditor();
-    }
-
     if (!selectedText && isTerminalContextArgs(args)) {
         selectedText = await getSelectedTextFromTerminal();
+    }
+
+    if (!selectedText) {
+        selectedText = getSelectedTextFromEditor();
     }
 
     // Get configuration for geocoding using configService
@@ -67,23 +67,34 @@ export async function handleSearchOnMap(
     const searchResultsMap = new Map<string, SearchResultData>();
 
     // Create debounced search function
+    let requestToken = 0;
     const debouncedSearch = debounce(async (value: unknown) => {
         const query = value as string;
+        const token = ++requestToken;
         quickPick.busy = true;
         try {
-            quickPick.items = await performGeocodingSearch(query, geocodingApiKey, photonSearchUrl, searchResultsMap);
+            const items = await performGeocodingSearch(query, geocodingApiKey, photonSearchUrl, searchResultsMap);
+            if (token === requestToken) {
+                quickPick.items = items;
+            }
         } catch {
-            quickPick.items = [];
-            vscode.window.showErrorMessage('Search failed. Please try again.');
+            if (token === requestToken) {
+                quickPick.items = [];
+                vscode.window.showErrorMessage('Search failed. Please try again.');
+            }
         } finally {
-            quickPick.busy = false;
+            if (token === requestToken) {
+                quickPick.busy = false;
+            }
         }
     }, 300);
 
     // Handle input changes with debounce
     quickPick.onDidChangeValue((value) => {
         if (value.length < 2) {
+            requestToken++;
             quickPick.items = [];
+            debouncedSearch.cancel();
             return;
         }
         debouncedSearch(value);
@@ -115,17 +126,35 @@ export async function handleSearchOnMap(
         providerManager.flyToLocation(coords.lat, coords.lng, singlePointZoom);
     });
 
+    // Show the QuickPick before any network work so the UI is responsive immediately
+    quickPick.show();
+
     // Initial search if there's selected text
     if (selectedText.length >= 2) {
+        const token = ++requestToken;
         quickPick.busy = true;
         try {
-            quickPick.items = await performGeocodingSearch(selectedText, geocodingApiKey, photonSearchUrl, searchResultsMap);
+            const items = await performGeocodingSearch(selectedText, geocodingApiKey, photonSearchUrl, searchResultsMap);
+            if (token === requestToken) {
+                quickPick.items = items;
+            }
         } catch {
-            quickPick.items = [];
+            if (token === requestToken) {
+                quickPick.items = [];
+                vscode.window.showErrorMessage('Search failed. Please try again.');
+            }
         } finally {
-            quickPick.busy = false;
+            if (token === requestToken) {
+                quickPick.busy = false;
+            }
         }
     }
+
+    // Handle hiding: cancel pending debounce and dispose to avoid leaks
+    quickPick.onDidHide(() => {
+        debouncedSearch.cancel();
+        quickPick.dispose();
+    });
 
     // Handle selection
     quickPick.onDidAccept(() => {
@@ -154,7 +183,4 @@ export async function handleSearchOnMap(
         }
         quickPick.hide();
     });
-
-    // Show the QuickPick
-    quickPick.show();
 }

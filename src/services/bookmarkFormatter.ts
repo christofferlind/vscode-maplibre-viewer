@@ -14,8 +14,8 @@ import { formatCoordinate, formatViewState, formatBookmarkDescription } from './
  */
 export function formatBookmarkLabel(bookmark: MapBookmark): string {
     return bookmark.name || formatCoordinate({
-        latitude: bookmark.center.latitude,
-        longitude: bookmark.center.longitude
+        latitude: bookmark.center?.latitude ?? 0,
+        longitude: bookmark.center?.longitude ?? 0
     });
 }
 
@@ -57,8 +57,8 @@ export function formatBookmarkTooltip(bookmark: MapBookmark): vscode.MarkdownStr
 export function formatBookmarkForCopy(bookmark: MapBookmark): string {
     return JSON.stringify({
         name: bookmark.name,
-        latitude: bookmark.center.latitude,
-        longitude: bookmark.center.longitude,
+        latitude: bookmark.center?.latitude ?? 0,
+        longitude: bookmark.center?.longitude ?? 0,
         zoom: bookmark.zoom,
         bearing: bookmark.bearing,
         pitch: bookmark.pitch
@@ -99,8 +99,8 @@ export function parseBookmarkFromCopy(str: string): Partial<MapBookmark> | null 
 export function formatBookmarkDescriptionFromBookmark(bookmark: MapBookmark): string {
     return formatBookmarkDescription(
         {
-            latitude: bookmark.center.latitude,
-            longitude: bookmark.center.longitude
+            latitude: bookmark.center?.latitude ?? 0,
+            longitude: bookmark.center?.longitude ?? 0
         },
         {
             zoom: bookmark.zoom,

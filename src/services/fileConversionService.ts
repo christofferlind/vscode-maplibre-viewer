@@ -92,8 +92,12 @@ export function validateFile(filePath: string): FileValidationResult {
     if (ext === '.shp') {
         const missingFiles: string[] = [];
         for (const reqExt of SHAPEFILE_REQUIRED_EXTENSIONS) {
-            const reqPath = filePath.replace(/\.shp$/i, reqExt);
-            if (!fs.existsSync(reqPath)) {
+            const hasUppercaseExt = /\.SHP$/.test(filePath);
+            const sidecarExt = hasUppercaseExt ? reqExt.toUpperCase() : reqExt;
+            const casePreservedPath = filePath.replace(/\.shp$/i, sidecarExt);
+            const lowerPath = filePath.replace(/\.shp$/i, reqExt);
+            const exists = fs.existsSync(casePreservedPath) || fs.existsSync(lowerPath);
+            if (!exists) {
                 missingFiles.push(reqExt);
             }
         }

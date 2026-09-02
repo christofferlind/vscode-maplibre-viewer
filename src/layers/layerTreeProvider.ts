@@ -15,6 +15,43 @@ type TreeItem = BaseMapStyle | OverlayLayer | 'baseMapsRoot' | 'layersRoot';
  */
 const MIME_APPLICATION_JSON = 'application/json';
 
+const EMPTY_FEATURE_COLLECTION: object = { type: 'FeatureCollection', features: [] };
+
+/**
+ * Returns a deep copy of the default overlay layers so callers can mutate
+ * the returned array and its elements without modifying the module constant.
+ */
+function cloneDefaultOverlayLayers(): OverlayLayer[] {
+    return DEFAULT_OVERLAY_LAYERS.map(layer => ({
+        ...layer,
+        source: {
+            ...layer.source
+        }
+    }));
+}
+
+/**
+ * Returns a copy of the overlay layers with the "Selected file" layer's
+ * GeoJSON data replaced by an empty FeatureCollection. The layer's
+ * visibility, color, and other properties are preserved. This is used when
+ * persisting overlay state so we never write a previous session's file data
+ * to globalState.
+ */
+function sanitizeForPersistence(layers: OverlayLayer[]): OverlayLayer[] {
+    return layers.map(layer => {
+        if (layer.id !== SELECTED_FILE_LAYER_ID) {
+            return layer;
+        }
+        return {
+            ...layer,
+            source: {
+                ...layer.source,
+                data: EMPTY_FEATURE_COLLECTION
+            }
+        };
+    });
+}
+
 /**
  * Tree data provider for managing map layers and base maps
  * Also implements TreeDragAndDropController for file drag-and-drop support
@@ -80,9 +117,10 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
 
         // Load overlay layers from globalState or use defaults
         this._overlayLayers = context.globalState.get<OverlayLayer[]>('overlayLayers')
-            || [...DEFAULT_OVERLAY_LAYERS];
+            || cloneDefaultOverlayLayers();
 
-        // Ensure the "Selected file" layer always exists
+        // Ensure the "Selected file" layer always exists and reset any
+        // persisted GeoJSON data so we never render a previous session's file.
         this._ensureSelectedFileLayer();
 
         // Load active base map from globalState or use first one, or 'basic' as fallback
@@ -151,9 +189,12 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
 
     /**
      * Ensures the "Selected file" layer exists in the overlay layers
+     * and that any persisted GeoJSON data is cleared so we never render
+     * a previous session's file.
      */
     private _ensureSelectedFileLayer(): void {
         const layerIndex = this._overlayLayers.findIndex(l => l.id === SELECTED_FILE_LAYER_ID);
+        const emptyData = { type: 'FeatureCollection', features: [] };
         if (layerIndex === -1) {
             this._overlayLayers.push({
                 id: SELECTED_FILE_LAYER_ID,
@@ -162,11 +203,20 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
                 type: 'geojson',
                 source: {
                     type: 'geojson',
-                    data: { type: 'FeatureCollection', features: [] }
+                    data: emptyData
                 },
                 visible: false
             });
+            return;
         }
+        const current = this._overlayLayers[layerIndex];
+        this._overlayLayers[layerIndex] = {
+            ...current,
+            source: {
+                ...current.source,
+                data: emptyData
+            }
+        };
     }
 
     /**
@@ -256,7 +306,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         }
 
         this._overlayLayers[layerIndex].visible = !this._overlayLayers[layerIndex].visible;
-        await this._extensionContext.globalState.update('overlayLayers', this._overlayLayers);
+        await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
 
         this._onDidChangeLayers.fire({
             type: 'overlay',
@@ -275,7 +325,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         }
 
         this._overlayLayers[layerIndex].color = color;
-        await this._extensionContext.globalState.update('overlayLayers', this._overlayLayers);
+        await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
 
         this._onDidChangeLayers.fire({
             type: 'overlay',
@@ -293,7 +343,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         }
 
         this._overlayLayers.push(layer);
-        await this._extensionContext.globalState.update('overlayLayers', this._overlayLayers);
+        await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
 
         this._onDidChangeLayers.fire({ type: 'overlay', data: layer });
         this.refresh();
@@ -309,7 +359,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         }
 
         const removed = this._overlayLayers.splice(index, 1)[0];
-        await this._extensionContext.globalState.update('overlayLayers', this._overlayLayers);
+        await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
 
         this._onDidChangeLayers.fire({ type: 'overlay', data: removed });
         this.refresh();
@@ -360,6 +410,10 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         for (const basemap of this._externalBasemaps.values()) {
             this._baseMaps = this._baseMaps.filter(bm => bm.id !== basemap.id);
             this._baseMaps.push(basemap);
+        }
+
+        if (this._baseMaps.length > 0 && !this._baseMaps.find(bm => bm.id === this._activeBaseMapId)) {
+            this._activeBaseMapId = this._baseMaps[0].id;
         }
     }
 
@@ -424,7 +478,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
             };
         }
 
-        await this._extensionContext.globalState.update('overlayLayers', this._overlayLayers);
+        await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
 
         const layer = this._overlayLayers[layerIndex];
         this._onDidChangeLayers.fire({ type: 'overlay', data: layer });

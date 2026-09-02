@@ -154,18 +154,31 @@ export function parseMultipleCoordinates(text: string): Coordinate[] {
  * @param patterns - Array of regex patterns with named groups
  * @returns An array of Coordinate objects found in the text
  */
+function ensureGlobalFlag(pattern: RegExp): RegExp {
+    if (pattern.global) {
+        return pattern;
+    }
+    return new RegExp(pattern.source, pattern.flags + 'g');
+}
+
 export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordinate[] {
     const coordinates: Coordinate[] = [];
     
     // Track occupied ranges to skip overlapping matches
     const occupiedRanges: { start: number; end: number }[] = [];
     
-    for (const pattern of patterns) {
+    for (const originalPattern of patterns) {
+        const pattern = ensureGlobalFlag(originalPattern);
         // Reset lastIndex for global patterns
         pattern.lastIndex = 0;
         
         let match;
         while ((match = pattern.exec(text)) !== null) {
+            if (match[0].length === 0) {
+                pattern.lastIndex += 1;
+                continue;
+            }
+
             const startIndex = match.index;
             const endIndex = startIndex + match[0].length;
             
@@ -287,7 +300,7 @@ export function extractCoordinatesFromGeoJson(geojson: any): Coordinate[] {
     }
 
     function extractFromGeometry(geometry: any): void {
-        if (!geometry || !geometry.coordinates) {
+        if (!geometry || (geometry.type !== 'GeometryCollection' && !geometry.coordinates)) {
             return;
         }
 

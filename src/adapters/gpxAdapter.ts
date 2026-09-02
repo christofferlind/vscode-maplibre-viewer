@@ -30,12 +30,20 @@ export const gpxAdapter: FileToGeoJsonAdapter = {
      * @returns A promise resolving to the GeoJSON object
      */
     async toGeoJson(filePath: string): Promise<object> {
-        const geojson = parseGpxFile(filePath);
-        
+        const geojson = parseGpxFile(filePath) as { features?: unknown[] };
+        const featureCount = Array.isArray(geojson.features) ? geojson.features.length : 0;
+
+        if (featureCount === 0) {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            if (/<gpx[\s>]/i.test(content)) {
+                throw new Error('No recognizable GPX data found in file');
+            }
+        }
+
         if (!isValidGeoJson(geojson)) {
             throw new Error('Failed to convert GPX to valid GeoJSON');
         }
-        
+
         return geojson;
     }
 };

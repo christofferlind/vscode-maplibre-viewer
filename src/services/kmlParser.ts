@@ -123,19 +123,7 @@ function extractGeometry(content: string): KmlGeometry | undefined {
         }
     }
 
-    // Try LinearRing (used in Polygons)
-    const ringMatch = /<LinearRing[^>]*>([\s\S]*?)<\/LinearRing>/i.exec(content);
-    if (ringMatch) {
-        const coords = parseCoordinateString(ringMatch[1]);
-        if (coords.length > 0) {
-            return {
-                type: 'LinearRing',
-                coordinates: coords
-            };
-        }
-    }
-
-    // Try Polygon
+    // Try Polygon before LinearRing so real polygons keep their holes
     const polygonMatch = /<Polygon[^>]*>([\s\S]*?)<\/Polygon>/i.exec(content);
     if (polygonMatch) {
         const polygonContent = polygonMatch[1];
@@ -164,6 +152,18 @@ function extractGeometry(content: string): KmlGeometry | undefined {
             return {
                 type: 'Polygon',
                 coordinates: rings
+            };
+        }
+    }
+
+    // Try standalone LinearRing (e.g. inside MultiGeometry without a Polygon wrapper)
+    const ringMatch = /<LinearRing[^>]*>([\s\S]*?)<\/LinearRing>/i.exec(content);
+    if (ringMatch) {
+        const coords = parseCoordinateString(ringMatch[1]);
+        if (coords.length > 0) {
+            return {
+                type: 'LinearRing',
+                coordinates: coords
             };
         }
     }
@@ -213,7 +213,11 @@ function parseCoordinateString(content: string): number[][] {
         const values = part.split(',').map(v => parseFloat(v.trim()));
         if (values.length >= 2 && !isNaN(values[0]) && !isNaN(values[1])) {
             // KML uses lng,lat order; GeoJSON also uses lng,lat order
-            coordinates.push([values[0], values[1]]);
+            if (values.length >= 3 && !isNaN(values[2])) {
+                coordinates.push([values[0], values[1], values[2]]);
+            } else {
+                coordinates.push([values[0], values[1]]);
+            }
         }
     }
 
@@ -281,17 +285,16 @@ function convertGeometry(kmlGeom: KmlGeometry): object | undefined {
 
 /**
  * Decodes common XML entities in a string.
- */
-/**
- * Decodes common XML entities in a string.
  * Handles the five predefined XML entities and numeric character references.
+ * &amp; is decoded last so doubly-escaped sequences like &amp;lt; stay as &lt;.
  */
 function decodeXmlEntities(text: string): string {
     return text
-        .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"')
         .replace(/&apos;/g, "'")
-        .replace(/&#(\d+);/g, (_match, dec) => String.fromCharCode(parseInt(dec, 10)));
+        .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);/g, (_match, dec) => String.fromCharCode(parseInt(dec, 10)))
+        .replace(/&amp;/g, '&');
 }

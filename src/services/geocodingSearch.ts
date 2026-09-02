@@ -86,10 +86,13 @@ function parseMapTilerResults(
 	const items: vscode.QuickPickItem[] = [];
 	
 	features.slice(0, 10).forEach(feature => {
+		if (feature.center === undefined || feature.center.length !== 2) {
+			return;
+		}
 		const label = feature.text || feature.place_name || 'Unknown';
 		const description = feature.place_type ? feature.place_type[0] : 'place';
-		const lat = feature.center?.[1] || 0;
-		const lng = feature.center?.[0] || 0;
+		const lat = feature.center[1];
+		const lng = feature.center[0];
 		
 		const bbox = parseBbox(feature.bbox);
 		
@@ -118,10 +121,13 @@ function parsePhotonResults(
 	const items: vscode.QuickPickItem[] = [];
 	
 	features.slice(0, 10).forEach(feature => {
+		if (!feature.geometry || feature.geometry.coordinates.length !== 2) {
+			return;
+		}
 		const label = feature.properties?.name || feature.properties?.city || feature.properties?.state || 'Unknown';
 		const description = feature.properties?.osm_value || feature.properties?.osm_key || 'place';
-		const lat = feature.geometry?.coordinates?.[1] || 0;
-		const lng = feature.geometry?.coordinates?.[0] || 0;
+		const lat = feature.geometry.coordinates[1];
+		const lng = feature.geometry.coordinates[0];
 		
 		// Photon API provides bbox in properties.extent as [west, south, east, north]
 		const bbox = parseBbox(feature.properties?.extent);

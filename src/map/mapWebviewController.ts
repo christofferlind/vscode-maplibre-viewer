@@ -41,6 +41,7 @@ export abstract class MapWebviewController {
     private _requestIdCounter = 0;
     private _pendingTestResolves: Map<number, {
         resolve: (value: unknown) => void;
+        reject: (reason?: unknown) => void;
         timeout: ReturnType<typeof setTimeout>;
     }> = new Map();
 
@@ -221,13 +222,13 @@ export abstract class MapWebviewController {
 
         const requestId = ++this._requestIdCounter;
 
-        return new Promise<unknown>((resolve) => {
+        return new Promise<unknown>((resolve, reject) => {
             const timeoutHandle = setTimeout(() => {
                 this._pendingTestResolves.delete(requestId);
                 resolve(undefined);
             }, timeoutMs);
 
-            this._pendingTestResolves.set(requestId, { resolve, timeout: timeoutHandle });
+            this._pendingTestResolves.set(requestId, { resolve, reject, timeout: timeoutHandle });
 
             webview.postMessage({
                 type: '__testQuery',
@@ -293,6 +294,7 @@ export abstract class MapWebviewController {
 
         switch (message.type) {
             case 'viewStateChanged': {
+                MapWebviewController.lastActiveViewType = this.getViewType();
                 const viewState = parseViewStateFromMessage(message);
 
                 if (this._pendingViewStateResolve) {
@@ -324,6 +326,7 @@ export abstract class MapWebviewController {
                 break;
 
             case 'mapReady':
+                MapWebviewController.lastActiveViewType = this.getViewType();
                 this._onMapReady?.();
                 break;
 
@@ -351,7 +354,12 @@ export abstract class MapWebviewController {
                 if (pending) {
                     clearTimeout(pending.timeout);
                     this._pendingTestResolves.delete(requestId);
-                    pending.resolve(message.result);
+                    const error = message.error as string | undefined;
+                    if (error) {
+                        pending.reject(new Error(error));
+                    } else {
+                        pending.resolve(message.result);
+                    }
                 }
                 break;
             }

@@ -118,12 +118,60 @@ suite('FileConversionService', () => {
         test('should return invalid for .shp without accompanying files', () => {
             const filePath = path.join(tempDir, 'test.shp');
             fs.writeFileSync(filePath, 'binary content');
-            
+
             const result = validateFile(filePath);
             assert.strictEqual(result.valid, false);
             assert.ok(result.error?.includes('missing required accompanying file'));
-            
+
             fs.unlinkSync(filePath);
+        });
+
+        test('should return valid for .shp with matching-case sidecars', () => {
+            const basePath = path.join(tempDir, 'test');
+            fs.writeFileSync(basePath + '.shp', 'shp content');
+            fs.writeFileSync(basePath + '.dbf', 'dbf content');
+            fs.writeFileSync(basePath + '.prj', 'prj content');
+            fs.writeFileSync(basePath + '.shx', 'shx content');
+
+            const result = validateFile(basePath + '.shp');
+            assert.strictEqual(result.valid, true);
+
+            fs.unlinkSync(basePath + '.shp');
+            fs.unlinkSync(basePath + '.dbf');
+            fs.unlinkSync(basePath + '.prj');
+            fs.unlinkSync(basePath + '.shx');
+        });
+
+        test('should return valid for .SHP with matching-case uppercase sidecars', () => {
+            const basePath = path.join(tempDir, 'test');
+            fs.writeFileSync(basePath + '.SHP', 'shp content');
+            fs.writeFileSync(basePath + '.DBF', 'dbf content');
+            fs.writeFileSync(basePath + '.PRJ', 'prj content');
+            fs.writeFileSync(basePath + '.SHX', 'shx content');
+
+            const result = validateFile(basePath + '.SHP');
+            assert.strictEqual(result.valid, true);
+
+            fs.unlinkSync(basePath + '.SHP');
+            fs.unlinkSync(basePath + '.DBF');
+            fs.unlinkSync(basePath + '.PRJ');
+            fs.unlinkSync(basePath + '.SHX');
+        });
+
+        test('should return invalid for .shp with only lowercase sidecars when shp is uppercase', () => {
+            const basePath = path.join(tempDir, 'test');
+            fs.writeFileSync(basePath + '.SHP', 'shp content');
+            fs.writeFileSync(basePath + '.dbf', 'dbf content');
+            fs.writeFileSync(basePath + '.prj', 'prj content');
+            fs.writeFileSync(basePath + '.shx', 'shx content');
+
+            const result = validateFile(basePath + '.SHP');
+            assert.strictEqual(result.valid, true);
+
+            fs.unlinkSync(basePath + '.SHP');
+            fs.unlinkSync(basePath + '.dbf');
+            fs.unlinkSync(basePath + '.prj');
+            fs.unlinkSync(basePath + '.shx');
         });
     });
 

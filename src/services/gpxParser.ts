@@ -118,7 +118,7 @@ export function parseGpxContent(content: string): object {
  */
 function extractWaypoints(content: string): GpxPoint[] {
     const points: GpxPoint[] = [];
-    const wptRegex = /<wpt\s+lat="([^"]*)"\s+lon="([^"]*)"[^>]*>([\s\S]*?)<\/wpt>/gi;
+    const wptRegex = /<wpt\s+lat="([^"]*)"\s+lon="([^"]*)"[^>]*?(?:\/>|>([\s\S]*?)<\/wpt>)/gi;
     let match: RegExpExecArray | null;
 
     while ((match = wptRegex.exec(content)) !== null) {
@@ -127,13 +127,16 @@ function extractWaypoints(content: string): GpxPoint[] {
 
         if (isNaN(lat) || isNaN(lon)) { continue; }
 
-        const innerContent = match[3];
+        const innerContent = match[3] ?? '';
         const point: GpxPoint = { lat, lon };
 
         // Extract elevation
         const eleMatch = /<ele[^>]*>([\s\S]*?)<\/ele>/i.exec(innerContent);
         if (eleMatch) {
-            point.ele = parseFloat(eleMatch[1].trim());
+            const ele = parseFloat(eleMatch[1].trim());
+            if (!isNaN(ele)) {
+                point.ele = ele;
+            }
         }
 
         // Extract name
