@@ -30,10 +30,12 @@ interface MockFeature {
         name?: string;
         city?: string;
         state?: string;
+        country?: string;
         osm_value?: string;
         osm_key?: string;
         extent?: [number, number, number, number];
     };
+    context?: { id?: string; text?: string; short_code?: string }[];
     geometry?: { coordinates: [number, number] };
 }
 
@@ -92,6 +94,27 @@ suite('GeocodingSearch unit tests', () => {
             assert.strictEqual(values[0].lng, 2.35);
         });
 
+        test('should show type and country in the detail', async () => {
+            globalThis.fetch = createMockFetch({
+                features: [
+                    {
+                        text: 'Paris',
+                        place_type: ['city'],
+                        center: [2.35, 48.85],
+                        context: [
+                            { id: 'country.123', text: 'France' },
+                            { id: 'region.456', text: 'Île-de-France' }
+                        ]
+                    }
+                ]
+            });
+
+            const items = await geocodingSearchModule.performGeocodingSearch('paris', 'test-key', 'https://photon.example/api/', new Map());
+
+            assert.strictEqual(items.length, 1);
+            assert.strictEqual(items[0].detail, 'France');
+        });
+
         test('should skip feature with empty center array', async () => {
             globalThis.fetch = createMockFetch({
                 features: [
@@ -137,6 +160,22 @@ suite('GeocodingSearch unit tests', () => {
             const values = Array.from(resultsMap.values());
             assert.strictEqual(values[0].lat, 59.91);
             assert.strictEqual(values[0].lng, 10.75);
+        });
+
+        test('should show type and country in the detail', async () => {
+            globalThis.fetch = createMockFetch({
+                features: [
+                    {
+                        properties: { name: 'Oslo', country: 'Norway', osm_value: 'city' },
+                        geometry: { coordinates: [10.75, 59.91] }
+                    }
+                ]
+            });
+
+            const items = await geocodingSearchModule.performGeocodingSearch('oslo', undefined, 'https://photon.example/api/', new Map());
+
+            assert.strictEqual(items.length, 1);
+            assert.strictEqual(items[0].detail, 'Norway');
         });
 
         test('should skip feature with empty coordinates array', async () => {

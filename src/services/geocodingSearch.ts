@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BoundingBox, formatCoordinates } from './coordinateParser';
+import { BoundingBox } from './coordinateParser';
 
 /**
  * Interface for search result data
@@ -19,6 +19,7 @@ interface MapTilerFeature {
 	place_type?: string[];
 	center?: [number, number];
 	bbox?: [number, number, number, number];
+	context?: { id?: string; text?: string; short_code?: string }[];
 }
 
 /**
@@ -29,6 +30,7 @@ interface PhotonFeature {
 		name?: string;
 		city?: string;
 		state?: string;
+		country?: string;
 		osm_value?: string;
 		osm_key?: string;
 		extent?: [number, number, number, number]; // [west, south, east, north]
@@ -96,9 +98,8 @@ function parseMapTilerResults(
 		
 		const bbox = parseBbox(feature.bbox);
 		
-		const detail = bbox
-			? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`
-			: formatCoordinates(lat, lng);
+		const country = feature.context?.find((c) => c.id?.startsWith('country'))?.text;
+		const detail = country || '';
 		const itemKey = `${label}-${detail}`;
 		
 		items.push(createSearchResultItem(label, description, detail));
@@ -132,9 +133,8 @@ function parsePhotonResults(
 		// Photon API provides bbox in properties.extent as [west, south, east, north]
 		const bbox = parseBbox(feature.properties?.extent);
 		
-		const detail = bbox
-			? `BBox: ${bbox.southwest.latitude.toFixed(2)} to ${bbox.northeast.latitude.toFixed(2)}, ${bbox.southwest.longitude.toFixed(2)} to ${bbox.northeast.longitude.toFixed(2)}`
-			: formatCoordinates(lat, lng);
+		const country = feature.properties?.country;
+		const detail = country || '';
 		const itemKey = `${label}-${detail}`;
 		
 		items.push(createSearchResultItem(label, description, detail));
