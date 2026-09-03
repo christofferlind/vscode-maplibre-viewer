@@ -113,9 +113,9 @@ suite('Geocoding stale response handling', () => {
         searchResultsMap: Map<string, SearchResultData>,
         spec: Array<{ label: string; lat: number; lng: number }>
     ): StubQuickPickItem[] {
-        return spec.map((item) => {
+        return spec.map((item, index) => {
             const detail = `${item.label}-detail`;
-            searchResultsMap.set(`${item.label}-${detail}`, { lat: item.lat, lng: item.lng });
+            searchResultsMap.set(String(index), { lat: item.lat, lng: item.lng });
             return { label: item.label, description: 'city', detail };
         });
     }

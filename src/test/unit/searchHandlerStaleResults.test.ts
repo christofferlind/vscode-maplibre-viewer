@@ -267,11 +267,11 @@ suite('handleSearchOnMap stale result protection', () => {
             assert.strictEqual(staleRequest.query, 'sto');
             assert.strictEqual(freshRequest.query, 'stockholm');
 
-            h.resolveRequest(freshRequest, [itemB], { 'B-label-B-detail': { lat: 59.33, lng: 18.07, bbox: bboxB } });
+            h.resolveRequest(freshRequest, [itemB], { '0': { lat: 59.33, lng: 18.07, bbox: bboxB } });
             await new Promise(resolve => setTimeout(resolve, 0));
             assert.strictEqual(h.quickPick.items.length, 1);
 
-            h.resolveRequest(staleRequest, [itemA], { 'A-label-A-detail': { lat: 1, lng: 2, bbox: bboxA } });
+            h.resolveRequest(staleRequest, [itemA], { '0': { lat: 1, lng: 2, bbox: bboxA } });
             await new Promise(resolve => setTimeout(resolve, 0));
 
             assert.strictEqual(h.quickPick.items.length, 1);
@@ -293,9 +293,9 @@ suite('handleSearchOnMap stale result protection', () => {
             h.fireValue('stockholm');
             await h.flushDebounce();
 
-            h.resolveRequest(h.pendingRequests[1], [itemB], { 'B-label-B-detail': { lat: 59.33, lng: 18.07, bbox: bboxB } });
+            h.resolveRequest(h.pendingRequests[1], [itemB], { '0': { lat: 59.33, lng: 18.07, bbox: bboxB } });
             await new Promise(resolve => setTimeout(resolve, 0));
-            h.resolveRequest(h.pendingRequests[0], [itemA], { 'A-label-A-detail': { lat: 1, lng: 2, bbox: bboxA } });
+            h.resolveRequest(h.pendingRequests[0], [itemA], { '0': { lat: 1, lng: 2, bbox: bboxA } });
             await new Promise(resolve => setTimeout(resolve, 0));
 
             const fitsBefore = h.fitCalls.length;
@@ -314,7 +314,7 @@ suite('handleSearchOnMap stale result protection', () => {
             h.fireValue('stockholm');
             await h.flushDebounce();
 
-            h.resolveRequest(h.pendingRequests[0], [itemB], { 'B-label-B-detail': { lat: 59.33, lng: 18.07, bbox: bboxB } });
+            h.resolveRequest(h.pendingRequests[0], [itemB], { '0': { lat: 59.33, lng: 18.07, bbox: bboxB } });
             await new Promise(resolve => setTimeout(resolve, 0));
 
             h.quickPick.selectedItems = [itemB];
@@ -335,7 +335,7 @@ suite('handleSearchOnMap stale result protection', () => {
             assert.strictEqual(h.pendingRequests.length, 1);
 
             h.fireValue('x');
-            h.resolveRequest(h.pendingRequests[0], [itemA], { 'A-label-A-detail': { lat: 1, lng: 2 } });
+            h.resolveRequest(h.pendingRequests[0], [itemA], { '0': { lat: 1, lng: 2 } });
             await new Promise(resolve => setTimeout(resolve, 0));
 
             assert.strictEqual(h.quickPick.items.length, 0);
@@ -352,7 +352,7 @@ suite('handleSearchOnMap stale result protection', () => {
             h.fireValue('stockholm');
             await h.flushDebounce();
 
-            h.resolveRequest(h.pendingRequests[1], [itemB], { 'B-label-B-detail': { lat: 59.33, lng: 18.07 } });
+            h.resolveRequest(h.pendingRequests[1], [itemB], { '0': { lat: 59.33, lng: 18.07 } });
             await new Promise(resolve => setTimeout(resolve, 0));
             h.rejectRequest(h.pendingRequests[0], new Error('stale failure'));
             await new Promise(resolve => setTimeout(resolve, 0));

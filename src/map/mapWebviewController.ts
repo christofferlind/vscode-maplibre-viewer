@@ -413,9 +413,9 @@ export abstract class MapWebviewController {
             }
 
             const results: GeocodingResult[] = [];
-            for (const item of items) {
-                const key = `${item.label}-${item.detail}`;
-                const data = searchResultsMap.get(key);
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                const data = searchResultsMap.get(String(i));
                 if (data) {
                     results.push({
                         name: item.label,

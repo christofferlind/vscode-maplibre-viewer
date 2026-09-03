@@ -87,7 +87,7 @@ function parseMapTilerResults(
 ): vscode.QuickPickItem[] {
 	const items: vscode.QuickPickItem[] = [];
 	
-	features.slice(0, 10).forEach(feature => {
+	features.slice(0, 10).forEach((feature, index) => {
 		if (feature.center === undefined || feature.center.length !== 2) {
 			return;
 		}
@@ -100,10 +100,9 @@ function parseMapTilerResults(
 		
 		const country = feature.context?.find((c) => c.id?.startsWith('country'))?.text;
 		const detail = country || '';
-		const itemKey = `${label}-${detail}`;
 		
 		items.push(createSearchResultItem(label, description, detail));
-		searchResultsMap.set(itemKey, { lat, lng, bbox });
+		searchResultsMap.set(String(index), { lat, lng, bbox });
 	});
 	
 	return items;
@@ -121,7 +120,7 @@ function parsePhotonResults(
 ): vscode.QuickPickItem[] {
 	const items: vscode.QuickPickItem[] = [];
 	
-	features.slice(0, 10).forEach(feature => {
+	features.slice(0, 10).forEach((feature, index) => {
 		if (!feature.geometry || feature.geometry.coordinates.length !== 2) {
 			return;
 		}
@@ -135,10 +134,9 @@ function parsePhotonResults(
 		
 		const country = feature.properties?.country;
 		const detail = country || '';
-		const itemKey = `${label}-${detail}`;
 		
 		items.push(createSearchResultItem(label, description, detail));
-		searchResultsMap.set(itemKey, { lat, lng, bbox });
+		searchResultsMap.set(String(index), { lat, lng, bbox });
 	});
 	
 	return items;

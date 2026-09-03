@@ -111,9 +111,9 @@ export async function handleSearchOnMap(
             return;
         }
         
-        // Find the coordinates for the active item
-        const itemKey = `${activeItem.label}-${activeItem.detail}`;
-        const coords = activeResultsMap.get(itemKey);
+        // Find the coordinates for the active item by its index in the results
+        const index = quickPick.items.indexOf(activeItem);
+        const coords = activeResultsMap.get(String(index));
         
         if (!coords) {
             return;
@@ -170,9 +170,9 @@ export async function handleSearchOnMap(
             return;
         }
         
-        // Find the coordinates for the selected item
-        const itemKey = `${selected.label}-${selected.detail}`;
-        const coords = activeResultsMap.get(itemKey);
+        // Find the coordinates for the selected item by its index in the results
+        const index = quickPick.items.indexOf(selected);
+        const coords = activeResultsMap.get(String(index));
         
         if (!coords) {
             quickPick.hide();
