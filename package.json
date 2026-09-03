@@ -546,6 +546,7 @@
     "watch": "tsc -watch -p ./",
     "lint": "eslint src",
     "test": "npm run compile && mocha --ui tdd out/test/unit/**/*.test.js",
+    "test:coverage": "npm run compile && c8 mocha --ui tdd out/test/unit/**/*.test.js && node scripts/generate-coverage-report.js",
     "test:vscode": "npm run compile && npm run lint && rm -rf /tmp/vscode-mlv-test && npx @vscode/test-cli",
     "copy-assets": "node scripts/copy-maplibre-assets.js",
     "package": "vsce package",
@@ -556,6 +557,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
+    "c8": "^10.1.3",
     "@types/node": "22.x",
     "@types/vscode": "^1.110.0",
     "@vscode/test-cli": "^0.0.12",
