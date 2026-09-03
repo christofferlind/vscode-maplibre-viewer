@@ -25,7 +25,7 @@ This extension is designed to run fully offline. End users **MUST** be able to i
 - **MUST** mock external dependencies in tests so they remain fast and isolated.
 - **MUST** keep business logic strictly separated from I/O handling.
 - **MUST** keep files under 600 lines. Run `wc -l <file>` after edits; refactor if exceeded.
-- **MUST** bump the `version` field in [`package.json`](package.json:6) for every change, following SemVer: patch for bug fixes, minor for backward-compatible additions, major for breaking changes.
+- **MUST** bump the `version` field in [`package.json`](package.json:6) for every change, following SemVer: patch for bug fixes, minor for backward-compatible additions, major for breaking changes. **MUST** also update the matching `version` fields in [`package-lock.json`](package-lock.json:3) (the root `version` and the `packages[""].version`) so they stay in sync with `package.json`.
 
 ## UI / configuration synchronization
 
