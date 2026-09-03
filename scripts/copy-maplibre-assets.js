@@ -16,7 +16,8 @@ const maplibreDestPath = path.join(resourcesPath, 'maplibre-gl');
 const filesToCopy = [
     { src: 'dist/maplibre-gl-csp.js', dest: 'maplibre-gl.js' },
     { src: 'dist/maplibre-gl.css', dest: 'maplibre-gl.css' },
-    { src: 'dist/maplibre-gl-csp-worker.js', dest: 'maplibre-gl-worker.js' }
+    { src: 'dist/maplibre-gl-csp-worker.js', dest: 'maplibre-gl-worker.js' },
+    { src: 'LICENSE.txt', dest: 'LICENSE.txt' }
 ];
 
 // Ensure the destination directory exists

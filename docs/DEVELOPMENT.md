@@ -380,5 +380,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Acknowledgments
 
-- [MapLibre GL JS](https://maplibre.org/) - Open source vector tile rendering
+- [MapLibre GL JS](https://maplibre.org/) - Open source vector tile rendering, redistributed under the [BSD-3-Clause license](../resources/maplibre-gl/LICENSE.txt)
 - [VS Code Extension API](https://code.visualstudio.com/api) - Extension development
