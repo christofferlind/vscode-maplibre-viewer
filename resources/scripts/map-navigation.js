@@ -15,7 +15,7 @@ window.temporaryMarkers = [];
 function flyToLocation(latitude, longitude, zoom) {
 	if (!window.MapUtils.withMap(function(map) {
 		// Get flyToDuration from config
-		var flyToDuration = window.MapUtils.getConfig('flyToDuration', 1500);
+		var flyToDuration = window.MapUtils.getConfig('flyToDuration', 500);
 
 		// Use provided zoom or default to 14
 		var zoomLevel = zoom !== undefined ? zoom : 14;
@@ -132,12 +132,14 @@ function flyToBookmark(bookmark) {
 	if (!window.MapUtils.withMap(function(map) {
 		console.log('Flying to bookmark:', bookmark.name, bookmark);
 
+		var flyToDuration = window.MapUtils.getConfig('flyToDuration', 500);
+
 		map.flyTo({
 			center: [bookmark.center.longitude, bookmark.center.latitude],
 			zoom: bookmark.zoom || 14,
 			bearing: bookmark.bearing || 0,
 			pitch: bookmark.pitch || 0,
-			duration: 1500
+			duration: flyToDuration
 		});
 	})) return;
 }

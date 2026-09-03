@@ -228,7 +228,7 @@ function initialize(config) {
 		photonSearchUrl: config.photonSearchUrl || 'https://photon.komoot.io/api',
 		enableSearch: config.enableSearch || false,
 		searchResultsTransparency: config.searchResultsTransparency || 20,
-		flyToDuration: config.flyToDuration || 1500,
+		flyToDuration: config.flyToDuration || 500,
 		mapStyleUrl: config.mapStyleUrl || ''
 	};
 

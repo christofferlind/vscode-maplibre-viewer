@@ -8,7 +8,7 @@
 // Map instance and state
 var map = null;
 var currentStyleUrl = null;
-var flyToDuration = 1500;
+var flyToDuration = 500;
 var viewStateDebounceTimer = null;
 var mapLoaded = false;
 

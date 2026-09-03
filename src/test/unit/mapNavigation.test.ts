@@ -86,7 +86,7 @@ class MockMapLibreMap {
  * This means zoom=0, bearing=0, pitch=0 will use defaults.
  * This matches the actual behavior in map-navigation.js line 137-139.
  */
-function flyToBookmark(bookmark: { center?: { latitude: number; longitude: number }; zoom?: number; bearing?: number; pitch?: number }, map: MockMapLibreMap): void {
+function flyToBookmark(bookmark: { center?: { latitude: number; longitude: number }; zoom?: number; bearing?: number; pitch?: number }, map: MockMapLibreMap, flyToDuration = 500): void {
     if (!bookmark || !bookmark.center) {
         console.warn('Invalid bookmark data');
         return;
@@ -99,7 +99,7 @@ function flyToBookmark(bookmark: { center?: { latitude: number; longitude: numbe
         zoom: bookmark.zoom || 14,  // NOTE: zoom=0 will default to 14
         bearing: bookmark.bearing || 0,
         pitch: bookmark.pitch || 0,
-        duration: 1500
+        duration: flyToDuration
     });
 }
 
@@ -299,7 +299,33 @@ suite('MapLibre Map Center Tests', () => {
         assert.strictEqual(flyToCall?.zoom, 15, 'flyTo zoom should match');
         assert.strictEqual(flyToCall?.bearing, 30, 'flyTo bearing should match');
         assert.strictEqual(flyToCall?.pitch, 20, 'flyTo pitch should match');
-        assert.strictEqual(flyToCall?.duration, 1500, 'flyTo duration should be 1500ms');
+        assert.strictEqual(flyToCall?.duration, 500, 'flyTo duration should default to 500ms');
+    });
+    
+    test('should use configured flyToDuration when flying to bookmark', () => {
+        const bookmark = createTestBookmark({
+            center: { latitude: 59.3293, longitude: 18.0686 },
+            zoom: 15
+        });
+        
+        flyToBookmark(bookmark, mockMap, 2000);
+        
+        const flyToCall = mockMap.getLastFlyToCall();
+        assert.ok(flyToCall, 'flyTo should have been called');
+        assert.strictEqual(flyToCall?.duration, 2000, 'flyTo duration should use configured value');
+    });
+    
+    test('should use configured flyToDuration of 0 when flying to bookmark', () => {
+        const bookmark = createTestBookmark({
+            center: { latitude: 59.3293, longitude: 18.0686 },
+            zoom: 15
+        });
+        
+        flyToBookmark(bookmark, mockMap, 0);
+        
+        const flyToCall = mockMap.getLastFlyToCall();
+        assert.ok(flyToCall, 'flyTo should have been called');
+        assert.strictEqual(flyToCall?.duration, 0, 'flyTo duration should use configured value of 0');
     });
     
     test('should handle multiple sequential bookmark navigations', () => {

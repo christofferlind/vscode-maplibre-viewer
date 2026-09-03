@@ -308,7 +308,7 @@ function flyToResult(result) {
 	var map = window.MapCore.getMap();
 	if (!map) return;
 
-	var flyToDuration = window.MapUtils.getConfig('flyToDuration', 1500);
+	var flyToDuration = window.MapUtils.getConfig('flyToDuration', 500);
 
 	// If bounding box is available, fit the map to it
 	if (result.bbox) {

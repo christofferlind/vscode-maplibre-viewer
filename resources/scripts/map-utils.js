@@ -130,7 +130,7 @@ function fitBoundsWithDefaults(map, bounds, options) {
 	options = options || {};
 	var defaultOptions = {
 		padding: 50,
-		duration: window.MapUtils.getConfig('flyToDuration', 1500),
+		duration: window.MapUtils.getConfig('flyToDuration', 500),
 		maxZoom: 16
 	};
 	map.fitBounds(bounds, Object.assign({}, defaultOptions, options));
