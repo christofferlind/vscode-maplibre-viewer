@@ -385,15 +385,51 @@
         }
       ],
       "webview/context/setMapLanguage": [
-        { "command": "vscodeMaplibreViewer.setLanguage", "when": "true", "group": "1_select" },
-        { "command": "vscodeMaplibreViewer.setLanguageNative", "when": "true", "group": "2_select" },
-        { "command": "vscodeMaplibreViewer.setLanguageEnglish", "when": "true", "group": "3_languages" },
-        { "command": "vscodeMaplibreViewer.setLanguageSpanish", "when": "true", "group": "3_languages" },
-        { "command": "vscodeMaplibreViewer.setLanguageFrench", "when": "true", "group": "3_languages" },
-        { "command": "vscodeMaplibreViewer.setLanguageRussian", "when": "true", "group": "3_languages" },
-        { "command": "vscodeMaplibreViewer.setLanguageHindi", "when": "true", "group": "3_languages" },
-        { "command": "vscodeMaplibreViewer.setLanguageArabic", "when": "true", "group": "3_languages" },
-        { "command": "vscodeMaplibreViewer.setLanguageChinese", "when": "true", "group": "3_languages" }
+        {
+          "command": "vscodeMaplibreViewer.setLanguage",
+          "when": "true",
+          "group": "1_select"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageNative",
+          "when": "true",
+          "group": "2_select"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageEnglish",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageSpanish",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageFrench",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageRussian",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageHindi",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageArabic",
+          "when": "true",
+          "group": "3_languages"
+        },
+        {
+          "command": "vscodeMaplibreViewer.setLanguageChinese",
+          "when": "true",
+          "group": "3_languages"
+        }
       ]
     },
     "submenus": [
@@ -465,19 +501,50 @@
               },
               "type": {
                 "type": "string",
-                "enum": ["vector", "raster"],
+                "enum": [
+                  "vector",
+                  "raster"
+                ],
                 "description": "Type of basemap: 'vector' for style JSON, 'raster' for raster tiles. Defaults to 'vector' if styleUrl is provided."
               },
-              "styleUrl": { "type": "string", "description": "URL to the MapLibre style JSON (for vector basemaps)" },
-              "tileUrl": { "type": "string", "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')" },
-              "tileSize": { "type": "number", "default": 256, "description": "Tile size for raster sources (default: 256)" },
-              "attribution": { "type": "string", "description": "Attribution text for the tiles" },
-              "minzoom": { "type": "number", "description": "Minimum zoom level for raster tiles" },
-              "maxzoom": { "type": "number", "description": "Maximum zoom level for raster tiles" },
-              "description": { "type": "string", "description": "Optional description of the basemap" },
-              "thumbnail": { "type": "string", "description": "Optional thumbnail image URL for the basemap" }
+              "styleUrl": {
+                "type": "string",
+                "description": "URL to the MapLibre style JSON (for vector basemaps)"
+              },
+              "tileUrl": {
+                "type": "string",
+                "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')"
+              },
+              "tileSize": {
+                "type": "number",
+                "default": 256,
+                "description": "Tile size for raster sources (default: 256)"
+              },
+              "attribution": {
+                "type": "string",
+                "description": "Attribution text for the tiles"
+              },
+              "minzoom": {
+                "type": "number",
+                "description": "Minimum zoom level for raster tiles"
+              },
+              "maxzoom": {
+                "type": "number",
+                "description": "Maximum zoom level for raster tiles"
+              },
+              "description": {
+                "type": "string",
+                "description": "Optional description of the basemap"
+              },
+              "thumbnail": {
+                "type": "string",
+                "description": "Optional thumbnail image URL for the basemap"
+              }
             },
-            "required": ["id", "name"]
+            "required": [
+              "id",
+              "name"
+            ]
           }
         },
         "vscodeMaplibreViewer.coordinatePatterns": {
@@ -501,7 +568,10 @@
                 "description": "Regex flags (e.g., 'g' for global, 'i' for case-insensitive). Default is 'g'."
               }
             },
-            "required": ["name", "pattern"]
+            "required": [
+              "name",
+              "pattern"
+            ]
           }
         },
         "vscodeMaplibreViewer.alwaysShowDemoTiles": {
@@ -512,7 +582,10 @@
         "vscodeMaplibreViewer.lastViewState": {
           "type": "object",
           "default": {
-            "center": { "lat": 0, "lng": 0 },
+            "center": {
+              "lat": 0,
+              "lng": 0
+            },
             "zoom": 1,
             "bearing": 0,
             "pitch": 0,
@@ -523,13 +596,23 @@
             "center": {
               "type": "object",
               "properties": {
-                "lat": { "type": "number" },
-                "lng": { "type": "number" }
+                "lat": {
+                  "type": "number"
+                },
+                "lng": {
+                  "type": "number"
+                }
               }
             },
-            "zoom": { "type": "number" },
-            "bearing": { "type": "number" },
-            "pitch": { "type": "number" },
+            "zoom": {
+              "type": "number"
+            },
+            "bearing": {
+              "type": "number"
+            },
+            "pitch": {
+              "type": "number"
+            },
             "baseMapId": {
               "type": "string",
               "description": "ID of the last selected base map"
@@ -557,12 +640,12 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "c8": "^10.1.3",
     "@types/node": "22.x",
     "@types/vscode": "^1.110.0",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.0.0",
+    "c8": "^10.1.3",
     "eslint": "^9.39.3",
     "mocha": "^11.7.5",
     "typescript": "^6.0.2",
