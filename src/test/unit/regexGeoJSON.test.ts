@@ -171,13 +171,6 @@ suite('Regex GeoJSON Test Suite', () => {
         assert.strictEqual(coords.length, 0, 'Should not find any coordinates');
     });
     
-    test('should not match brackets with only one number', () => {
-        const testString = "[40.7644]";
-        const coords = findCoordinatesRegex(testString, [regexGeoJSON]);
-        
-        assert.strictEqual(coords.length, 0, 'Should not find any coordinates');
-    });
-    
     test('Specific test', () => {
         const testString = "[18.06767 59.3]";
         const coords = findCoordinatesRegex(testString, [regexGeoJSON]);

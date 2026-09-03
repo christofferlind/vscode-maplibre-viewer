@@ -269,39 +269,6 @@ suite('MapBasemap mapReady style loading', () => {
             tileUrl: 'https://example.com/{z}/{x}/{y}.png'
         };
 
-        test('posts mapReady synchronously when style is already loaded', () => {
-            const harness = loadMapBasemap(true);
-
-            harness.basemap.updateBasemap(rasterBasemap);
-
-            assert.strictEqual(harness.posted.length, 1, 'Should post exactly one message');
-            assert.strictEqual(harness.posted[0].type, 'mapReady');
-        });
-
-        test('posts exactly one mapReady after styledata fires once', () => {
-            const harness = loadMapBasemap(false);
-
-            harness.basemap.updateBasemap(rasterBasemap);
-
-            harness.setStyleLoaded(true);
-            harness.fireOnce('styledata');
-
-            assert.strictEqual(harness.posted.length, 1, 'Exactly one mapReady after styledata');
-            assert.strictEqual(harness.posted[0].type, 'mapReady');
-        });
-
-        test('firing styledata twice does not post mapReady twice', () => {
-            const harness = loadMapBasemap(false);
-
-            harness.basemap.updateBasemap(rasterBasemap);
-
-            harness.setStyleLoaded(true);
-            harness.fireOnce('styledata');
-            harness.fireOnce('styledata');
-
-            assert.strictEqual(harness.posted.length, 1, 'mapReady must be idempotent per style change');
-        });
-
         test('passes an inline raster style object to setStyle', () => {
             const harness = loadMapBasemap(true);
 

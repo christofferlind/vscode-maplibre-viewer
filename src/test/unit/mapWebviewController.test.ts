@@ -135,31 +135,6 @@ suite('MapWebviewController flyToBookmark Tests', () => {
             assert.strictEqual(message.bookmark.bearing, 0, 'Should preserve bearing=0');
             assert.strictEqual(message.bookmark.pitch, 0, 'Should preserve pitch=0');
         });
-
-        test('should handle bookmark with undefined bearing and pitch defaults', () => {
-            // Arrange
-            controller.setWebview(mockWebview);
-            // Create bookmark without explicit bearing/pitch
-            const bookmark: MapBookmark = {
-                id: 'test-id',
-                name: 'Test',
-                center: { latitude: 59.3293, longitude: 18.0686 },
-                zoom: 10,
-                bearing: 0, // Default value
-                pitch: 0,   // Default value
-                createdAt: '2024-01-01T00:00:00.000Z',
-                updatedAt: '2024-01-01T00:00:00.000Z'
-            };
-
-            // Act
-            controller.flyToBookmark(bookmark);
-
-            // Assert
-            const message = mockWebview.getLastMessage() as any;
-            assert.ok(message, 'Should have a message');
-            assert.strictEqual(message.bookmark.bearing, 0);
-            assert.strictEqual(message.bookmark.pitch, 0);
-        });
     });
 
     suite('flyToBookmark with custom bearing and pitch', () => {

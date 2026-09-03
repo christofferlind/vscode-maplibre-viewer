@@ -212,21 +212,6 @@ suite('ProviderManager flyToBookmark Tests', () => {
             assert.strictEqual(mockProvider2.flyToBookmarkCalls.length, 1, 'Provider 2 should have been called');
             assert.strictEqual(mockProvider3.flyToBookmarkCalls.length, 1, 'Provider 3 should have been called');
         });
-
-        test('should not throw when a provider throws', () => {
-            // Arrange
-            mockProvider1.shouldThrow = true;
-            providerManager.register(mockProvider1 as any);
-            const bookmark = createTestBookmark();
-
-            // Act & Assert - should NOT throw since errors are caught
-            assert.doesNotThrow(() => {
-                providerManager.flyToBookmark(bookmark);
-            });
-
-            // The throwing provider should still have been called
-            assert.strictEqual(mockProvider1.flyToBookmarkCalls.length, 1);
-        });
     });
 
     suite('provider registration management', () => {

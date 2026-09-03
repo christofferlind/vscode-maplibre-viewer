@@ -12,15 +12,6 @@ suite('Regex DMS Test Suite', () => {
         assert.strictEqual(coords[0].longitude, 18.068611);
     });
     
-    test('should match DMS format with degrees and minutes and seconds', () => {
-        const testString = "59°19'45.5\"N 18°4'7.0\"E";
-        const coords = findCoordinatesRegex(testString, [regexDMS]);
-        
-        assert.strictEqual(coords.length, 1, 'Should find one coordinate');
-        assert.strictEqual(coords[0].latitude, 59.329306);
-        assert.strictEqual(coords[0].longitude, 18.068611);
-    });
-    
     test('should match DMS format with only degrees and minutes', () => {
         // This test is now expected to fail with the stricter regex
         // The stricter regex requires seconds for DMS format

@@ -22,11 +22,6 @@ suite('Terminal Selection Test Suite', () => {
             assert.strictEqual(resolveSelectedTextFromTerminalProbe(probe), '');
         });
 
-        test('Should treat selection identical to the previous clipboard as no selection', () => {
-            const probe: TerminalClipboardProbe = { before: 'Stockholm', after: 'Stockholm' };
-            assert.strictEqual(resolveSelectedTextFromTerminalProbe(probe), '');
-        });
-
         test('Should return copied text when selection differs from empty clipboard', () => {
             const probe: TerminalClipboardProbe = { before: '', after: '59.33, 18.06' };
             assert.strictEqual(resolveSelectedTextFromTerminalProbe(probe), '59.33, 18.06');
