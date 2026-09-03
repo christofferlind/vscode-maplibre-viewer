@@ -15,6 +15,7 @@ This extension is designed to run fully offline. End users **MUST** be able to i
 ## Hard rules
 
 - **MUST** run `npm run test` after modifying any file under `src/` or `resources/`.
+- **MUST** run `npm run test:coverage` for every code change to verify that a test actually hits the changed code.
 - **MUST** run `npm run lint` and `npm run compile` before declaring a task complete.
 - **MUST NOT** add production dependencies without explicit user confirmation.
 - **MUST NOT** use `@ts-ignore`, `any` to silence errors, or hardcode API keys/secrets.
