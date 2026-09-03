@@ -6,6 +6,40 @@
  */
 
 /**
+ * Notify the extension that the map is ready once the style is actually
+ * loaded. 'styledata' fires during style loading (not necessarily when the
+ * style is committed), so posting 'mapReady' from it can make overlay
+ * addSource/addLayer calls throw "Style is not done loading" and silently
+ * drop overlays. Poll via 'styledata'/'load' one-shots until
+ * isStyleLoaded() is true, and post 'mapReady' exactly once per call.
+ * @param {Object} map - MapLibre map instance
+ */
+function notifyMapReadyWhenStyleLoaded(map) {
+	var done = false;
+	var post = function() {
+		if (done) {
+			return;
+		}
+		if (map.isStyleLoaded()) {
+			done = true;
+			console.log('[MapBasemap] Style loaded; posting mapReady');
+			vscode.postMessage({
+				type: 'mapReady'
+			});
+			return;
+		}
+		map.once('styledata', function() {
+			post();
+		});
+		// Also guard with 'load' in case styledata no longer fires
+		map.once('load', function() {
+			post();
+		});
+	};
+	post();
+}
+
+/**
  * Update map style dynamically.
  * If the previous map instance never finished loading (its initial style
  * fetch failed, e.g. while offline), setStyle does not reliably render, so
@@ -43,12 +77,7 @@ function updateMapStyle(newStyleUrl) {
 			preserveSources: true
 		});
 
-		map.once('styledata', function(e) {
-			console.log('[MapBasemap] Post event mapReady after vector style change');
-			vscode.postMessage({
-				type: 'mapReady'
-			});
-		});
+		notifyMapReadyWhenStyleLoaded(map);
 
 		map.jumpTo({
 			center: currentCenter,
@@ -144,12 +173,7 @@ function updateBasemap(basemap) {
 				preserveSources: true
 			});
 
-			map.once('styledata', function(e) {
-				console.log('[MapBasemap] Post event mapReady after raster basemap change');
-				vscode.postMessage({
-					type: 'mapReady'
-				});
-			});
+			notifyMapReadyWhenStyleLoaded(map);
 
 			map.jumpTo({
 				center: currentCenter,

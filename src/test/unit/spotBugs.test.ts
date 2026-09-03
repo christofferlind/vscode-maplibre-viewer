@@ -99,6 +99,7 @@ function makeCommandRegistryStubs(): {
             show: () => undefined
         }),
         registerTreeDataProvider: () => new StubDisposable(),
+        createTreeView: () => new StubDisposable(),
         registerWebviewViewProvider: () => new StubDisposable(),
         onDidChangeTextEditorSelection: () => new StubDisposable(),
         onDidChangeActiveTextEditor: () => new StubDisposable(),
@@ -134,6 +135,7 @@ const vscodeStub: Record<string, unknown> = {
         }
     },
     TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+    StatusBarAlignment: { Left: 0, Right: 1 },
     ThemeIcon: class ThemeIcon {
         constructor(public readonly id: string) {}
     },

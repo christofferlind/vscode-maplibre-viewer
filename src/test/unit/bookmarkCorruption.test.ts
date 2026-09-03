@@ -6,8 +6,24 @@ import { createRequire } from 'module';
 const nodeRequire = createRequire(__filename);
 const ModuleCtor = nodeRequire('module') as typeof import('module');
 const vscodeStub = {
-    window: {},
-    commands: {},
+    window: {
+        showErrorMessage: (): Promise<undefined> => Promise.resolve(undefined),
+        showWarningMessage: (): Promise<undefined> => Promise.resolve(undefined),
+        showInformationMessage: (): Promise<undefined> => Promise.resolve(undefined),
+        createQuickPick: (): unknown => ({}),
+        createTreeView: (): unknown => ({ dispose: (): void => undefined })
+    },
+    commands: {
+        executeCommand: (): Promise<unknown> => Promise.resolve(undefined),
+        registerCommand: (): { dispose: () => void } => ({ dispose: (): void => undefined })
+    },
+    workspace: {
+        getConfiguration: () => ({
+            get: <T>(_key: string, defaultValue?: T): T | undefined => defaultValue,
+            update: (): Promise<void> => Promise.resolve()
+        }),
+        onDidChangeConfiguration: (): { dispose: () => void } => ({ dispose: (): void => undefined })
+    },
     MarkdownString: class MarkdownString {
         value = '';
         appendMarkdown(text: string): void {

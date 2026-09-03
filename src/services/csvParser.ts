@@ -17,10 +17,15 @@ const LONGITUDE_NAMES = new Set([
     'east', 'easting', 'eastings'
 ]);
 
+interface CsvRow {
+    values: string[];
+    quoted: boolean[];
+    lineNumber: number;
+}
+
 interface CsvParseResult {
     headers: string[];
-    rows: Record<string, string>[];
-    lineNumbers: number[];
+    rows: CsvRow[];
 }
 
 /**
@@ -56,40 +61,30 @@ function parseCsv(text: string): CsvParseResult {
         throw new Error('CSV file must have a header row and at least one data row');
     }
 
-    const headers = parseCsvLine(lines[0].line);
+    const headers = parseCsvLine(lines[0].line).values;
     if (headers.length < 2) {
         throw new Error('CSV file must have at least 2 columns');
     }
 
-    const rows: Record<string, string>[] = [];
+    const rows: CsvRow[] = [];
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].line.trim();
         if (!line) {
             continue;
         }
 
-        const values = parseCsvLine(line);
-        if (values.length === 0) {
+        const parsed = parseCsvLine(line);
+        if (parsed.values.length === 0) {
             continue;
         }
-        const row: Record<string, string> = {};
-        for (let j = 0; j < headers.length; j++) {
-            row[headers[j]] = j < values.length ? values[j] : '';
-        }
-        row.__lineNumber = String(lines[i].lineNumber);
-        rows.push(row);
+        rows.push({ values: parsed.values, quoted: parsed.quoted, lineNumber: lines[i].lineNumber });
     }
 
     if (rows.length === 0) {
         throw new Error('CSV file must have a header row and at least one data row');
     }
 
-    const cleaned: Record<string, string>[] = rows.map((row) => {
-        const { __lineNumber, ...rest } = row;
-        return rest;
-    });
-
-    return { headers, rows: cleaned, lineNumbers: rows.map((row) => Number(row.__lineNumber)) };
+    return { headers, rows };
 }
 
 /**
@@ -145,13 +140,23 @@ function splitLines(text: string): { line: string; lineNumber: number }[] {
 
 /**
  * Parses a single CSV line, handling quoted fields.
+ * Returns the field values and whether each value came from a quoted field.
+ * Quoted fields keep their internal whitespace; unquoted fields are trimmed.
  */
-function parseCsvLine(line: string): string[] {
+function parseCsvLine(line: string): { values: string[]; quoted: boolean[] } {
     const values: string[] = [];
+    const quoted: boolean[] = [];
     let current = '';
     let inQuotes = false;
     let wasQuoted = false;
     let i = 0;
+
+    const pushValue = (): void => {
+        values.push(wasQuoted ? current : current.trim());
+        quoted.push(wasQuoted);
+        current = '';
+        wasQuoted = false;
+    };
 
     while (i < line.length) {
         const char = line[i];
@@ -173,9 +178,7 @@ function parseCsvLine(line: string): string[] {
                 inQuotes = true;
                 wasQuoted = true;
             } else if (char === ',') {
-                values.push(wasQuoted ? current : current.trim());
-                current = '';
-                wasQuoted = false;
+                pushValue();
             } else {
                 current += char;
             }
@@ -183,8 +186,8 @@ function parseCsvLine(line: string): string[] {
         i++;
     }
 
-    values.push(wasQuoted ? current : current.trim());
-    return values;
+    pushValue();
+    return { values, quoted };
 }
 
 /**
@@ -221,45 +224,49 @@ function detectCoordinateColumns(headers: string[]): [number, number] {
  */
 function convertToGeoJson(parsed: CsvParseResult, fileName?: string): object {
     const [latIndex, lngIndex] = detectCoordinateColumns(parsed.headers);
-    const latHeader = parsed.headers[latIndex];
-    const lngHeader = parsed.headers[lngIndex];
 
     const features: object[] = [];
     const errors: string[] = [];
 
-    for (let i = 0; i < parsed.rows.length; i++) {
-        const row = parsed.rows[i];
-        const latStr = row[latHeader] || '';
-        const lngStr = row[lngHeader] || '';
+    for (const row of parsed.rows) {
+        const latStr = row.values[latIndex] || '';
+        const lngStr = row.values[lngIndex] || '';
 
         const lat = parseFloat(latStr.replace(',', '.'));
         const lng = parseFloat(lngStr.replace(',', '.'));
 
         if (isNaN(lat) || isNaN(lng)) {
-            errors.push(`Row ${parsed.lineNumbers[i]}: invalid coordinates (lat="${latStr}", lng="${lngStr}")`);
+            errors.push(`Row ${row.lineNumber}: invalid coordinates (lat="${latStr}", lng="${lngStr}")`);
             continue;
         }
 
         if (lat < -90 || lat > 90) {
-            errors.push(`Row ${parsed.lineNumbers[i]}: latitude out of range (${lat})`);
+            errors.push(`Row ${row.lineNumber}: latitude out of range (${lat})`);
             continue;
         }
 
         if (lng < -180 || lng > 180) {
-            errors.push(`Row ${parsed.lineNumbers[i]}: longitude out of range (${lng})`);
+            errors.push(`Row ${row.lineNumber}: longitude out of range (${lng})`);
             continue;
         }
 
-        // Build properties from all columns except lat/lng
+        // Build properties from all columns except lat/lng.
+        // Quoted fields preserve their exact content; unquoted fields are trimmed.
         const properties: Record<string, string | number> = {};
-        for (const [key, value] of Object.entries(row)) {
-            if (key !== latHeader && key !== lngHeader) {
-                const trimmed = value.trim();
-                if (trimmed) {
-                    // Try to parse as number
-                    const num = parseFloat(trimmed.replace(',', '.'));
-                    properties[key] = isNaN(num) ? trimmed : num;
-                }
+        for (let j = 0; j < parsed.headers.length; j++) {
+            if (j === latIndex || j === lngIndex) {
+                continue;
+            }
+            const value = row.values[j] ?? '';
+            const raw = row.quoted[j] ? value : value.trim();
+            if (row.quoted[j]) {
+                properties[parsed.headers[j]] = raw;
+                continue;
+            }
+            if (raw) {
+                // Try to parse as number
+                const num = parseFloat(raw.replace(',', '.'));
+                properties[parsed.headers[j]] = isNaN(num) ? raw : num;
             }
         }
 

@@ -63,18 +63,22 @@ export async function handleSearchOnMap(
     quickPick.matchOnDescription = true;
     quickPick.matchOnDetail = true;
 
-    // Store search results with coordinates and optional bounding box
-    const searchResultsMap = new Map<string, SearchResultData>();
+    // Store search results with coordinates and optional bounding box.
+    // Each request fills its own map; it becomes active only if the request is still current,
+    // otherwise a stale response would clear/overwrite results shown for the latest query.
+    let activeResultsMap = new Map<string, SearchResultData>();
 
     // Create debounced search function
     let requestToken = 0;
     const debouncedSearch = debounce(async (value: unknown) => {
         const query = value as string;
         const token = ++requestToken;
+        const requestMap = new Map<string, SearchResultData>();
         quickPick.busy = true;
         try {
-            const items = await performGeocodingSearch(query, geocodingApiKey, photonSearchUrl, searchResultsMap);
+            const items = await performGeocodingSearch(query, geocodingApiKey, photonSearchUrl, requestMap);
             if (token === requestToken) {
+                activeResultsMap = requestMap;
                 quickPick.items = items;
             }
         } catch {
@@ -109,7 +113,7 @@ export async function handleSearchOnMap(
         
         // Find the coordinates for the active item
         const itemKey = `${activeItem.label}-${activeItem.detail}`;
-        const coords = searchResultsMap.get(itemKey);
+        const coords = activeResultsMap.get(itemKey);
         
         if (!coords) {
             return;
@@ -132,10 +136,12 @@ export async function handleSearchOnMap(
     // Initial search if there's selected text
     if (selectedText.length >= 2) {
         const token = ++requestToken;
+        const requestMap = new Map<string, SearchResultData>();
         quickPick.busy = true;
         try {
-            const items = await performGeocodingSearch(selectedText, geocodingApiKey, photonSearchUrl, searchResultsMap);
+            const items = await performGeocodingSearch(selectedText, geocodingApiKey, photonSearchUrl, requestMap);
             if (token === requestToken) {
+                activeResultsMap = requestMap;
                 quickPick.items = items;
             }
         } catch {
@@ -166,7 +172,7 @@ export async function handleSearchOnMap(
         
         // Find the coordinates for the selected item
         const itemKey = `${selected.label}-${selected.detail}`;
-        const coords = searchResultsMap.get(itemKey);
+        const coords = activeResultsMap.get(itemKey);
         
         if (!coords) {
             quickPick.hide();

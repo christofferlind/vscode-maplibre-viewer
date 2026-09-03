@@ -62,13 +62,24 @@ export class MockWebview implements vscode.Webview {
         const requestId = msg.requestId as number;
         const args = (msg.args as unknown[]) || [];
         const handler = this._testHandlers.get(method);
+        if (!handler) {
+            this.simulateMessage({
+                type: '__testResponse',
+                requestId: requestId,
+                error: `Method not found: ${method}`
+            });
+            return;
+        }
         let result;
-        if (handler) {
-            try {
-                result = handler(args);
-            } catch (e) {
-                result = undefined;
-            }
+        try {
+            result = handler(args);
+        } catch (e) {
+            this.simulateMessage({
+                type: '__testResponse',
+                requestId: requestId,
+                error: e instanceof Error ? e.message : String(e)
+            });
+            return;
         }
         this.simulateMessage({
             type: '__testResponse',

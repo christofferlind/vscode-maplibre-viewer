@@ -161,17 +161,55 @@ function ensureGlobalFlag(pattern: RegExp): RegExp {
     return new RegExp(pattern.source, pattern.flags + 'g');
 }
 
+/**
+ * Maximum gap (in characters) between two partial matches that are combined
+ * into a single coordinate. Allows a separator like "," or " " between the
+ * latitude and longitude fragments of degenerate optional-group patterns.
+ */
+const MAX_PARTIAL_PAIRING_GAP = 2;
+
+/**
+ * Determines whether one of the direct lat/lng groups participated in a match.
+ */
+function parsedGroupValue(groups: Record<string, string | undefined>, name: string): number | null {
+    const value = groups[name];
+    if (value === undefined || value === '') {
+        return null;
+    }
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * Combines two partial values (latitude/longitude) into a coordinate when both
+ * are valid, and pushes it to the coordinates list.
+ */
+function pushPairedCoordinate(
+    coordinates: Coordinate[],
+    lat: number | null,
+    lng: number | null
+): void {
+    if (lat !== null && lng !== null && isValidCoordinate(lat, lng)) {
+        coordinates.push({ latitude: lat, longitude: lng });
+    }
+}
+
 export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordinate[] {
     const coordinates: Coordinate[] = [];
-    
+
     // Track occupied ranges to skip overlapping matches
     const occupiedRanges: { start: number; end: number }[] = [];
-    
+
     for (const originalPattern of patterns) {
         const pattern = ensureGlobalFlag(originalPattern);
         // Reset lastIndex for global patterns
         pattern.lastIndex = 0;
-        
+
+        // Partial matches from degenerate optional-group patterns that only
+        // captured a latitude or a longitude. Adjacent fragments are paired.
+        let pendingLat: { value: number; endIndex: number } | null = null;
+        let pendingLng: { value: number; startIndex: number } | null = null;
+
         let match;
         while ((match = pattern.exec(text)) !== null) {
             if (match[0].length === 0) {
@@ -181,56 +219,87 @@ export function findCoordinatesRegex(text: string, patterns: RegExp[]): Coordina
 
             const startIndex = match.index;
             const endIndex = startIndex + match[0].length;
-            
+
             // Check if this match overlaps with any previously stored match
             const overlaps = occupiedRanges.some(range =>
                 startIndex < range.end && endIndex > range.start
             );
-            
+
             if (overlaps) {
                 continue;
             }
-            
+
             // Store the range first to mark this text position as occupied
             // This ensures any subsequent match within this range is skipped
             occupiedRanges.push({ start: startIndex, end: endIndex });
-            
+
             const groups = match.groups;
             if (!groups) {
                 continue;
             }
-            
-            let lat: number | null = null;
-            let lng: number | null = null;
-            
-            // Check for direct lat/lng groups
+
             if ('lat' in groups && 'lng' in groups) {
-                lat = parseFloat(groups.lat);
-                lng = parseFloat(groups.lng);
+                const lat = parsedGroupValue(groups, 'lat');
+                const lng = parsedGroupValue(groups, 'lng');
+
+                if (lat !== null && lng !== null) {
+                    pushPairedCoordinate(coordinates, lat, lng);
+                    pendingLat = null;
+                    pendingLng = null;
+                    continue;
+                }
+
+                if (lat !== null) {
+                    if (pendingLat && startIndex - pendingLat.endIndex <= MAX_PARTIAL_PAIRING_GAP) {
+                        pushPairedCoordinate(coordinates, pendingLat.value, lat);
+                        pendingLat = null;
+                        pendingLng = null;
+                        continue;
+                    }
+                    if (pendingLng && startIndex - pendingLng.startIndex <= MAX_PARTIAL_PAIRING_GAP + endIndex - startIndex) {
+                        pushPairedCoordinate(coordinates, lat, pendingLng.value);
+                        pendingLat = null;
+                        pendingLng = null;
+                        continue;
+                    }
+                    pendingLat = { value: lat, endIndex };
+                    pendingLng = null;
+                    continue;
+                }
+
+                if (lng !== null) {
+                    if (pendingLat && startIndex - pendingLat.endIndex <= MAX_PARTIAL_PAIRING_GAP) {
+                        pushPairedCoordinate(coordinates, pendingLat.value, lng);
+                        pendingLat = null;
+                        pendingLng = null;
+                        continue;
+                    }
+                    pendingLng = { value: lng, startIndex };
+                }
+                continue;
             }
+
             // Check for DMS format groups
-            else if ('latDegrees' in groups && 'lngDegrees' in groups) {
+            if ('latDegrees' in groups && 'lngDegrees' in groups) {
                 const latDegrees = parseFloat(groups.latDegrees);
                 const latMinutes = groups.latMinutes ? parseFloat(groups.latMinutes) : 0;
                 const latSeconds = groups.latSeconds ? parseFloat(groups.latSeconds) : 0;
                 const latDirection = groups.latDirection ? groups.latDirection.toUpperCase() : 'N';
-                
+
                 const lngDegrees = parseFloat(groups.lngDegrees);
                 const lngMinutes = groups.lngMinutes ? parseFloat(groups.lngMinutes) : 0;
                 const lngSeconds = groups.lngSeconds ? parseFloat(groups.lngSeconds) : 0;
                 const lngDirection = groups.lngDirection ? groups.lngDirection.toUpperCase() : 'E';
-                
-                lat = dmsToDecimal(latDegrees, latMinutes, latSeconds, latDirection);
-                lng = dmsToDecimal(lngDegrees, lngMinutes, lngSeconds, lngDirection);
-            }
-            
-            if (lat !== null && lng !== null && isValidCoordinate(lat, lng)) {
-                coordinates.push({ latitude: lat, longitude: lng });
+
+                const lat = dmsToDecimal(latDegrees, latMinutes, latSeconds, latDirection);
+                const lng = dmsToDecimal(lngDegrees, lngMinutes, lngSeconds, lngDirection);
+                if (isValidCoordinate(lat, lng)) {
+                    coordinates.push({ latitude: lat, longitude: lng });
+                }
             }
         }
-
     }
-    
+
     return coordinates;
 }
 

@@ -2,18 +2,50 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { createRequire } from 'module';
 
-const vscode = require('vscode');
-
+// The vscode module only resolves inside the extension host; stub it so the
+// selection handler module can be imported in plain node unit tests.
+const nodeRequire = createRequire(__filename);
+const ModuleCtor = nodeRequire('module') as typeof import('module');
 let capturedErrorMessage: string | undefined;
 
-const originalShowErrorMessage = vscode.window.showErrorMessage;
-vscode.window.showErrorMessage = (message: string): Thenable<string | undefined> => {
-    capturedErrorMessage = message;
-    return Promise.resolve(undefined);
+const vscodeStub = {
+    window: {
+        showErrorMessage: (message: string): Promise<undefined> => {
+            capturedErrorMessage = message;
+            return Promise.resolve(undefined);
+        },
+        activeTextEditor: undefined as unknown
+    },
+    workspace: {
+        getConfiguration: () => ({
+            get: <T>(_key: string, defaultValue?: T): T | undefined => defaultValue
+        })
+    }
 };
 
-import { handleFileSelection } from '../../selectionHandler';
+const originalPrototypeRequire = ModuleCtor.prototype.require;
+ModuleCtor.prototype.require = function (id: string): unknown {
+    if (id === 'vscode') {
+        return vscodeStub;
+    }
+    return originalPrototypeRequire.call(this, id);
+};
+
+// Earlier test files may have loaded these modules under a different vscode
+// stub; drop them from the require cache so they re-resolve against this stub.
+const moduleCache = (ModuleCtor as unknown as { _cache: Record<string, NodeModule | undefined> })._cache;
+for (const cached of [
+    nodeRequire.resolve('../../selectionHandler'),
+    nodeRequire.resolve('../../extensionUtils')
+]) {
+    delete moduleCache[cached];
+}
+
+const vscode = nodeRequire('vscode') as typeof vscodeStub;
+
+import { handleFileSelection, resetFileSelectionState } from '../../selectionHandler';
 
 suite('handleFileSelection', () => {
     let tempDir: string;
@@ -31,6 +63,7 @@ suite('handleFileSelection', () => {
     function resetMocks(): void {
         capturedErrorMessage = undefined;
         vscode.window.activeTextEditor = undefined;
+        resetFileSelectionState();
     }
 
     function createMockAdapter(
@@ -102,10 +135,10 @@ suite('handleFileSelection', () => {
         const providerManager = createMockProviderManager();
         const editor = createMockEditor(testFile);
 
-        vscode.window.activeTextEditor = editor as unknown as typeof vscode.window.activeTextEditor;
+        vscode.window.activeTextEditor = editor as unknown as Parameters<typeof handleFileSelection>[0];
 
         await handleFileSelection(
-            editor as unknown as typeof vscode.window.activeTextEditor,
+            editor as unknown as Parameters<typeof handleFileSelection>[0],
             layerTreeProvider as unknown as any,
             providerManager as unknown as any,
             [mockAdapter as unknown as any]
@@ -124,10 +157,10 @@ suite('handleFileSelection', () => {
         const providerManager = createMockProviderManager();
         const editor = createMockEditor(testFile);
 
-        vscode.window.activeTextEditor = editor as unknown as typeof vscode.window.activeTextEditor;
+        vscode.window.activeTextEditor = editor as unknown as Parameters<typeof handleFileSelection>[0];
 
         await handleFileSelection(
-            editor as unknown as typeof vscode.window.activeTextEditor,
+            editor as unknown as Parameters<typeof handleFileSelection>[0],
             layerTreeProvider as unknown as any,
             providerManager as unknown as any,
             [mockAdapter as unknown as any]
@@ -155,10 +188,10 @@ suite('handleFileSelection', () => {
         const providerManager = createMockProviderManager();
         const editor = createMockEditor(testFile);
 
-        vscode.window.activeTextEditor = editor as unknown as typeof vscode.window.activeTextEditor;
+        vscode.window.activeTextEditor = editor as unknown as Parameters<typeof handleFileSelection>[0];
 
         await handleFileSelection(
-            editor as unknown as typeof vscode.window.activeTextEditor,
+            editor as unknown as Parameters<typeof handleFileSelection>[0],
             layerTreeProvider as unknown as any,
             providerManager as unknown as any,
             [mockAdapter as unknown as any]
@@ -177,10 +210,10 @@ suite('handleFileSelection', () => {
         const providerManager = createMockProviderManager();
         const editor = createMockEditor(testFile);
 
-        vscode.window.activeTextEditor = editor as unknown as typeof vscode.window.activeTextEditor;
+        vscode.window.activeTextEditor = editor as unknown as Parameters<typeof handleFileSelection>[0];
 
         await handleFileSelection(
-            editor as unknown as typeof vscode.window.activeTextEditor,
+            editor as unknown as Parameters<typeof handleFileSelection>[0],
             layerTreeProvider as unknown as any,
             providerManager as unknown as any,
             [mockAdapter as unknown as any]

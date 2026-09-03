@@ -45,6 +45,9 @@ export abstract class MapWebviewController {
         timeout: ReturnType<typeof setTimeout>;
     }> = new Map();
 
+    private _geocodingRequestId = 0;
+    private _pendingGeocodingRequests: Map<number, boolean> = new Map();
+
     /**
      * Tracks which webview last triggered a context menu
      */
@@ -394,6 +397,8 @@ export abstract class MapWebviewController {
 
         const config = this.getConfiguration();
         const searchResultsMap = new Map<string, SearchResultData>();
+        const requestId = ++this._geocodingRequestId;
+        this._pendingGeocodingRequests.set(requestId, true);
 
         try {
             const items = await performGeocodingSearch(
@@ -402,6 +407,10 @@ export abstract class MapWebviewController {
                 config.photonSearchUrl,
                 searchResultsMap
             );
+
+            if (requestId !== this._geocodingRequestId || !this._pendingGeocodingRequests.get(requestId)) {
+                return;
+            }
 
             const results: GeocodingResult[] = [];
             for (const item of items) {
@@ -428,10 +437,16 @@ export abstract class MapWebviewController {
                 results
             });
         } catch {
+            if (requestId !== this._geocodingRequestId || !this._pendingGeocodingRequests.get(requestId)) {
+                return;
+            }
+
             webview.postMessage({
                 type: 'geocodingSearchError',
                 message: 'Search failed. Please try again.'
             });
+        } finally {
+            this._pendingGeocodingRequests.delete(requestId);
         }
     }
 

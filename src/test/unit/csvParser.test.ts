@@ -22,7 +22,7 @@ function getWarnings(fn: () => object): string[] {
     } finally {
         console.warn = originalWarn;
     }
-    return captured.flat().filter((item): item is string => typeof item === 'string');
+    return captured.flat(Infinity).filter((item): item is string => typeof item === 'string');
 }
 
 suite('CsvParser', () => {

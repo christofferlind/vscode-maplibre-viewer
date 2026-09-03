@@ -138,6 +138,8 @@ suite('MapWebview message protocol bug fixes', () => {
         });
 
         test('should not reject when result is undefined but no error field present', async () => {
+            mockWebview.onTestQuery('emptyMethod', () => undefined);
+
             const queryPromise = controller.queryWebview('emptyMethod', undefined, 1000);
 
             const response = mockWebview.getMessagesOfType('__testQuery')[0] as Record<string, unknown>;

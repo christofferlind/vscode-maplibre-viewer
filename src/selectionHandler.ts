@@ -9,6 +9,19 @@ import { ProviderManager } from './map/providerManager';
 import { FileToGeoJsonAdapter } from './services/api';
 import { showOperationError } from './extensionUtils';
 
+// Tracks the last file URI whose layer was applied so re-activating the same
+// editor does not re-parse the file, re-persist state, and yank the map back
+// to its bounding box on every tab switch.
+let lastAppliedFileUri: string | undefined;
+
+/**
+ * Clears the remembered last applied file URI so the next activation
+ * of any file is processed again.
+ */
+export function resetFileSelectionState(): void {
+    lastAppliedFileUri = undefined;
+}
+
 /**
  * Handles text selection for coordinate parsing
  */
@@ -66,6 +79,11 @@ export async function handleFileSelection(
         return;
     }
 
+    const fileUri = editor.document.uri.toString();
+    if (fileUri === lastAppliedFileUri) {
+        return;
+    }
+
     // Check all registered file-to-GeoJSON adapters
     const fileExtension = path.extname(filePath).toLowerCase();
     for (const adapter of fileToGeoJsonAdapters) {
@@ -77,6 +95,7 @@ export async function handleFileSelection(
                 // Update the selected file layer through the layer tree provider
                 // This ensures the layer visibility state is properly managed
                 await layerTreeProvider.updateSelectedFileLayer(geojson);
+                lastAppliedFileUri = fileUri;
                 
                 // Extract coordinates from GeoJSON and fit map to bounding box
                 // Use fitBoundsOnly to avoid creating blue markers - the GeoJSON layer already renders features

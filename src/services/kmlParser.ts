@@ -62,7 +62,7 @@ function extractPlacemarks(content: string): KmlPlacemark[] {
     while ((match = placemarkRegex.exec(content)) !== null) {
         const placemarkContent = match[1];
         const placemark = parsePlacemarkContent(placemarkContent);
-        if (placemark.geometry) {
+        if (placemark.geometry || placemark.name || placemark.description) {
             placemarks.push(placemark);
         }
     }
@@ -228,12 +228,8 @@ function parseCoordinateString(content: string): number[][] {
  * Converts a KML Placemark to a GeoJSON Feature.
  */
 function placemarkToFeature(placemark: KmlPlacemark): object | undefined {
-    if (!placemark.geometry) {
-        return undefined;
-    }
-
-    const geometry = convertGeometry(placemark.geometry);
-    if (!geometry) {
+    const geometry = placemark.geometry ? convertGeometry(placemark.geometry) : undefined;
+    if (!geometry && !placemark.name && !placemark.description) {
         return undefined;
     }
 
