@@ -23,12 +23,13 @@ export function createBaseMapTreeItem(
 	isActive: boolean
 ): vscode.TreeItem {
 	const item = new vscode.TreeItem(baseMap.name, vscode.TreeItemCollapsibleState.None);
-	item.description = baseMap.description;
+	item.description = isActive
+		? `${baseMap.description ? `${baseMap.description} ` : ''}✓`
+		: baseMap.description;
 	item.tooltip = `${baseMap.name}\n${baseMap.styleUrl || baseMap.tileUrl}`;
 	item.contextValue = isActive ? 'activeBaseMap' : 'baseMap';
-	item.iconPath = isActive
-		? new vscode.ThemeIcon('check')
-		: new vscode.ThemeIcon('circle-outline');
+	const isRaster = baseMap.type === 'raster' || (!baseMap.type && !!baseMap.tileUrl);
+	item.iconPath = new vscode.ThemeIcon(isRaster ? 'table' : 'map');
 	item.command = {
 		command: 'vscodeMaplibreViewer.setBaseMap',
 		title: 'Set Active Base Map',

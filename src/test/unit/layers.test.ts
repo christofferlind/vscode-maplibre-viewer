@@ -466,10 +466,40 @@ suite('layerTreeItemFactory', () => {
         const item = new MockTreeItem(baseMap.name, MockTreeItemCollapsibleState.None);
         item.description = baseMap.description;
         item.contextValue = 'activeBaseMap';
-        item.iconPath = new MockThemeIcon('check');
+        item.iconPath = new MockThemeIcon('map');
         item.command = { command: 'vscodeMaplibreViewer.setBaseMap', title: 'Set Active Base Map', arguments: [baseMap] };
         assert.strictEqual(item.contextValue, 'activeBaseMap');
         assert.strictEqual(item.command.command, 'vscodeMaplibreViewer.setBaseMap');
+    });
+
+    test('createBaseMapTreeItem should set type icon for vector basemap', () => {
+        const baseMap = createBaseMap({ type: 'vector' });
+        const item = new MockTreeItem(baseMap.name, MockTreeItemCollapsibleState.None);
+        item.description = baseMap.description;
+        item.contextValue = 'baseMap';
+        item.iconPath = new MockThemeIcon('map');
+        item.command = { command: 'vscodeMaplibreViewer.setBaseMap', title: 'Set Active Base Map', arguments: [baseMap] };
+        assert.strictEqual(item.iconPath.id, 'map');
+    });
+
+    test('createBaseMapTreeItem should set type icon for raster basemap', () => {
+        const baseMap = createBaseMap({ type: 'raster', tileUrl: 'https://tiles.example.com/{z}/{x}/{y}.png' });
+        const item = new MockTreeItem(baseMap.name, MockTreeItemCollapsibleState.None);
+        item.description = baseMap.description;
+        item.contextValue = 'baseMap';
+        item.iconPath = new MockThemeIcon('image');
+        item.command = { command: 'vscodeMaplibreViewer.setBaseMap', title: 'Set Active Base Map', arguments: [baseMap] };
+        assert.strictEqual(item.iconPath.id, 'image');
+    });
+
+    test('createBaseMapTreeItem should infer raster type from tileUrl', () => {
+        const baseMap = createBaseMap({ tileUrl: 'https://tiles.example.com/{z}/{x}/{y}.png' });
+        const item = new MockTreeItem(baseMap.name, MockTreeItemCollapsibleState.None);
+        item.description = baseMap.description;
+        item.contextValue = 'baseMap';
+        item.iconPath = new MockThemeIcon('image');
+        item.command = { command: 'vscodeMaplibreViewer.setBaseMap', title: 'Set Active Base Map', arguments: [baseMap] };
+        assert.strictEqual(item.iconPath.id, 'image');
     });
 
     test('createOverlayTreeItem should mark visible overlay layer', () => {

@@ -229,7 +229,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
                 return createRootTreeItem('Base Maps', 'layers', 'baseMapsRoot');
             }
             if (element === 'layersRoot') {
-                return createRootTreeItem('Overlay Layers', 'layer', 'layersRoot');
+                return createRootTreeItem('Overlay Layers', 'layers', 'layersRoot');
             }
             return new vscode.TreeItem('Unknown', vscode.TreeItemCollapsibleState.None);
         }

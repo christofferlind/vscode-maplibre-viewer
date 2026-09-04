@@ -54,6 +54,7 @@ export class TreeItem {
     public collapsibleState: TreeItemCollapsibleState;
     public contextValue?: string;
     public iconPath?: ThemeIcon;
+    public resourceUri?: Uri;
     public description?: string;
     public tooltip?: string;
     public command?: { command: string; title: string; arguments?: unknown[] };
