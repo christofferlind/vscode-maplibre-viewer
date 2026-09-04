@@ -27,6 +27,15 @@ This extension is designed to run fully offline. End users **MUST** be able to i
 - **MUST** keep files under 600 lines. Run `wc -l <file>` after edits; refactor if exceeded.
 - **MUST** bump the `version` field in [`package.json`](package.json:6) for every change, following SemVer: patch for bug fixes, minor for backward-compatible additions, major for breaking changes. **MUST** also update the matching `version` fields in [`package-lock.json`](package-lock.json:3) (the root `version` and the `packages[""].version`) so they stay in sync with `package.json`.
 
+## Changelog
+
+When asked to update the changelog, the LLM **MUST**:
+
+1. Determine the last version tag with `git describe --tags --abbrev=0` (fall back to the first commit if no tags exist).
+2. Review the changes between that tag and the current `HEAD` with `git log <last-tag>..HEAD --oneline` and `git diff <last-tag>..HEAD`.
+3. Write a non-technical changelog entry in [`CHANGELOG.md`](CHANGELOG.md) describing the user-visible changes in plain language, grouped under a new version heading matching the current `version` in [`package.json`](package.json:6).
+4. Keep entries concise and user-focused; avoid internal implementation details, file names, or code identifiers.
+
 ## UI / configuration synchronization
 
 When an end user mutates any persisted or in-memory configuration (settings, basemap selection, overlay visibility, bookmarks, layer properties, or any other state), you **MUST** update every UI element that depends on it so none shows stale data. Affected surfaces:

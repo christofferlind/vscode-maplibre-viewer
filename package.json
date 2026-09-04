@@ -10,6 +10,7 @@
     "type": "github",
     "url": "https://github.com/christofferlind/vscode-maplibre-viewer"
   },
+  "changelog": "CHANGELOG.md",
   "engines": {
     "vscode": "^1.110.0"
   },
