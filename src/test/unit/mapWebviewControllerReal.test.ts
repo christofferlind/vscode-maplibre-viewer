@@ -393,6 +393,68 @@ suite('MapWebviewController real module - message handling', () => {
         assert.strictEqual(MapWebviewController.lastActiveViewType, 'test-view');
     });
 
+    test('mapError shows a VS Code error notification', async () => {
+        const before = controllerLoaded.vscodeState.errorMessages.length;
+        await controller.handleWebviewMessage({
+            type: 'mapError',
+            message: 'Failed to load map: boom'
+        });
+        assert.strictEqual(controllerLoaded.vscodeState.errorMessages.length, before + 1);
+        assert.strictEqual(
+            controllerLoaded.vscodeState.errorMessages[controllerLoaded.vscodeState.errorMessages.length - 1],
+            'Failed to load map: boom'
+        );
+    });
+
+    test('mapError logs details to the output channel', async () => {
+        await controller.handleWebviewMessage({
+            type: 'mapError',
+            message: 'Failed to load map: boom',
+            details: '{"message":"boom"}',
+            stack: 'at map-core.js:1',
+            source: 'style'
+        });
+        const channel = controllerLoaded.vscodeState.outputChannels.find((c) => c.name === 'MapLibre Viewer');
+        assert.ok(channel, 'an output channel is created');
+        assert.ok(channel!!.lines.some((l) => l.includes('Failed to load map: boom')));
+        assert.ok(channel!!.lines.some((l) => l.includes('Source: style')));
+        assert.ok(channel!!.lines.some((l) => l.includes('Details: {"message":"boom"}')));
+        assert.ok(channel!!.lines.some((l) => l.includes('Stack: at map-core.js:1')));
+    });
+
+    test('mapError button reveals the error log', async () => {
+        controllerLoaded.vscodeState.errorSelections.push('Show Error Log');
+        await controller.handleWebviewMessage({
+            type: 'mapError',
+            message: 'Failed to load map: boom'
+        });
+        const channel = controllerLoaded.vscodeState.outputChannels.find((c) => c.name === 'MapLibre Viewer');
+        assert.ok(channel, 'an output channel is created');
+        assert.strictEqual(channel!!.shown, true, 'output channel is revealed when the button is pressed');
+    });
+
+    test('log message is written to the output channel', async () => {
+        await controller.handleWebviewMessage({
+            type: 'log',
+            level: 'warn',
+            args: 'Map not initialized'
+        });
+        const channel = controllerLoaded.vscodeState.outputChannels.find((c) => c.name === 'MapLibre Viewer');
+        assert.ok(channel, 'an output channel is created');
+        assert.ok(channel!!.lines.some((l) => l.includes('[WARN] Map not initialized')));
+    });
+
+    test('controller actions log info to the output channel', async () => {
+        controller.setBaseMap({ id: 'osm', name: 'OpenStreetMap', styleUrl: 'https://example.com/style.json' });
+        controller.updateOverlayLayers([{ id: 'a', visible: true } as never]);
+        controller.flyToLocation(59.3, 18.1, 12);
+        const channel = controllerLoaded.vscodeState.outputChannels.find((c) => c.name === 'MapLibre Viewer');
+        assert.ok(channel, 'an output channel is created');
+        assert.ok(channel!!.lines.some((l) => l.includes('[INFO] Setting basemap to "OpenStreetMap" (osm)')));
+        assert.ok(channel!!.lines.some((l) => l.includes('[INFO] Updating 1 overlay layer(s)')));
+        assert.ok(channel!!.lines.some((l) => l.includes('[INFO] Flying to location (59.3, 18.1) at zoom 12')));
+    });
+
     test('mapCenterResponse resolves a pending getMapCenter', async () => {
         const centerPromise = controller.getMapCenter();
         await controller.handleWebviewMessage({

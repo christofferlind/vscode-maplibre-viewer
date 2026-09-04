@@ -12,6 +12,7 @@ import {
     parseViewStateFromMessage
 } from './mapWebviewUtils';
 import { getConfig } from '../services/configService';
+import { logInfo, logError, logLine, showErrorLog } from '../services/logger';
 
 /** Message type guard helpers */
 function isRecord(msg: unknown): msg is Record<string, unknown> {
@@ -52,6 +53,10 @@ export abstract class MapWebviewController {
      * Tracks which webview last triggered a context menu
      */
     public static lastActiveViewType = 'mapsView';
+
+    protected logInfo(message: string): void {
+        logInfo(message);
+    }
 
     constructor(
         protected readonly _extensionUri: vscode.Uri,
@@ -103,6 +108,7 @@ export abstract class MapWebviewController {
             return;
         }
         const config = this.getConfiguration();
+        this.logInfo(`Sending configuration update to ${this.getViewType()}`);
         webview.postMessage({
             type: 'configUpdate',
             config
@@ -114,6 +120,7 @@ export abstract class MapWebviewController {
         if (!webview) {
             return;
         }
+        this.logInfo(`Setting map language to "${languageCode}"`);
         webview.postMessage({
             type: 'languageChange',
             language: languageCode
@@ -126,6 +133,7 @@ export abstract class MapWebviewController {
             return;
         }
         const defaultZoom = getConfig().get<number>('singlePointZoom') ?? 14;
+        this.logInfo(`Flying to location (${latitude}, ${longitude}) at zoom ${zoom ?? defaultZoom}`);
         webview.postMessage({
             type: 'flyToLocation',
             latitude,
@@ -142,6 +150,7 @@ export abstract class MapWebviewController {
         if (!webview) {
             return;
         }
+        this.logInfo(`Fitting bounding box with ${coordinates.length} coordinate(s)`);
         webview.postMessage({
             type: 'fitBoundingBox',
             coordinates,
@@ -154,6 +163,7 @@ export abstract class MapWebviewController {
         if (!webview) {
             return;
         }
+        this.logInfo('Fitting to bounding box only');
         webview.postMessage({
             type: 'fitBoundsOnly',
             boundingBox: bbox
@@ -165,6 +175,7 @@ export abstract class MapWebviewController {
         if (!webview) {
             return;
         }
+        this.logInfo(`Flying to bookmark "${bookmark.name}"`);
         webview.postMessage({
             type: 'flyToBookmark',
             bookmark
@@ -179,6 +190,7 @@ export abstract class MapWebviewController {
         if (!webview) {
             return;
         }
+        this.logInfo(`Setting basemap to "${baseMap.name}" (${baseMap.id})`);
         webview.postMessage({
             type: 'setBaseMap',
             basemap: {
@@ -200,6 +212,7 @@ export abstract class MapWebviewController {
         if (!webview) {
             return;
         }
+        this.logInfo(`Updating ${layers.length} overlay layer(s)`);
         webview.postMessage({
             type: 'updateOverlayLayers',
             layers
@@ -211,6 +224,7 @@ export abstract class MapWebviewController {
         if (!webview) {
             return;
         }
+        this.logInfo(geojson ? 'Updating selected file layer with GeoJSON' : 'Clearing selected file layer');
         webview.postMessage({
             type: 'updateSelectedFileLayer',
             geojson
@@ -330,8 +344,43 @@ export abstract class MapWebviewController {
 
             case 'mapReady':
                 MapWebviewController.lastActiveViewType = this.getViewType();
+                this.logInfo(`Map ready in ${this.getViewType()}`);
                 this._onMapReady?.();
                 break;
+
+            case 'log': {
+                const level = message.level as string | undefined;
+                const args = message.args as string | undefined;
+                const prefix = level ? `[${level.toUpperCase()}]` : '[LOG]';
+                logLine(prefix, args ?? '');
+                break;
+            }
+
+            case 'mapError': {
+                const errorMessage = message.message as string;
+                const details = message.details as string | undefined;
+                const stack = message.stack as string | undefined;
+                const source = message.source as string | undefined;
+
+                logError(errorMessage);
+                if (source) {
+                    logLine('[INFO]', `Source: ${source}`);
+                }
+                if (details) {
+                    logLine('[INFO]', `Details: ${details}`);
+                }
+                if (stack) {
+                    logLine('[INFO]', `Stack: ${stack}`);
+                }
+                logLine('[INFO]', '---');
+
+                const showLog = 'Show Error Log';
+                const selection = await vscode.window.showErrorMessage(errorMessage, showLog);
+                if (selection === showLog) {
+                    showErrorLog();
+                }
+                break;
+            }
 
             case 'mapCenterResponse': {
                 if (this._pendingMapCenterResolve) {
@@ -399,6 +448,7 @@ export abstract class MapWebviewController {
         const searchResultsMap = new Map<string, SearchResultData>();
         const requestId = ++this._geocodingRequestId;
         this._pendingGeocodingRequests.set(requestId, true);
+        this.logInfo(`Geocoding search for "${query}"`);
 
         try {
             const items = await performGeocodingSearch(

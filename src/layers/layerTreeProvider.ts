@@ -4,6 +4,7 @@ import { FileToGeoJsonAdapter } from '../services/api';
 import { getConfig } from '../services/configService';
 import { createRootTreeItem, createBaseMapTreeItem, createOverlayTreeItem } from './layerTreeItemFactory';
 import { processDragDropItems } from './layerDragDropHandler';
+import { logInfo } from '../services/logger';
 
 /**
  * Tree item types for internal use
@@ -291,6 +292,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
 
         this._activeBaseMapId = baseMapId;
         await this._extensionContext.globalState.update('activeBaseMapId', baseMapId);
+        logInfo(`Set active base map to "${baseMap.name}" (${baseMapId})`);
 
         this._onDidChangeLayers.fire({ type: 'baseMap', data: baseMap });
         this.refresh();
@@ -307,6 +309,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
 
         this._overlayLayers[layerIndex].visible = !this._overlayLayers[layerIndex].visible;
         await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
+        logInfo(`Toggled layer "${this._overlayLayers[layerIndex].name}" (${layerId}) visibility to ${this._overlayLayers[layerIndex].visible}`);
 
         this._onDidChangeLayers.fire({
             type: 'overlay',
@@ -326,6 +329,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
 
         this._overlayLayers[layerIndex].color = color;
         await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
+        logInfo(`Updated color of layer "${this._overlayLayers[layerIndex].name}" (${layerId}) to ${color}`);
 
         this._onDidChangeLayers.fire({
             type: 'overlay',
@@ -344,6 +348,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
 
         this._overlayLayers.push(layer);
         await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
+        logInfo(`Added overlay layer "${layer.name}" (${layer.id})`);
 
         this._onDidChangeLayers.fire({ type: 'overlay', data: layer });
         this.refresh();
@@ -360,6 +365,7 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
 
         const removed = this._overlayLayers.splice(index, 1)[0];
         await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
+        logInfo(`Removed overlay layer "${removed.name}" (${layerId})`);
 
         this._onDidChangeLayers.fire({ type: 'overlay', data: removed });
         this.refresh();
@@ -392,11 +398,13 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         this._externalBasemaps.set(basemap.id, basemap);
         this._rebuildBaseMaps();
         this._onDidChangeTreeData.fire(undefined);
+        logInfo(`Registered basemap "${basemap.name}" (${basemap.id})`);
 
         return new vscode.Disposable(() => {
             this._externalBasemaps.delete(basemap.id);
             this._rebuildBaseMaps();
             this._onDidChangeTreeData.fire(undefined);
+            logInfo(`Unregistered basemap "${basemap.name}" (${basemap.id})`);
         });
     }
 
@@ -481,6 +489,9 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
 
         const layer = this._overlayLayers[layerIndex];
+        logInfo(geojson && Object.keys(geojson).length > 0
+            ? 'Updated selected file layer with GeoJSON data'
+            : 'Cleared selected file layer');
         this._onDidChangeLayers.fire({ type: 'overlay', data: layer });
         this.refresh();
     }

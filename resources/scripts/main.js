@@ -3,8 +3,10 @@
  * Handles initialization and message handling from the extension
  */
 
-// Get the VS Code API for communication with the extension
-var vscode = acquireVsCodeApi();
+// Get the VS Code API for communication with the extension. The instance is
+// acquired once by the console-forwarding script in map-view.html and shared
+// here, because acquireVsCodeApi may only be called once per webview session.
+var vscode = window.__vscodeApi || acquireVsCodeApi();
 
 // Configuration state
 var initialViewState = null;

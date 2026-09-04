@@ -154,17 +154,30 @@ function initializeMap(initialViewState) {
 		map.on('error', function(e) {
 			console.error('MapLibre error:', e.error);
 			var errorMsg = 'Unknown error occurred';
-			if (!e.error) {
-				showErrorOverlay('Failed to load map: ' + errorMsg);
-				return;
+			var details = '';
+			var stack = '';
+			if (e.error) {
+				if (e.error.message) {
+					errorMsg = e.error.message;
+				} else if (typeof e.error === 'string') {
+					errorMsg = e.error;
+				}
+				if (e.error.stack) {
+					stack = e.error.stack;
+				}
+				try {
+					details = JSON.stringify(e.error, null, 2);
+				} catch (stringifyError) {
+					details = String(e.error);
+				}
 			}
-			
-			if (e.error.message) {
-				errorMsg = e.error.message;
-			} else if (typeof e.error === 'string') {
-				errorMsg = e.error;
-			}
-			showErrorOverlay('Failed to load map: ' + errorMsg);
+			vscode.postMessage({
+				type: 'mapError',
+				message: 'Failed to load map: ' + errorMsg,
+				details: details,
+				stack: stack,
+				source: e.source || ''
+			});
 		});
 
 		map.on('load', function() {

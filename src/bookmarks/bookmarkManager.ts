@@ -7,6 +7,7 @@ import { ProviderManager } from '../map/providerManager';
 import { confirmAction, showOperationError } from '../extensionUtils';
 import { formatCoordinates, formatViewState } from '../services/coordinateParser';
 import { formatBookmarkDescriptionFromBookmark } from '../services/bookmarkFormatter';
+import { logInfo } from '../services/logger';
 
 /**
  * Storage key for bookmarks in globalState
@@ -129,6 +130,7 @@ export class BookmarkManager {
             // Update existing bookmark
             bookmark.updatedAt = new Date().toISOString();
             collection.bookmarks[existingIndex] = bookmark;
+            logInfo(`Updated bookmark "${bookmark.name}" (${bookmark.id})`);
         } else {
             // Add new bookmark
             if (!bookmark.id) {
@@ -141,6 +143,7 @@ export class BookmarkManager {
                 bookmark.updatedAt = new Date().toISOString();
             }
             collection.bookmarks.push(bookmark);
+            logInfo(`Saved bookmark "${bookmark.name}" (${bookmark.id})`);
         }
         
         await this.saveCollection(collection);
@@ -215,8 +218,10 @@ export class BookmarkManager {
             return false;
         }
         
+        const removed = collection.bookmarks[index];
         collection.bookmarks.splice(index, 1);
         await this.saveCollection(collection);
+        logInfo(`Deleted bookmark "${removed.name}" (${removed.id})`);
         return true;
     }
     
@@ -258,6 +263,7 @@ export class BookmarkManager {
      */
     public async clearAll(): Promise<void> {
         await this._globalState.update(BOOKMARKS_STORAGE_KEY, undefined);
+        logInfo('Cleared all bookmarks');
     }
     
     /**

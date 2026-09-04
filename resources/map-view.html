@@ -54,6 +54,44 @@
 			};
 		})();
 	</script>
+	<script nonce="${nonce}">
+		// Forward all console output to the extension so it lands in the
+		// "MapLibre Viewer" output channel. This must run before any other
+		// script so every console call is captured.
+		(function() {
+			// acquireVsCodeApi may only be called once per webview session, so
+			// the acquired instance is shared with main.js via window.__vscodeApi.
+			var vscodeApi = acquireVsCodeApi();
+			window.__vscodeApi = vscodeApi;
+			var levels = ['log', 'info', 'warn', 'error', 'debug'];
+			for (var i = 0; i < levels.length; i++) {
+				(function(level) {
+					var original = console[level] ? console[level].bind(console) : function() {};
+					console[level] = function() {
+						var parts = [];
+						for (var j = 0; j < arguments.length; j++) {
+							var arg = arguments[j];
+							if (typeof arg === 'string') {
+								parts.push(arg);
+							} else {
+								try {
+									parts.push(JSON.stringify(arg));
+								} catch (e) {
+									parts.push(String(arg));
+								}
+							}
+						}
+						original.apply(console, arguments);
+						vscodeApi.postMessage({
+							type: 'log',
+							level: level,
+							args: parts.join(' ')
+						});
+					};
+				})(levels[i]);
+			}
+		})();
+	</script>
 	<script nonce="${nonce}" src="${maplibreJsUri}"></script>
 	<script nonce="${nonce}" src="${mapUtilsJsUri}"></script>
 	<script nonce="${nonce}" src="${mapCoreJsUri}"></script>

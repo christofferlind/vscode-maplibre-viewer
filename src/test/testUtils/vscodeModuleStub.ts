@@ -31,6 +31,18 @@ export interface VscodeStubState {
     updateCalls: Array<{ section: string; value: unknown; target: number }>;
     createdPanels: StubWebviewPanel[];
     disposeListeners: Array<() => void>;
+    errorMessages: string[];
+    errorSelections: Array<string | undefined>;
+    outputChannels: StubOutputChannel[];
+}
+
+export interface StubOutputChannel {
+    name: string;
+    lines: string[];
+    shown: boolean;
+    preserveFocus: boolean;
+    appendLine: (line: string) => void;
+    show: (preserveFocus?: boolean) => void;
 }
 
 /**
@@ -46,7 +58,10 @@ export function createVscodeStub(): { vscode: Record<string, unknown>; state: Vs
         executeCommands: [],
         updateCalls: [],
         createdPanels: [],
-        disposeListeners: []
+        disposeListeners: [],
+        errorMessages: [],
+        errorSelections: [],
+        outputChannels: []
     };
 
     const config = (): StubWorkspaceConfiguration => ({
@@ -120,6 +135,24 @@ export function createVscodeStub(): { vscode: Record<string, unknown>; state: Vs
         return panel;
     };
 
+    const createOutputChannel = (name: string): StubOutputChannel => {
+        const channel: StubOutputChannel = {
+            name,
+            lines: [],
+            shown: false,
+            preserveFocus: false,
+            appendLine: (line: string): void => {
+                channel.lines.push(line);
+            },
+            show: (preserveFocus?: boolean): void => {
+                channel.shown = true;
+                channel.preserveFocus = preserveFocus === true;
+            }
+        };
+        state.outputChannels.push(channel);
+        return channel;
+    };
+
     const vscode = {
         Uri,
         ThemeIcon,
@@ -134,9 +167,14 @@ export function createVscodeStub(): { vscode: Record<string, unknown>; state: Vs
         },
         window: {
             createWebviewPanel,
+            createOutputChannel,
             activeTextEditor: undefined,
             showInformationMessage: async () => undefined,
-            showErrorMessage: async () => undefined,
+            showErrorMessage: async (message: string, ...items: string[]) => {
+                state.errorMessages.push(message);
+                const selection = state.errorSelections.length > 0 ? state.errorSelections.shift() : undefined;
+                return selection;
+            },
             showWarningMessage: async () => undefined,
             showQuickPick: async () => undefined,
             showInputBox: async () => undefined

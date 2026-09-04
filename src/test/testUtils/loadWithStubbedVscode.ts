@@ -45,6 +45,7 @@ export function loadWithStubbedVscode<T>(moduleId: string): LoadedModule<T> {
             '../../map/mapEditorProvider',
             '../../services/configService',
             '../../services/geocodingSearch',
+            '../../services/logger',
             '../../testUtils/testableController'
         ]) {
             try {

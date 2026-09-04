@@ -46,6 +46,12 @@ const vscodeStub: Record<string, unknown> = {
             get: <T>(_key: string, defaultValue?: T) => defaultValue
         }),
         onDidChangeConfiguration: (): { dispose: () => void } => ({ dispose: (): void => undefined })
+    },
+    window: {
+        createOutputChannel: (): { appendLine: () => void; show: () => void } => ({
+            appendLine: (): void => undefined,
+            show: (): void => undefined
+        })
     }
 };
 
