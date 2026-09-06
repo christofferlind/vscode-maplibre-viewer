@@ -153,9 +153,94 @@ export function createVscodeStub(): { vscode: Record<string, unknown>; state: Vs
         return channel;
     };
 
+    class TreeItemCollapsibleStateStub {
+        public static readonly None = 0;
+        public static readonly Collapsed = 1;
+        public static readonly Expanded = 2;
+    }
+
+    class TreeItem {
+        public label: string;
+        public collapsibleState: number;
+        public contextValue?: string;
+        public iconPath?: unknown;
+        public description?: string;
+        public tooltip?: string;
+        public command?: { command: string; title: string; arguments?: unknown[] };
+
+        constructor(label: string, collapsibleState: number) {
+            this.label = label;
+            this.collapsibleState = collapsibleState;
+        }
+    }
+
+    class EventEmitter<T> {
+        private listeners: Array<(e: T) => unknown> = [];
+
+        readonly event: (listener: (e: T) => unknown) => { dispose: () => void } = (
+            listener: (e: T) => unknown
+        ): { dispose: () => void } => {
+            this.listeners.push(listener);
+            return {
+                dispose: (): void => {
+                    const index = this.listeners.indexOf(listener);
+                    if (index !== -1) {
+                        this.listeners.splice(index, 1);
+                    }
+                }
+            };
+        };
+
+        fire(data: T): void {
+            for (const listener of this.listeners) {
+                listener(data);
+            }
+        }
+
+        dispose(): void {
+            this.listeners = [];
+        }
+    }
+
+    class MarkdownString {
+        public value: string;
+        public isTrusted = false;
+
+        constructor(value = '') {
+            this.value = value;
+        }
+
+        appendText(text: string): MarkdownString {
+            this.value += text;
+            return this;
+        }
+
+        appendMarkdown(text: string): MarkdownString {
+            this.value += text;
+            return this;
+        }
+    }
+
+    class DisposableStub {
+        private callback: () => void;
+
+        constructor(callback: () => void) {
+            this.callback = callback;
+        }
+
+        dispose(): void {
+            this.callback();
+        }
+    }
+
     const vscode = {
         Uri,
         ThemeIcon,
+        TreeItem,
+        TreeItemCollapsibleState: TreeItemCollapsibleStateStub,
+        MarkdownString,
+        Disposable: DisposableStub,
+        EventEmitter,
         ViewColumn: { One: 1, Two: 2, Active: -2 },
         ConfigurationTarget: { Global: 1, Workspace: 2 },
         workspace: {
@@ -163,7 +248,8 @@ export function createVscodeStub(): { vscode: Record<string, unknown>; state: Vs
             onDidChangeConfiguration: () => ({ dispose: (): void => undefined })
         },
         commands: {
-            executeCommand
+            executeCommand,
+            registerCommand: (): { dispose: () => void } => ({ dispose: (): void => undefined })
         },
         window: {
             createWebviewPanel,

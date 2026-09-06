@@ -43,9 +43,22 @@ export function loadWithStubbedVscode<T>(moduleId: string): LoadedModule<T> {
             '../../map/mapWebviewController',
             '../../map/mapViewProvider',
             '../../map/mapEditorProvider',
+            '../../map/providerManager',
             '../../services/configService',
             '../../services/geocodingSearch',
             '../../services/logger',
+            '../../services/bookmarkFormatter',
+            '../../services/coordinateParser',
+            '../../services/fileConversionService',
+            '../../bookmarks/bookmarkManager',
+            '../../bookmarks/bookmarkTreeProvider',
+            '../../bookmarks/bookmarkTypes',
+            '../../layers/layerTreeProvider',
+            '../../layers/layerTreeItemFactory',
+            '../../layers/layerDragDropHandler',
+            '../../layers/layerTypes',
+            '../../tree/treeDataProviderBase',
+            '../../extensionUtils',
             '../../testUtils/testableController'
         ]) {
             try {
