@@ -7,6 +7,7 @@ import { ProviderManager } from '../../map/providerManager';
 import { TestableMapWebviewController } from '../testUtils/testableController';
 import { MockWebview } from '../testUtils/mockWebview';
 import { createTestBookmark, createStockholmBookmark, createGothenburgBookmark } from '../testUtils';
+import { activateViewGroup } from '../testUtils/integrationSetup';
 
 /**
  * Integration test for the bookmark create-and-click flow.
@@ -62,14 +63,9 @@ suite('Bookmark Create and Click Integration Tests', () => {
     suiteSetup(async function() {
         this.timeout(30000);
 
-        const extension = vscode.extensions.getExtension('christofferlind.vscode-maplibre-viewer');
-        if (!extension) {
-            throw new Error('Extension not found');
-        }
-        if (!extension.isActive) {
-            await extension.activate();
-        }
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Activate the extension and focus the contributed maps view group so
+        // the sidebar webview is resolved before tests run.
+        await activateViewGroup();
     });
 
     setup(() => {

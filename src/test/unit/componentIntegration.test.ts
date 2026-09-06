@@ -397,10 +397,8 @@ suite('High-level integration: components work together', () => {
             assert.strictEqual(controllerLoaded.vscodeState.updateCalls.length, before + 1);
             const call = controllerLoaded.vscodeState.updateCalls[controllerLoaded.vscodeState.updateCalls.length - 1];
             assert.strictEqual(call.section, 'lastViewState');
-            assert.deepStrictEqual(
-                (call.value as { center: { lat: number; lng: number } }).center,
-                { lat: 60, lng: 20 }
-            );
+            const perView = call.value as { mapsView: { center: { lat: number; lng: number } } };
+            assert.deepStrictEqual(perView.mapsView.center, { lat: 60, lng: 20 });
         });
     });
 });

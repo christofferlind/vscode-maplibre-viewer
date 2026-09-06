@@ -5,6 +5,13 @@ import { MockWebview } from '../testUtils/mockWebview';
 import { TestableMapWebviewController } from '../testUtils/testableController';
 import { BookmarkManager } from '../../bookmarks/bookmarkManager';
 import { ProviderManager } from '../../map/providerManager';
+import { MockMemento } from '../testUtils/mockMemento';
+import {
+    createTestBookmark,
+    createStockholmBookmark,
+    createGothenburgBookmark
+} from '../testUtils/testBookmarkFactory';
+import { activateViewGroup } from '../testUtils/integrationSetup';
 
 /**
  * Integration test for bookmark navigation flow.
@@ -14,89 +21,27 @@ import { ProviderManager } from '../../map/providerManager';
 suite('Bookmark Navigation Integration Tests', () => {
     // Timeout for async operations
     const TEST_TIMEOUT = 10000;
-    
-    /**
-     * Helper to create a test bookmark
-     */
-    function createTestBookmark(overrides?: Partial<MapBookmark>): MapBookmark {
-        return {
-            id: 'test-bookmark-' + Date.now(),
-            name: 'Test Bookmark',
-            center: { latitude: 59.3293, longitude: 18.0686 },
-            zoom: 10,
-            bearing: 0,
-            pitch: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            ...overrides
-        };
-    }
-    
-    /**
-     * Helper to create Stockholm bookmark
-     */
-    function createStockholmBookmark(): MapBookmark {
-        return createTestBookmark({
-            id: 'stockholm-id',
-            name: 'Stockholm',
-            center: { latitude: 59.3293, longitude: 18.0686 },
-            zoom: 12
-        });
-    }
-    
-    /**
-     * Helper to create Gothenburg bookmark
-     */
-    function createGothenburgBookmark(): MapBookmark {
-        return createTestBookmark({
-            id: 'gothenburg-id',
-            name: 'Gothenburg',
-            center: { latitude: 57.7089, longitude: 11.9746 },
-            zoom: 13
-        });
-    }
 
     /**
-     * Mock Memento for testing BookmarkManager
+     * Executes the goToBookmark command for a bookmark, tolerating the
+     * graceful failure that occurs when no map webview is open.
      */
-    class MockMemento implements vscode.Memento {
-        private _storage: Map<string, unknown> = new Map();
-
-        get<T>(key: string): T | undefined;
-        get<T>(key: string, defaultValue: T): T;
-        get<T>(key: string, defaultValue?: T): T | undefined {
-            const value = this._storage.get(key);
-            if (value === undefined) {
-                return defaultValue;
-            }
-            return value as T;
-        }
-
-        async update(key: string, value: unknown): Promise<void> {
-            if (value === undefined) {
-                this._storage.delete(key);
-            } else {
-                this._storage.set(key, value);
-            }
-        }
-
-        keys(): readonly string[] {
-            return Array.from(this._storage.keys());
-        }
-
-        clear(): void {
-            this._storage.clear();
+    async function executeGoToBookmark(bookmark: MapBookmark, note: string): Promise<void> {
+        try {
+            await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
+            assert.ok(true, `${note} should be handled`);
+        } catch (error) {
+            console.log(`${note} note:`, error);
+            assert.ok(true, 'Command exists but may require open webview');
         }
     }
 
     suiteSetup(async function() {
         this.timeout(30000);
-        
-        // Ensure extension is activated
-        const extension = vscode.extensions.getExtension('christofferlind.vscode-maplibre-viewer');
-        if (extension && !extension.isActive) {
-            await extension.activate();
-        }
+
+        // Activate the extension and focus the contributed maps view group so
+        // the sidebar webview is resolved before tests run.
+        await activateViewGroup();
     });
 
     suite('Command registration', () => {
@@ -119,23 +64,59 @@ suite('Bookmark Navigation Integration Tests', () => {
     });
 
     suite('goToBookmark command execution', () => {
-        test('should execute goToBookmark command without error', async function() {
+        test('should navigate the view center to the bookmark center', async function() {
             this.timeout(TEST_TIMEOUT);
-            
+
+            const mockMemento = new MockMemento();
+            const bookmarkManager = new BookmarkManager(mockMemento);
+            const providerManager = new ProviderManager();
+            const mockWebview = new MockWebview();
+
+            const extensionUri = vscode.Uri.parse('file:///test/extension');
+            const controller = new TestableMapWebviewController(extensionUri, bookmarkManager);
+            controller.setWebview(mockWebview);
+            // Route webview messages back through the controller, as the real
+            // provider wiring does, so mapCenterResponse resolves getMapCenter.
+            mockWebview.onDidReceiveMessage((message) => {
+                void controller.testHandleWebviewMessage(message);
+            });
+            providerManager.register(controller);
+
             const bookmark = createTestBookmark();
-            
-            // Execute the command - should not throw
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Command should execute without error');
-            } catch (error) {
-                // If no webview is open, the command might fail gracefully
-                if (error instanceof Error) {
-                    console.log('Command execution note:', error.message);
-                }
-                // Still pass as the command exists
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+
+            // Execute the same navigation the goToBookmark command performs.
+            providerManager.flyToBookmark(bookmark);
+
+            const messages = mockWebview.getMessagesOfType('flyToBookmark');
+            assert.strictEqual(messages.length, 1, 'Should send exactly one flyToBookmark message');
+
+            const sent = (messages[0] as Record<string, unknown>).bookmark as MapBookmark;
+            assert.strictEqual(sent.center.latitude, bookmark.center.latitude);
+            assert.strictEqual(sent.center.longitude, bookmark.center.longitude);
+
+            // Simulate the webview reporting its view center so getMapCenter
+            // resolves with the current map center.
+            const centerPromise = controller.getMapCenter();
+            mockWebview.simulateMessage({
+                type: 'mapCenterResponse',
+                center: { latitude: bookmark.center.latitude, longitude: bookmark.center.longitude },
+                zoom: bookmark.zoom,
+                bearing: bookmark.bearing,
+                pitch: bookmark.pitch
+            });
+            const viewState = await centerPromise;
+            assert.ok(viewState, 'Should receive view state from the webview');
+            assert.ok(
+                Math.abs(viewState!.center.latitude - bookmark.center.latitude) < 0.0001,
+                'View center latitude should match bookmark center latitude'
+            );
+            assert.ok(
+                Math.abs(viewState!.center.longitude - bookmark.center.longitude) < 0.0001,
+                'View center longitude should match bookmark center longitude'
+            );
+
+            providerManager.unregister(controller);
+            mockMemento.clear();
         });
 
         test('should handle Stockholm bookmark coordinates', async function() {
@@ -143,13 +124,7 @@ suite('Bookmark Navigation Integration Tests', () => {
             
             const bookmark = createStockholmBookmark();
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Stockholm bookmark should be handled');
-            } catch (error) {
-                console.log('Stockholm bookmark note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Stockholm bookmark');
         });
 
         test('should handle Gothenburg bookmark coordinates', async function() {
@@ -157,13 +132,7 @@ suite('Bookmark Navigation Integration Tests', () => {
             
             const bookmark = createGothenburgBookmark();
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Gothenburg bookmark should be handled');
-            } catch (error) {
-                console.log('Gothenburg bookmark note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Gothenburg bookmark');
         });
     });
 
@@ -175,13 +144,7 @@ suite('Bookmark Navigation Integration Tests', () => {
                 center: { latitude: -33.8688, longitude: -151.2093 } // Sydney
             });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Negative coordinates should be handled');
-            } catch (error) {
-                console.log('Negative coordinates note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Negative coordinates');
         });
 
         test('should preserve high precision coordinates', async function() {
@@ -191,13 +154,7 @@ suite('Bookmark Navigation Integration Tests', () => {
                 center: { latitude: 59.3293123456, longitude: 18.0686789012 }
             });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'High precision coordinates should be preserved');
-            } catch (error) {
-                console.log('High precision note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'High precision coordinates');
         });
 
         test('should handle coordinates at boundaries', async function() {
@@ -227,13 +184,7 @@ suite('Bookmark Navigation Integration Tests', () => {
             
             const bookmark = createTestBookmark({ zoom: 0 });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Zoom level 0 should be preserved');
-            } catch (error) {
-                console.log('Zoom 0 note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Zoom level 0');
         });
 
         test('should handle maximum zoom level', async function() {
@@ -241,13 +192,7 @@ suite('Bookmark Navigation Integration Tests', () => {
             
             const bookmark = createTestBookmark({ zoom: 24 });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Maximum zoom level should be preserved');
-            } catch (error) {
-                console.log('Max zoom note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Maximum zoom level');
         });
 
         test('should handle fractional zoom levels', async function() {
@@ -255,13 +200,7 @@ suite('Bookmark Navigation Integration Tests', () => {
             
             const bookmark = createTestBookmark({ zoom: 12.5 });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Fractional zoom level should be preserved');
-            } catch (error) {
-                console.log('Fractional zoom note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Fractional zoom level');
         });
     });
 
@@ -274,13 +213,7 @@ suite('Bookmark Navigation Integration Tests', () => {
                 pitch: 30
             });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Bearing and pitch should be preserved');
-            } catch (error) {
-                console.log('Bearing/pitch note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Bearing and pitch');
         });
 
         test('should handle default bearing and pitch (0, 0)', async function() {
@@ -291,13 +224,7 @@ suite('Bookmark Navigation Integration Tests', () => {
                 pitch: 0
             });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Default bearing and pitch should be preserved');
-            } catch (error) {
-                console.log('Default bearing/pitch note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Default bearing and pitch');
         });
 
         test('should handle maximum bearing (360)', async function() {
@@ -305,13 +232,7 @@ suite('Bookmark Navigation Integration Tests', () => {
             
             const bookmark = createTestBookmark({ bearing: 360 });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Maximum bearing should be preserved');
-            } catch (error) {
-                console.log('Max bearing note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Maximum bearing');
         });
 
         test('should handle maximum pitch (60)', async function() {
@@ -319,13 +240,7 @@ suite('Bookmark Navigation Integration Tests', () => {
             
             const bookmark = createTestBookmark({ pitch: 60 });
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Maximum pitch should be preserved');
-            } catch (error) {
-                console.log('Max pitch note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Maximum pitch');
         });
     });
 
@@ -347,13 +262,7 @@ suite('Bookmark Navigation Integration Tests', () => {
                 styleUrl: 'https://example.com/style.json'
             };
             
-            try {
-                await vscode.commands.executeCommand('vscodeMaplibreViewer.goToBookmark', bookmark);
-                assert.ok(true, 'Complete bookmark should be handled');
-            } catch (error) {
-                console.log('Complete bookmark note:', error);
-                assert.ok(true, 'Command exists but may require open webview');
-            }
+            await executeGoToBookmark(bookmark, 'Complete bookmark');
         });
 
         test('should handle multiple sequential bookmark navigations', async function() {

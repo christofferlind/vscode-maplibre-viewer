@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import { activateViewGroup } from '../testUtils/integrationSetup';
 
 /**
  * Integration test that verifies the map editor panel opens when the
@@ -11,14 +12,9 @@ suite('Map Editor Open Integration Tests', () => {
     suiteSetup(async function() {
         this.timeout(30000);
 
-        const extension = vscode.extensions.getExtension('christofferlind.vscode-maplibre-viewer');
-        if (!extension) {
-            throw new Error('Extension not found');
-        }
-        if (!extension.isActive) {
-            await extension.activate();
-        }
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Activate the extension and focus the contributed maps view group so
+        // the sidebar webview is resolved before tests run.
+        await activateViewGroup();
     });
 
     test('should have openMapEditor command registered', async function() {

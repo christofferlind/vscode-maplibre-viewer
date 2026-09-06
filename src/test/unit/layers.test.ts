@@ -337,6 +337,50 @@ suite('LayerTreeProvider', () => {
         assert.throws(() => provider.registerBasemap(baseMap), /styleUrl or tileUrl/);
     });
 
+    test('registerBasemap should accept a raster basemap with tileUrl and tileSize', () => {
+        const provider = new LayerTreeProvider(createContext());
+        provider.registerBasemap({
+            id: 'osm',
+            name: 'OpenStreetMap',
+            type: 'raster',
+            tileUrl: 'https://c.tile.opentopomap.org/{z}/{x}/{y}.png',
+            tileSize: 512
+        });
+        const registered = provider.getBasemaps().find(bm => bm.id === 'osm');
+        assert.ok(registered, 'raster basemap should be registered');
+        assert.strictEqual(registered.name, 'OpenStreetMap');
+        assert.strictEqual(registered.type, 'raster');
+        assert.strictEqual(registered.tileUrl, 'https://c.tile.opentopomap.org/{z}/{x}/{y}.png');
+        assert.strictEqual(registered.tileSize, 512);
+    });
+
+    test('setActiveBaseMap should switch between different basemaps', async () => {
+        const context = createContext();
+        const provider = new LayerTreeProvider(context);
+        provider.registerBasemap({
+            id: 'osm',
+            name: 'OpenStreetMap',
+            type: 'raster',
+            tileUrl: 'https://c.tile.opentopomap.org/{z}/{x}/{y}.png',
+            tileSize: 512
+        });
+        provider.registerBasemap(createBaseMap({ id: 'vector-style', name: 'Vector Style' }));
+
+        await provider.setActiveBaseMap('osm');
+        assert.strictEqual(provider.getActiveBaseMap()?.id, 'osm');
+        assert.strictEqual(provider.getActiveBaseMap()?.type, 'raster');
+        assert.strictEqual(context.globalState.get('activeBaseMapId'), 'osm');
+
+        await provider.setActiveBaseMap('vector-style');
+        assert.strictEqual(provider.getActiveBaseMap()?.id, 'vector-style');
+        assert.strictEqual(provider.getActiveBaseMap()?.styleUrl, 'https://example.com/style.json');
+        assert.strictEqual(context.globalState.get('activeBaseMapId'), 'vector-style');
+
+        await provider.setActiveBaseMap('osm');
+        assert.strictEqual(provider.getActiveBaseMap()?.id, 'osm');
+        assert.strictEqual(context.globalState.get('activeBaseMapId'), 'osm');
+    });
+
     test('registerBasemap should replace an existing basemap with the same id', () => {
         const provider = new LayerTreeProvider(createContext());
         provider.registerBasemap(createBaseMap({ id: 'dup', name: 'First' }));

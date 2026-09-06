@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import { BookmarkManager } from '../../bookmarks/bookmarkManager';
 import { MapBookmark, ViewState } from '../../bookmarks/bookmarkTypes';
+import { activateViewGroup } from '../testUtils/integrationSetup';
 
 /**
  * Mock Memento for testing BookmarkManager
@@ -38,6 +39,14 @@ class MockMemento {
 suite('BookmarkManager Test Suite', () => {
     let bookmarkManager: BookmarkManager;
     let mockMemento: MockMemento;
+
+    suiteSetup(async function() {
+        this.timeout(30000);
+
+        // Activate the extension and focus the contributed maps view group so
+        // the sidebar webview is resolved before tests run.
+        await activateViewGroup();
+    });
 
     setup(() => {
         mockMemento = new MockMemento();

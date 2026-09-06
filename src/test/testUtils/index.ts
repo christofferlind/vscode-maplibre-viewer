@@ -3,6 +3,7 @@
  */
 
 export { MockWebview } from './mockWebview';
+export { MockMemento } from './mockMemento';
 export { 
     createTestBookmark, 
     createStockholmBookmark, 
@@ -13,3 +14,4 @@ export {
 } from './testBookmarkFactory';
 // Note: TestableMapWebviewController is not exported here because it requires vscode module
 // Use it directly from './testableController' in integration tests that run in VS Code context
+export { activateViewGroup } from './integrationSetup';

@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { MapBookmark } from '../../bookmarks/bookmarkTypes';
+import { activateViewGroup } from '../testUtils/integrationSetup';
 
 /**
  * Integration test that verifies the MapLibre map center matches the bookmark location.
@@ -18,22 +19,12 @@ suite('Map Center Verification Integration Tests', () => {
     const WEBVIEW_TIMEOUT = 10000;
     
     /**
-     * Helper to wait for the map to be ready
+     * Helper to wait for the map to be ready. Ensures the extension is
+     * activated and the contributed maps view group is focused so the
+     * sidebar webview is resolved.
      */
     async function waitForMapReady(): Promise<void> {
-        // Try to get the extension API
-        const extension = vscode.extensions.getExtension('christofferlind.vscode-maplibre-viewer');
-        if (!extension) {
-            throw new Error('Extension not found');
-        }
-        
-        // Ensure extension is activated
-        if (!extension.isActive) {
-            await extension.activate();
-        }
-        
-        // Give the map time to initialize
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await activateViewGroup();
     }
     
     /**

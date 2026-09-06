@@ -4,6 +4,10 @@ import { OverlayLayer } from '../../layers/layerTypes';
 import { TestableMapWebviewController } from '../testUtils/testableController';
 import { MockWebview } from '../testUtils/mockWebview';
 import { BookmarkManager } from '../../bookmarks/bookmarkManager';
+import { BaseMapStyle } from '../../layers/layerTypes';
+import { createBaseMapTreeItem } from '../../layers/layerTreeItemFactory';
+import { MapLibreViewerAPI } from '../../services/api';
+import { activateViewGroup } from '../testUtils/integrationSetup';
 
 /**
  * Integration test suite for verifying map layer visibility and rendering.
@@ -158,14 +162,9 @@ suite('Map Layer Visibility Integration Tests', () => {
     suiteSetup(async function() {
         this.timeout(30000);
 
-        const extension = vscode.extensions.getExtension('christofferlind.vscode-maplibre-viewer');
-        if (!extension) {
-            throw new Error('Extension not found');
-        }
-        if (!extension.isActive) {
-            await extension.activate();
-        }
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Activate the extension and focus the contributed maps view group so
+        // the sidebar webview is resolved before tests run.
+        await activateViewGroup();
 
         bookmarkManager = new BookmarkManager({
             get: () => undefined,
@@ -417,5 +416,132 @@ suite('Map Layer Visibility Integration Tests', () => {
         const removalMessage = messages[1] as Record<string, unknown>;
         assert.ok(Array.isArray(removalMessage.layers));
         assert.strictEqual((removalMessage.layers as unknown[]).length, 0);
+    });
+
+    test('should register raster OpenStreetMap basemap and switch between basemaps', async function() {
+        this.timeout(WEBVIEW_TIMEOUT * 2);
+
+        const osmBaseMap = {
+            id: 'osm',
+            name: 'OpenStreetMap',
+            type: 'raster' as const,
+            tileUrl: 'https://c.tile.opentopomap.org/{z}/{x}/{y}.png',
+            tileSize: 512
+        };
+        const vectorBaseMap = {
+            id: 'vector-style',
+            name: 'Vector Style',
+            styleUrl: 'https://example.com/style.json'
+        };
+
+        controller.setBaseMap(osmBaseMap);
+
+        let messages = mockWebview.getMessagesOfType('setBaseMap');
+        assert.strictEqual(messages.length, 1, 'Should send one setBaseMap message');
+        const osmMessage = messages[0] as { basemap: Record<string, unknown> };
+        assert.strictEqual(osmMessage.basemap.id, 'osm');
+        assert.strictEqual(osmMessage.basemap.type, 'raster');
+        assert.strictEqual(osmMessage.basemap.tileUrl, 'https://c.tile.opentopomap.org/{z}/{x}/{y}.png');
+        assert.strictEqual(osmMessage.basemap.tileSize, 512);
+
+        controller.setBaseMap(vectorBaseMap);
+        controller.setBaseMap(osmBaseMap);
+
+        messages = mockWebview.getMessagesOfType('setBaseMap');
+        assert.strictEqual(messages.length, 3, 'Should send three setBaseMap messages');
+        const vectorMessage = messages[1] as { basemap: Record<string, unknown> };
+        assert.strictEqual(vectorMessage.basemap.id, 'vector-style');
+        assert.strictEqual(vectorMessage.basemap.type, 'vector');
+        assert.strictEqual(vectorMessage.basemap.styleUrl, 'https://example.com/style.json');
+        const switchBackMessage = messages[2] as { basemap: Record<string, unknown> };
+        assert.strictEqual(switchBackMessage.basemap.id, 'osm');
+        assert.strictEqual(switchBackMessage.basemap.type, 'raster');
+    });
+
+    test('clicking basemap tree items changes the active basemap', async function() {
+        this.timeout(WEBVIEW_TIMEOUT * 3);
+
+        // Bring the Maps sidebar (with the real webview map) and the Map
+        // Layers tree view into view, so the click effect is observable.
+        await activateViewGroup(0);
+        await vscode.commands.executeCommand('layersView.focus');
+        await new Promise((resolve) => {
+            setTimeout(resolve, 1000);
+        });
+
+        const extension = vscode.extensions.getExtension('christofferlind.vscode-maplibre-viewer');
+        assert.ok(extension, 'Extension should be available');
+        const api = extension!.exports as MapLibreViewerAPI;
+        assert.ok(api, 'Extension API should be exported');
+
+        const osmBaseMap: BaseMapStyle = {
+            id: 'osm',
+            name: 'OpenStreetMap',
+            type: 'raster',
+            tileUrl: 'https://c.tile.opentopomap.org/{z}/{x}/{y}.png',
+            tileSize: 512
+        };
+        const standardBaseMap: BaseMapStyle = {
+            id: 'osm-standard',
+            name: 'OSM Standard',
+            type: 'raster',
+            tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            tileSize: 256
+        };
+        const osmDisposable = api.registerBasemap(osmBaseMap);
+        const vectorDisposable = api.registerBasemap(standardBaseMap);
+
+        try {
+            const activeChanges: BaseMapStyle[] = [];
+            const eventDisposable = api.onDidChangeActiveBasemap((baseMap) => {
+                activeChanges.push(baseMap);
+            });
+
+            try {
+                // Simulate clicking the OpenStreetMap tree item, which executes
+                // the vscodeMaplibreViewer.setBaseMap command with that basemap.
+                const osmTreeItem = createBaseMapTreeItem(osmBaseMap, false);
+                assert.strictEqual(osmTreeItem.command?.command, 'vscodeMaplibreViewer.setBaseMap');
+                await vscode.commands.executeCommand(osmTreeItem.command.command, ...osmTreeItem.command.arguments ?? []);
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 1000);
+                });
+
+                assert.strictEqual(api.getActiveBasemap()?.id, 'osm', 'OSM basemap should be active after click');
+
+                // Click the OSM Standard basemap tree item.
+                const vectorTreeItem = createBaseMapTreeItem(standardBaseMap, false);
+                assert.ok(vectorTreeItem.command, 'OSM Standard tree item should carry a command');
+                await vscode.commands.executeCommand(vectorTreeItem.command.command, ...vectorTreeItem.command.arguments ?? []);
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 1000);
+                });
+
+                assert.strictEqual(api.getActiveBasemap()?.id, 'osm-standard', 'OSM Standard basemap should be active after click');
+
+                // Click back to the raster OpenStreetMap basemap.
+                await vscode.commands.executeCommand(osmTreeItem.command.command, ...osmTreeItem.command.arguments ?? []);
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 1000);
+                });
+
+                const active = api.getActiveBasemap();
+                assert.strictEqual(active?.id, 'osm', 'OSM basemap should be active after switching back');
+                assert.strictEqual(active?.type, 'raster');
+                assert.strictEqual(active?.tileUrl, 'https://c.tile.opentopomap.org/{z}/{x}/{y}.png');
+                assert.strictEqual(active?.tileSize, 512);
+
+                // Every click must have fired the change event with the new basemap.
+                assert.strictEqual(activeChanges.length, 3, 'onDidChangeActiveBasemap should fire for each click');
+                assert.strictEqual(activeChanges[0].id, 'osm');
+                assert.strictEqual(activeChanges[1].id, 'osm-standard');
+                assert.strictEqual(activeChanges[2].id, 'osm');
+            } finally {
+                eventDisposable.dispose();
+            }
+        } finally {
+            osmDisposable.dispose();
+            vectorDisposable.dispose();
+        }
     });
 });
