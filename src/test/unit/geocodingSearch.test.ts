@@ -191,6 +191,93 @@ suite('GeocodingSearch unit tests', () => {
         });
     });
 
+    suite('searchResultsMap index alignment (bug fix)', () => {
+        test('MapTiler: keys align with item positions when early features are skipped', async () => {
+            globalThis.fetch = createMockFetch({
+                features: [
+                    { text: 'No Center', place_type: ['place'] },
+                    { text: 'Broken', place_type: ['place'], center: [] as unknown as [number, number] },
+                    { text: 'First Valid', place_type: ['city'], center: [13.4, 52.5] },
+                    { text: 'Second Valid', place_type: ['city'], center: [2.35, 48.85] }
+                ]
+            });
+
+            const resultsMap = new Map();
+            const items = await geocodingSearchModule.performGeocodingSearch('query', 'test-key', 'https://photon.example/api/', resultsMap);
+
+            assert.strictEqual(items.length, 2);
+            assert.strictEqual(resultsMap.get('0')?.lat, 52.5, 'item 0 must map to the first valid feature');
+            assert.strictEqual(resultsMap.get('0')?.lng, 13.4);
+            assert.strictEqual(resultsMap.get('1')?.lat, 48.85, 'item 1 must map to the second valid feature');
+            assert.strictEqual(resultsMap.get('1')?.lng, 2.35);
+            assert.strictEqual(resultsMap.get('2'), undefined);
+        });
+
+        test('Photon: keys align with item positions when early features are skipped', async () => {
+            globalThis.fetch = createMockFetch({
+                features: [
+                    { properties: { name: 'No Geometry' } },
+                    { properties: { name: 'First Valid' }, geometry: { coordinates: [4.83, 45.76] } },
+                    { properties: { name: 'Second Valid' }, geometry: { coordinates: [10.75, 59.91] } }
+                ]
+            });
+
+            const resultsMap = new Map();
+            const items = await geocodingSearchModule.performGeocodingSearch('query', undefined, 'https://photon.example/api/', resultsMap);
+
+            assert.strictEqual(items.length, 2);
+            assert.strictEqual(resultsMap.get('0')?.lat, 45.76, 'item 0 must map to the first valid feature');
+            assert.strictEqual(resultsMap.get('1')?.lat, 59.91, 'item 1 must map to the second valid feature');
+        });
+    });
+
+    suite('bounding box normalization (bug fix)', () => {
+        test('MapTiler: should normalize inverted bbox to southwest <= northeast', async () => {
+            globalThis.fetch = createMockFetch({
+                features: [
+                    {
+                        text: 'London',
+                        place_type: ['place'],
+                        center: [-0.127, 51.507],
+                        bbox: [-0.1271581, 51.5076831, -0.1270541, 51.5075715]
+                    }
+                ]
+            });
+
+            const resultsMap = new Map();
+            await geocodingSearchModule.performGeocodingSearch('london', 'test-key', 'https://photon.example/api/', resultsMap);
+
+            const coords = resultsMap.get('0');
+            assert.ok(coords?.bbox);
+            assert.strictEqual(coords.bbox.southwest.latitude, 51.5075715);
+            assert.strictEqual(coords.bbox.northeast.latitude, 51.5076831);
+            assert.strictEqual(coords.bbox.southwest.longitude, -0.1271581);
+            assert.strictEqual(coords.bbox.northeast.longitude, -0.1270541);
+        });
+
+        test('Photon: should normalize inverted extent to southwest <= northeast', async () => {
+            globalThis.fetch = createMockFetch({
+                features: [
+                    {
+                        properties: {
+                            name: 'London',
+                            extent: [-0.1271581, 51.5076831, -0.1270541, 51.5075715]
+                        },
+                        geometry: { coordinates: [-0.127, 51.507] }
+                    }
+                ]
+            });
+
+            const resultsMap = new Map();
+            await geocodingSearchModule.performGeocodingSearch('london', undefined, 'https://photon.example/api/', resultsMap);
+
+            const coords = resultsMap.get('0');
+            assert.ok(coords?.bbox);
+            assert.strictEqual(coords.bbox.southwest.latitude, 51.5075715);
+            assert.strictEqual(coords.bbox.northeast.latitude, 51.5076831);
+        });
+    });
+
     suite('extractSearchTextFromArgs', () => {
         test('should extract selectionText from terminal context args', () => {
             const text = geocodingSearchModule.extractSearchTextFromArgs({ selectionText: '  Paris  ' });

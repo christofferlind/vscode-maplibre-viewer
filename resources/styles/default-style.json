@@ -1,0 +1,31 @@
+{
+    "version": 8,
+    "name": "VS Code MapLibre Viewer Default",
+    "sources": {
+        "default-background": {
+            "type": "geojson",
+            "data": {
+                "type": "FeatureCollection",
+                "features": []
+            }
+        }
+    },
+    "layers": [
+        {
+            "id": "background",
+            "type": "background",
+            "paint": {
+                "background-color": "#1e1e2e"
+            }
+        },
+        {
+            "id": "default-grid",
+            "type": "line",
+            "source": "default-background",
+            "paint": {
+                "line-color": "#3a3a4a",
+                "line-width": 1
+            }
+        }
+    ]
+}

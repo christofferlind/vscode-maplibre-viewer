@@ -133,7 +133,17 @@ function fitBoundsWithDefaults(map, bounds, options) {
 		duration: window.MapUtils.getConfig('flyToDuration', 500),
 		maxZoom: 16
 	};
-	map.fitBounds(bounds, Object.assign({}, defaultOptions, options));
+	// Normalize corners so an inverted or swapped bounds array still fits;
+	// MapLibre warns and refuses to fit inverted bounds.
+	var swLng = Math.min(bounds[0][0], bounds[1][0]);
+	var neLng = Math.max(bounds[0][0], bounds[1][0]);
+	var swLat = Math.min(bounds[0][1], bounds[1][1]);
+	var neLat = Math.max(bounds[0][1], bounds[1][1]);
+	var normalized = [
+		[swLng, swLat],
+		[neLng, neLat]
+	];
+	map.fitBounds(normalized, Object.assign({}, defaultOptions, options));
 }
 
 // Export functions for use in other modules

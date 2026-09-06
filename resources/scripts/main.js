@@ -54,7 +54,7 @@ function setupMessageHandler() {
 				}
 
 				// Apply updated transparency to search results
-				if (window.MapSearch && window.MapSearch.applyTransparency) {
+				if (window.MapSearch && window.MapSearch.applyTransparency && message.config.searchResultsTransparency !== undefined) {
 					window.MapSearch.applyTransparency(message.config.searchResultsTransparency);
 				}
 
@@ -173,7 +173,7 @@ function setupMessageHandler() {
 			case 'geocodingSearchResults':
 				console.log('Received geocodingSearchResults message:', message.results);
 				if (window.MapSearch && window.MapSearch.handleGeocodingSearchResults) {
-					window.MapSearch.handleGeocodingSearchResults(message.results);
+					window.MapSearch.handleGeocodingSearchResults(message.results, message.query);
 				}
 				break;
 
@@ -205,16 +205,6 @@ function setupMessageHandler() {
 					error: error || undefined
 				});
 				break;
-
-			case 'mouseMove':
-				console.log('Received mouseMove message:', message.lngLat);
-				if (message.lngLat) {
-					vscode.postMessage({
-						type: 'mouseMove',
-						lngLat: message.lngLat
-					});
-				}
-				break;
 		}
 	});
 }
@@ -224,14 +214,14 @@ function setupMessageHandler() {
  * @param {Object} config - Configuration from the extension
  */
 function initialize(config) {
-	// Store configuration globally
+	// Store configuration globally, honoring explicit 0 values
 	window.MapConfig = {
-		geocodingApiKey: config.geocodingApiKey || '',
-		photonSearchUrl: config.photonSearchUrl || 'https://photon.komoot.io/api',
-		enableSearch: config.enableSearch || false,
-		searchResultsTransparency: config.searchResultsTransparency || 20,
-		flyToDuration: config.flyToDuration || 500,
-		mapStyleUrl: config.mapStyleUrl || ''
+		geocodingApiKey: config.geocodingApiKey !== undefined ? config.geocodingApiKey : '',
+		photonSearchUrl: config.photonSearchUrl !== undefined ? config.photonSearchUrl : 'https://photon.komoot.io/api',
+		enableSearch: config.enableSearch !== undefined ? config.enableSearch : false,
+		searchResultsTransparency: config.searchResultsTransparency !== undefined ? config.searchResultsTransparency : 20,
+		flyToDuration: config.flyToDuration !== undefined ? config.flyToDuration : 500,
+		mapStyleUrl: config.mapStyleUrl !== undefined ? config.mapStyleUrl : ''
 	};
 
 	// Set configuration in core module

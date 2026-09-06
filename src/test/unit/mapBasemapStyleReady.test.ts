@@ -133,6 +133,12 @@ function loadMapBasemap(initialStyleLoaded: boolean): TestHarness {
     const context: Record<string, unknown> = {
         window: windowObj,
         console,
+        setTimeout: (fn: () => void, _ms?: number) => setTimeout(fn, 0),
+        clearTimeout: (id: NodeJS.Timeout | undefined) => {
+            if (id) {
+                clearTimeout(id);
+            }
+        },
         // hideErrorOverlay is defined in map-ui.js and called directly by map-basemap.js
         hideErrorOverlay: () => undefined,
         vscode: {
@@ -246,7 +252,7 @@ suite('MapBasemap mapReady style loading', () => {
 
             assert.strictEqual(harness.setStyleCalls.length, 1);
             assert.strictEqual(harness.setStyleCalls[0].style, 'https://example.com/style.json');
-            assert.strictEqual(harness.setStyleCalls[0].opts?.preserveSources, true);
+            assert.strictEqual(harness.setStyleCalls[0].opts?.preserveSources, undefined, 'preserveSources is not a real setStyle option and must not be passed');
             assert.ok(harness.setStyleCalls[0].opts?.transformStyle, 'transformStyle callback must be kept');
         });
 

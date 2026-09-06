@@ -16,6 +16,11 @@
  */
 function notifyMapReadyWhenStyleLoaded(map) {
 	var done = false;
+	// 'styledata' fires during style loading and may never fire again after
+	// the initial load; a bounded retry guarantees mapReady is eventually
+	// posted even if no event arrives while isStyleLoaded() is false.
+	var attempts = 0;
+	var MAX_ATTEMPTS = 100;
 	var post = function() {
 		if (done) {
 			return;
@@ -28,6 +33,11 @@ function notifyMapReadyWhenStyleLoaded(map) {
 			});
 			return;
 		}
+		if (attempts >= MAX_ATTEMPTS) {
+			console.warn('[MapBasemap] Style never reported loaded; giving up on mapReady');
+			return;
+		}
+		attempts++;
 		map.once('styledata', function() {
 			post();
 		});
@@ -35,6 +45,7 @@ function notifyMapReadyWhenStyleLoaded(map) {
 		map.once('load', function() {
 			post();
 		});
+		setTimeout(post, 50);
 	};
 	post();
 }
@@ -73,8 +84,7 @@ function updateMapStyle(newStyleUrl) {
 		map.setStyle(newStyleUrl, {
 			transformStyle: function(previousStyle, nextStyle) {
 				return nextStyle;
-			},
-			preserveSources: true
+			}
 		});
 
 		notifyMapReadyWhenStyleLoaded(map);
@@ -169,8 +179,7 @@ function updateBasemap(basemap) {
 			map.setStyle(rasterStyle, {
 				transformStyle: function(previousStyle, nextStyle) {
 					return nextStyle;
-				},
-				preserveSources: true
+				}
 			});
 
 			notifyMapReadyWhenStyleLoaded(map);

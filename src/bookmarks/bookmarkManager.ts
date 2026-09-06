@@ -3,6 +3,7 @@ import { MapBookmark, BookmarkCollection, ViewState } from './bookmarkTypes';
 import { BookmarkTreeProvider } from './bookmarkTreeProvider';
 import { MapWebviewController } from '../map/mapWebviewController';
 import { MapEditorProvider } from '../map/mapEditorProvider';
+import { MapViewProvider } from '../map/mapViewProvider';
 import { ProviderManager } from '../map/providerManager';
 import { confirmAction, showOperationError } from '../extensionUtils';
 import { formatCoordinates, formatViewState } from '../services/coordinateParser';
@@ -82,7 +83,7 @@ export class BookmarkManager {
      */
     private getCollection(): BookmarkCollection {
         const collection = this._globalState.get<BookmarkCollection>(BOOKMARKS_STORAGE_KEY);
-        
+
         if (!collection || typeof collection !== 'object' || !Array.isArray(collection.bookmarks)) {
             return {
                 version: 1,
@@ -91,19 +92,39 @@ export class BookmarkManager {
             };
         }
 
+        // Clean in memory only; persisted cleanup happens in sanitizeCollection()
+        // before writes so read paths never fire unawaited writes.
         const validBookmarks = collection.bookmarks.filter((b) => validateBookmark(b));
 
-        if (validBookmarks.length !== collection.bookmarks.length) {
-            const cleaned: BookmarkCollection = {
-                version: collection.version ?? 1,
-                bookmarks: validBookmarks,
-                lastUpdated: new Date().toISOString()
-            };
-            void this._globalState.update(BOOKMARKS_STORAGE_KEY, cleaned);
-            return cleaned;
+        return {
+            version: collection.version ?? 1,
+            bookmarks: validBookmarks,
+            lastUpdated: collection.lastUpdated ?? new Date().toISOString()
+        };
+    }
+
+    /**
+     * Removes invalid bookmarks from storage. Awaited by mutating methods so
+     * the cleanup write cannot interleave with a concurrent save/delete.
+     */
+    private async sanitizeCollection(): Promise<void> {
+        const collection = this._globalState.get<BookmarkCollection>(BOOKMARKS_STORAGE_KEY);
+
+        if (!collection || typeof collection !== 'object' || !Array.isArray(collection.bookmarks)) {
+            return;
         }
 
-        return collection;
+        const validBookmarks = collection.bookmarks.filter((b) => validateBookmark(b));
+        if (validBookmarks.length === collection.bookmarks.length) {
+            return;
+        }
+
+        const cleaned: BookmarkCollection = {
+            version: collection.version ?? 1,
+            bookmarks: validBookmarks,
+            lastUpdated: new Date().toISOString()
+        };
+        await this._globalState.update(BOOKMARKS_STORAGE_KEY, cleaned);
     }
     
     /**
@@ -121,6 +142,7 @@ export class BookmarkManager {
      * @returns The saved bookmark
      */
     public async saveBookmark(bookmark: MapBookmark): Promise<MapBookmark> {
+        await this.sanitizeCollection();
         const collection = this.getCollection();
         
         // Check if bookmark with same ID exists (update case)
@@ -211,6 +233,7 @@ export class BookmarkManager {
      * @returns True if deleted, false if not found
      */
     public async deleteBookmark(id: string): Promise<boolean> {
+        await this.sanitizeCollection();
         const collection = this.getCollection();
         const index = collection.bookmarks.findIndex(b => b.id === id);
         
@@ -242,19 +265,34 @@ export class BookmarkManager {
      */
     public async updateBookmark(id: string, updates: Partial<MapBookmark>): Promise<MapBookmark | undefined> {
         const bookmark = this.getBookmark(id);
-        
+
         if (!bookmark) {
             return undefined;
         }
-        
+
+        // Skip undefined values so callers passing e.g. { center: undefined }
+        // cannot wipe fields and trigger the destructive bookmark validation
+        // cleanup on the next read.
+        const filteredUpdates: Partial<MapBookmark> = {};
+        for (const [key, value] of Object.entries(updates)) {
+            if (value !== undefined) {
+                (filteredUpdates as Record<string, unknown>)[key] = value;
+            }
+        }
+
         const updatedBookmark: MapBookmark = {
             ...bookmark,
-            ...updates,
+            ...filteredUpdates,
             id: bookmark.id, // Preserve ID
             createdAt: bookmark.createdAt, // Preserve creation time
             updatedAt: new Date().toISOString()
         };
-        
+
+        if (!validateBookmark(updatedBookmark)) {
+            vscode.window.showErrorMessage(`Cannot update bookmark: the new data is invalid.`);
+            return undefined;
+        }
+
         return this.saveBookmark(updatedBookmark);
     }
     
@@ -310,11 +348,10 @@ export class BookmarkManager {
                 
                 // Open the editor panel using the createPanel method
                 await mapEditorProvider.createPanel();
-                
-                // Wait a bit for the panel to initialize, then fly to the bookmark
-                setTimeout(() => {
-                    providerManager.flyToBookmark(bookmark);
-                }, 500);
+
+                // Wait until the new webview reports its map as ready, then fly
+                await mapEditorProvider.mapReadyPromise;
+                providerManager.flyToBookmark(bookmark);
             })
         );
 
@@ -336,8 +373,8 @@ export class BookmarkManager {
                 const providers = providerManager.getProviders();
                 // Find the appropriate provider based on the active view type
                 const provider = isEditor
-                    ? providers.find(p => p.constructor.name === 'MapEditorProvider') || providers[0]
-                    : providers.find(p => p.constructor.name === 'MapViewProvider') || providers[0];
+                    ? providers.find(p => p instanceof MapEditorProvider) || providers[0]
+                    : providers.find(p => p instanceof MapViewProvider) || providers[0];
                 return this.handleSaveBookmark(bookmarkTreeProvider, provider);
             })
         );
@@ -357,10 +394,11 @@ export class BookmarkManager {
         bookmarkTreeProvider: BookmarkTreeProvider,
         mapProvider: MapWebviewController
     ): Promise<void> {
-        // Get current view state from the webview
-        const viewState = await mapProvider.getCurrentViewState();
-        
-        if (!viewState) {
+        // Check up-front that the map view is reachable, but re-query after
+        // the user makes their selection so the bookmark is not stale.
+        const initialViewState = await mapProvider.getCurrentViewState();
+
+        if (!initialViewState) {
             vscode.window.showWarningMessage('Unable to get current map view. Please ensure the map is loaded.');
             return;
         }
@@ -405,11 +443,21 @@ export class BookmarkManager {
             return;
         }
 
+        // Re-query the view state after the user makes their selection so the
+        // bookmark reflects where the map is now, not where it was when the
+        // picker opened.
+        const currentViewState = await mapProvider.getCurrentViewState();
+
+        if (!currentViewState) {
+            vscode.window.showWarningMessage('Unable to get current map view. Please ensure the map is loaded.');
+            return;
+        }
+
         // Handle selection
         if (selected.isNew) {
-            await this.createNewBookmark(bookmarkTreeProvider, viewState);
+            await this.createNewBookmark(bookmarkTreeProvider, currentViewState);
         } else if (selected.bookmark) {
-            await this.updateExistingBookmark(bookmarkTreeProvider, selected.bookmark, viewState);
+            await this.updateExistingBookmark(bookmarkTreeProvider, selected.bookmark, currentViewState);
         }
     }
 

@@ -35,10 +35,26 @@ export function getLanguage(): string {
     return getConfig().get<string>('language') || 'en';
 }
 
-export function onConfigurationChanged(callback: () => void): vscode.Disposable {
+export function onConfigurationChanged(
+    callback: (event: vscode.ConfigurationChangeEvent) => void
+): vscode.Disposable {
     return vscode.workspace.onDidChangeConfiguration(e => {
         if (e.affectsConfiguration(CONFIG_SECTION)) {
-            callback();
+            callback(e);
         }
     });
+}
+
+/**
+ * Registers a hook that fires whenever a view state write to settings begins,
+ * so callers can suppress redundant config-change broadcasts.
+ */
+let viewStateWriteGuard: (() => void) | undefined;
+
+export function setViewStateWriteGuard(guard: () => void): void {
+    viewStateWriteGuard = guard;
+}
+
+export function notifyViewStateWriteStarted(): void {
+    viewStateWriteGuard?.();
 }

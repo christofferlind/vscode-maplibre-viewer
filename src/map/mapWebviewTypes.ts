@@ -19,6 +19,13 @@ export interface StoredViewState {
     baseMapId?: string;
 }
 
+// Per-view-type record of last saved view states (sidebar and editor each
+// persist independently so they cannot clobber each other)
+export interface StoredPerViewState {
+    mapsView?: StoredViewState;
+    mapEditor?: StoredViewState;
+}
+
 /**
  * Represents a geocoding search result with normalized bounding box format
  */

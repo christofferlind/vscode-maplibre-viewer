@@ -110,21 +110,78 @@ suite('MapWebviewUtils real module', () => {
         });
     });
 
-    test('saveViewStateToSettings persists a flattened state', async () => {
+    test('saveViewStateToSettings persists a per-view keyed state', async () => {
         const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
         const viewState: ViewState = { center: { latitude: 59.3, longitude: 18.1 }, zoom: 5, bearing: 10, pitch: 20 };
-        await loaded.module.saveViewStateToSettings(viewState, 'osm');
+        await loaded.module.saveViewStateToSettings(viewState, 'osm', 'mapsView');
         assert.strictEqual(loaded.vscodeState.updateCalls.length, 1);
         const call = loaded.vscodeState.updateCalls[0];
         assert.strictEqual(call.section, 'lastViewState');
         assert.deepStrictEqual(call.value, {
-            center: { lat: 59.3, lng: 18.1 },
-            zoom: 5,
-            bearing: 10,
-            pitch: 20,
-            baseMapId: 'osm'
+            mapsView: {
+                center: { lat: 59.3, lng: 18.1 },
+                zoom: 5,
+                bearing: 10,
+                pitch: 20,
+                baseMapId: 'osm'
+            }
         });
         assert.strictEqual(call.target, 1);
+    });
+
+    test('saveViewStateToSettings keys per view type without clobbering the other view', async () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        const viewStateA: ViewState = { center: { latitude: 1, longitude: 2 }, zoom: 5, bearing: 0, pitch: 0 };
+        const viewStateB: ViewState = { center: { latitude: 3, longitude: 4 }, zoom: 7, bearing: 0, pitch: 0 };
+        await loaded.module.saveViewStateToSettings(viewStateA, 'osm', 'mapsView');
+        // Simulate the settings write being visible to the next read
+        loaded.vscodeState.setGetValues(() => loaded.vscodeState.updateCalls[0].value);
+        await loaded.module.saveViewStateToSettings(viewStateB, 'raster', 'mapEditor');
+        assert.deepStrictEqual(loaded.vscodeState.updateCalls[1].value, {
+            mapsView: {
+                center: { lat: 1, lng: 2 },
+                zoom: 5,
+                bearing: 0,
+                pitch: 0,
+                baseMapId: 'osm'
+            },
+            mapEditor: {
+                center: { lat: 3, lng: 4 },
+                zoom: 7,
+                bearing: 0,
+                pitch: 0,
+                baseMapId: 'raster'
+            }
+        });
+    });
+
+    test('getMapConfiguration migrates legacy single-object lastViewState for both view types', () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        const legacy: StoredViewState = {
+            center: { lat: 59.3293, lng: 18.0686 },
+            zoom: 12,
+            bearing: 45,
+            pitch: 30,
+            baseMapId: 'osm'
+        };
+        loaded.vscodeState.setGetValues((key: string) => (key === 'lastViewState' ? legacy : undefined));
+        const asSidebar = loaded.module.getMapConfiguration('mapsView');
+        const asEditor = loaded.module.getMapConfiguration('mapEditor');
+        assert.strictEqual(asSidebar.initialViewState?.zoom, 12);
+        assert.strictEqual(asEditor.initialViewState?.zoom, 12);
+    });
+
+    test('getMapConfiguration reads only the key matching its own view type', () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        const perView: Record<string, StoredViewState> = {
+            mapsView: { center: { lat: 1, lng: 2 }, zoom: 4, bearing: 0, pitch: 0, baseMapId: 'a' },
+            mapEditor: { center: { lat: 5, lng: 6 }, zoom: 8, bearing: 0, pitch: 0, baseMapId: 'b' }
+        };
+        loaded.vscodeState.setGetValues((key: string) => (key === 'lastViewState' ? perView : undefined));
+        const sidebar = loaded.module.getMapConfiguration('mapsView');
+        const editor = loaded.module.getMapConfiguration('mapEditor');
+        assert.strictEqual(sidebar.initialViewState?.zoom, 4);
+        assert.strictEqual(editor.initialViewState?.zoom, 8);
     });
 
     test('generateWebviewHtml renders placeholders and injects initialViewState: null', () => {

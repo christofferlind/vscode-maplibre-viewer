@@ -46,7 +46,9 @@ interface GeocodingResponse {
 }
 
 /**
- * Parses a bounding box from API format to internal format
+ * Parses a bounding box from API format to internal format.
+ * Some geocoders return extent values that are not ordered min/max,
+ * so the corners are normalized to guarantee southwest <= northeast.
  * @param bbox The bounding box array [west, south, east, north]
  * @returns The parsed bounding box or undefined
  */
@@ -54,9 +56,15 @@ function parseBbox(bbox: [number, number, number, number] | undefined): SearchRe
 	if (!bbox || bbox.length !== 4) {
 		return undefined;
 	}
+
+	const minLng = Math.min(bbox[0], bbox[2]);
+	const maxLng = Math.max(bbox[0], bbox[2]);
+	const minLat = Math.min(bbox[1], bbox[3]);
+	const maxLat = Math.max(bbox[1], bbox[3]);
+
 	return {
-		southwest: { latitude: bbox[1], longitude: bbox[0] },
-		northeast: { latitude: bbox[3], longitude: bbox[2] }
+		southwest: { latitude: minLat, longitude: minLng },
+		northeast: { latitude: maxLat, longitude: maxLng }
 	};
 }
 
@@ -87,7 +95,7 @@ function parseMapTilerResults(
 ): vscode.QuickPickItem[] {
 	const items: vscode.QuickPickItem[] = [];
 	
-	features.slice(0, 10).forEach((feature, index) => {
+	features.slice(0, 10).forEach((feature) => {
 		if (feature.center === undefined || feature.center.length !== 2) {
 			return;
 		}
@@ -102,7 +110,7 @@ function parseMapTilerResults(
 		const detail = country || '';
 		
 		items.push(createSearchResultItem(label, description, detail));
-		searchResultsMap.set(String(index), { lat, lng, bbox });
+		searchResultsMap.set(String(items.length - 1), { lat, lng, bbox });
 	});
 	
 	return items;
@@ -120,7 +128,7 @@ function parsePhotonResults(
 ): vscode.QuickPickItem[] {
 	const items: vscode.QuickPickItem[] = [];
 	
-	features.slice(0, 10).forEach((feature, index) => {
+	features.slice(0, 10).forEach((feature) => {
 		if (!feature.geometry || feature.geometry.coordinates.length !== 2) {
 			return;
 		}
@@ -136,7 +144,7 @@ function parsePhotonResults(
 		const detail = country || '';
 		
 		items.push(createSearchResultItem(label, description, detail));
-		searchResultsMap.set(String(index), { lat, lng, bbox });
+		searchResultsMap.set(String(items.length - 1), { lat, lng, bbox });
 	});
 	
 	return items;

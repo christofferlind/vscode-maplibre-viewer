@@ -45,7 +45,9 @@ function loadMapOverlays() {
     const windowObj: Record<string, unknown> = {
         MapCore: {
             isMapReady: () => true,
-            getMap: () => map
+            isMapStyleLoaded: () => true,
+            getMap: () => map,
+            queueOperation: (op: () => void) => op()
         },
         MapUtils: {
             withMap: (callback: (m: MockMap) => void) => {

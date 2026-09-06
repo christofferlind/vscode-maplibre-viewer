@@ -32,6 +32,17 @@ function updateOverlayLayers(layers) {
 		return;
 	}
 
+	// The map instance exists synchronously while the style loads
+	// asynchronously; addSource/addLayer throw on an unfinished style, so gate
+	// on the style being loaded and queue until it is.
+	if (!window.MapCore.isMapStyleLoaded()) {
+		console.log('[MapOverlays] Style not loaded yet, queueing updateOverlayLayers');
+		window.MapCore.queueOperation(function() {
+			updateOverlayLayers(layers);
+		});
+		return;
+	}
+
 	var map = window.MapCore.getMap();
 	console.log('[MapOverlays] updateOverlayLayers called with ' + layers.length + ' layer(s) - performing full reconstruction');
 

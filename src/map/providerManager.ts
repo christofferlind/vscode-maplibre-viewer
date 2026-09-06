@@ -4,6 +4,14 @@ import type { MapBookmark } from '../bookmarks/bookmarkTypes';
 import type { Coordinate } from '../services/coordinateParser';
 
 /**
+ * Keys of MapWebviewController that are methods (excludes the
+ * mapReadyPromise property).
+ */
+type BroadcastableKey = {
+    [K in keyof MapWebviewController]: MapWebviewController[K] extends (...args: never[]) => unknown ? K : never
+}[keyof MapWebviewController];
+
+/**
  * Manages multiple map webview providers and broadcasts operations to all.
  * This eliminates the need to manually call methods on both mapsViewProvider and mapEditorProvider.
  */
@@ -42,7 +50,7 @@ export class ProviderManager {
      * @param method - The method name to call
      * @param args - Arguments to pass to the method
      */
-    private broadcast<K extends keyof MapWebviewController>(
+    private broadcast<K extends BroadcastableKey>(
         method: K,
         ...args: Parameters<MapWebviewController[K]>
     ): void {

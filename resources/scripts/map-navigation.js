@@ -6,6 +6,24 @@
 // Temporary markers array
 window.temporaryMarkers = [];
 
+// Timer handle for the temporary marker cleanup timeout, so a new flight can
+// cancel the previous cleanup and its markers survive the full 10 seconds.
+var tempMarkerTimer = undefined;
+
+/**
+ * Schedules (or reschedules) cleanup of temporary markers, cancelling any
+ * pending timer first.
+ */
+function scheduleTemporaryMarkerCleanup() {
+	if (tempMarkerTimer !== undefined) {
+		clearTimeout(tempMarkerTimer);
+	}
+	tempMarkerTimer = setTimeout(function() {
+		clearTemporaryMarkers();
+		tempMarkerTimer = undefined;
+	}, 10000);
+}
+
 /**
  * Fly to a specific location on the map
  * @param {number} latitude - Latitude coordinate
@@ -39,9 +57,7 @@ function flyToLocation(latitude, longitude, zoom) {
 		window.temporaryMarkers.push(marker);
 
 		// Remove the markers after 10 seconds
-		setTimeout(function() {
-			clearTemporaryMarkers();
-		}, 10000);
+		scheduleTemporaryMarkerCleanup();
 	})) return;
 }
 
@@ -49,6 +65,10 @@ function flyToLocation(latitude, longitude, zoom) {
  * Clear all temporary markers
  */
 function clearTemporaryMarkers() {
+	if (tempMarkerTimer !== undefined) {
+		clearTimeout(tempMarkerTimer);
+		tempMarkerTimer = undefined;
+	}
 	if (window.temporaryMarkers && window.temporaryMarkers.length > 0) {
 		window.temporaryMarkers.forEach(function(marker) {
 			marker.remove();
@@ -94,9 +114,7 @@ function fitBoundingBox(coordinates, boundingBox) {
 		);
 
 		// Remove the markers after 10 seconds
-		setTimeout(function() {
-			clearTemporaryMarkers();
-		}, 10000);
+		scheduleTemporaryMarkerCleanup();
 	})) return;
 }
 
@@ -136,7 +154,7 @@ function flyToBookmark(bookmark) {
 
 		map.flyTo({
 			center: [bookmark.center.longitude, bookmark.center.latitude],
-			zoom: bookmark.zoom || 14,
+			zoom: bookmark.zoom !== undefined ? bookmark.zoom : 14,
 			bearing: bookmark.bearing || 0,
 			pitch: bookmark.pitch || 0,
 			duration: flyToDuration

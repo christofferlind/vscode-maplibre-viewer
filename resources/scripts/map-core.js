@@ -51,6 +51,16 @@ function isMapReady() {
 }
 
 /**
+ * Check if the map's style is ready for addSource/addLayer calls. The map
+ * instance exists synchronously while the style loads asynchronously, so
+ * isMapReady() alone is not sufficient for style mutations.
+ * @returns {boolean} True if the map exists and its style is loaded
+ */
+function isMapStyleLoaded() {
+	return map !== null && map.isStyleLoaded();
+}
+
+/**
  * Check if the map has finished its initial style load. A map that failed to
  * load (e.g. offline) is ready (instance exists) but not loaded.
  * @returns {boolean} True if the map's first style load completed
@@ -92,8 +102,8 @@ function escapeHtml(text) {
  * @param {Function} operation - Function to execute when map is ready
  */
 function queueOperation(operation) {
-	if (isMapReady()) {
-		// Map is already ready, execute immediately
+	if (isMapReady() && isMapStyleLoaded()) {
+		// Map is ready and style is loaded, execute immediately
 		operation();
 	} else {
 		// Queue for later execution
@@ -114,6 +124,38 @@ function processPendingOperations() {
 			console.error('Error executing pending operation:', e);
 		}
 	}
+}
+
+// Bounded retry bookkeeping for the error-triggered drain path
+var errorDrainAttempts = 0;
+var errorDrainTimer = null;
+var MAX_ERROR_DRAIN_ATTEMPTS = 20;
+
+/**
+ * When map errors occur while operations are queued (e.g. a failed style
+ * fetch), retry the drain with a short delay, capped so a permanently broken
+ * map does not spin forever.
+ */
+function attemptErrorRecoveryDrain() {
+	if (pendingOperations.length === 0 || errorDrainTimer !== null) {
+		return;
+	}
+	if (errorDrainAttempts >= MAX_ERROR_DRAIN_ATTEMPTS) {
+		console.warn('[MapCore] Giving up on error-recovery drain after', errorDrainAttempts, 'attempts');
+		return;
+	}
+	errorDrainAttempts++;
+	errorDrainTimer = setTimeout(function() {
+		errorDrainTimer = null;
+		if (pendingOperations.length > 0 && map !== null) {
+			if (isMapStyleLoaded()) {
+				errorDrainAttempts = 0;
+				processPendingOperations();
+			} else {
+				attemptErrorRecoveryDrain();
+			}
+		}
+	}, 250);
 }
 
 /**
@@ -153,6 +195,10 @@ function initializeMap(initialViewState) {
 
 		map.on('error', function(e) {
 			console.error('MapLibre error:', e.error);
+			// If the initial style fetch failed (e.g. offline), 'load' never
+			// fires and queued operations would be stranded forever. Attempt a
+			// bounded drain so they are not lost permanently.
+			attemptErrorRecoveryDrain();
 			var errorMsg = 'Unknown error occurred';
 			var details = '';
 			var stack = '';
@@ -183,6 +229,7 @@ function initializeMap(initialViewState) {
 		map.on('load', function() {
 			console.log('[MapCore] load event fired on style');
 			mapLoaded = true;
+			errorDrainAttempts = 0;
 			hideErrorOverlay();
 			// Process any pending operations queued while map was loading
 			processPendingOperations();
@@ -246,17 +293,27 @@ function initializeMap(initialViewState) {
 			});
 		});
 
-		// Add a listener for mouse move events - send coordinates to statusbar
-		map.on('mousemove', function(e) {
-			var lngLat = e.lngLat;
-			vscode.postMessage({
-				type: 'mouseMove',
-				lngLat: {
-					lng: lngLat.lng,
-					lat: lngLat.lat
-				}
-			});
-		});
+	// Listen for mouse move events - send coordinates to statusbar (throttled
+	// so panning does not flood the extension host with messages per pixel)
+	var mouseMoveThrottleTimer = null;
+	var pendingMouseLngLat = null;
+	map.on('mousemove', function(e) {
+		pendingMouseLngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+		if (mouseMoveThrottleTimer !== null) {
+			return;
+		}
+		mouseMoveThrottleTimer = setTimeout(function() {
+			mouseMoveThrottleTimer = null;
+			if (pendingMouseLngLat) {
+				var lngLat = pendingMouseLngLat;
+				pendingMouseLngLat = null;
+				vscode.postMessage({
+					type: 'mouseMove',
+					lngLat: lngLat
+				});
+			}
+		}, 75);
+	});
 
 		// Add a listener for click events to show feature popups
 		if (window.MapPopup) {
@@ -320,6 +377,7 @@ window.MapCore = {
 	getMap: getMap,
 	isMapReady: isMapReady,
 	isMapLoaded: isMapLoaded,
+	isMapStyleLoaded: isMapStyleLoaded,
 	getCurrentStyleUrl: getCurrentStyleUrl,
 	setCurrentStyleUrl: setCurrentStyleUrl,
 	queueOperation: queueOperation,

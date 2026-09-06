@@ -79,6 +79,10 @@ class MockMemento {
     getUpdateCalls(): { key: string; value: unknown }[] {
         return this.updateCalls;
     }
+
+    clearUpdateCalls(): void {
+        this.updateCalls = [];
+    }
 }
 
 suite('Bookmark corruption tests', () => {
@@ -148,7 +152,7 @@ suite('Bookmark corruption tests', () => {
             assert.strictEqual(bookmarks[0].id, 'valid-id');
         });
 
-        test('should persist the cleaned collection back to globalState', async () => {
+        test('read paths must not write; cleanup persists on the next mutating call', async () => {
             const memento = new MockMemento();
             const valid = createTestBookmark({ id: 'valid-id', name: 'Valid' });
             await memento.update('vscodeMaplibreViewer.bookmarks', {
@@ -158,11 +162,19 @@ suite('Bookmark corruption tests', () => {
             });
 
             const manager = new BookmarkManager(memento as never);
+            memento.clearUpdateCalls();
             manager.getAllBookmarks();
 
-            const stored = memento.get('vscodeMaplibreViewer.bookmarks') as { bookmarks: unknown[] };
-            assert.strictEqual(stored.bookmarks.length, 1);
-            assert.strictEqual((stored.bookmarks[0] as { id: string }).id, 'valid-id');
+            const reads = memento.getUpdateCalls().filter((c) => c.key === 'vscodeMaplibreViewer.bookmarks');
+            assert.strictEqual(reads.length, 0, 'read paths must not trigger writes');
+
+            await manager.saveBookmark(createTestBookmark({ id: 'new-id', name: 'New' }));
+
+            const stored = memento.get('vscodeMaplibreViewer.bookmarks') as { bookmarks: Array<{ id: string }> };
+            const ids = stored.bookmarks.map((b) => b.id);
+            assert.ok(!ids.includes('bad'), 'invalid bookmark must be cleaned before the write');
+            assert.ok(ids.includes('valid-id'));
+            assert.ok(ids.includes('new-id'));
         });
 
         test('should not rewrite globalState when all bookmarks are valid', async () => {

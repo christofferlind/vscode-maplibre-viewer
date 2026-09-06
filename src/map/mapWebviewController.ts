@@ -28,13 +28,24 @@ function hasType(msg: unknown): msg is Record<string, unknown> & { type: string 
  * Provides common functionality for both sidebar view and editor panel
  */
 export abstract class MapWebviewController {
-    protected _pendingViewStateResolve?: (state: ViewState | undefined) => void;
-    protected _pendingMapCenterResolve?: (center: {
+    private _pendingViewStateResolves: Array<(state: ViewState | undefined) => void> = [];
+    private _pendingMapCenterResolves: Array<(center: {
         center: { latitude: number; longitude: number };
         zoom: number;
         bearing: number;
         pitch: number;
-    }) => void;
+    } | undefined) => void> = [];
+    private _messageListenerDisposable?: vscode.Disposable;
+    private _messageListenerWebview?: vscode.Webview;
+    private _mapReadyResolve?: () => void;
+    private _mapReadyPromise?: Promise<void>;
+    /**
+     * Camera commands posted while the webview page is still loading (or was
+     * just reloaded) are silently dropped by VS Code. Unsent messages are held
+     * here and flushed when the webview next signals 'mapReady'.
+     */
+    private _pendingCameraMessages: Array<Record<string, unknown>> = [];
+    private _inFlightCameraMessages = new Set<Record<string, unknown>>();
     protected _currentBaseMapStyleUrl?: string;
     protected _currentBaseMapId?: string;
     protected _lastViewState?: ViewState;
@@ -47,7 +58,6 @@ export abstract class MapWebviewController {
     }> = new Map();
 
     private _geocodingRequestId = 0;
-    private _pendingGeocodingRequests: Map<number, boolean> = new Map();
 
     /**
      * Tracks which webview last triggered a context menu
@@ -56,6 +66,35 @@ export abstract class MapWebviewController {
 
     protected logInfo(message: string): void {
         logInfo(message);
+    }
+
+    /**
+     * Posts a camera message to the webview, holding it for later delivery if
+     * the webview reports it cannot receive messages yet (page loading or
+     * reloading). Queued messages flush on the next 'mapReady' signal.
+     */
+    private postCameraMessage(message: Record<string, unknown>): void {
+        const webview = this.getWebview();
+        if (!webview) {
+            return;
+        }
+
+        try {
+            const result = webview.postMessage(message);
+            if (result && typeof (result as Thenable<boolean>).then === 'function') {
+                (result as Thenable<boolean>).then((ok) => {
+                    this._inFlightCameraMessages.delete(message);
+                    if (!ok) {
+                        this._pendingCameraMessages.push(message);
+                    }
+                }, () => {
+                    this._inFlightCameraMessages.delete(message);
+                    this._pendingCameraMessages.push(message);
+                });
+            }
+        } catch {
+            this._pendingCameraMessages.push(message);
+        }
     }
 
     constructor(
@@ -89,7 +128,7 @@ export abstract class MapWebviewController {
     }
 
     protected getConfiguration(): MapConfig {
-        return getMapConfiguration();
+        return getMapConfiguration(this.getViewType());
     }
 
     protected getHtmlForWebview(webview: vscode.Webview, viewType?: string): string {
@@ -111,8 +150,23 @@ export abstract class MapWebviewController {
         this.logInfo(`Sending configuration update to ${this.getViewType()}`);
         webview.postMessage({
             type: 'configUpdate',
-            config
+            config: { ...config, initialViewState: undefined }
         });
+    }
+
+    /**
+     * Promise that resolves when the webview signals 'mapReady'.
+     * A fresh promise is created each time a webview is attached
+     * (attachWebview) so flyToBookmark-style callers can wait for
+     * the map instead of using a blind timeout.
+     */
+    public get mapReadyPromise(): Promise<void> {
+        if (!this._mapReadyPromise) {
+            this._mapReadyPromise = new Promise<void>((resolve) => {
+                this._mapReadyResolve = resolve;
+            });
+        }
+        return this._mapReadyPromise;
     }
 
     public setMapLanguage(languageCode: string): void {
@@ -134,7 +188,7 @@ export abstract class MapWebviewController {
         }
         const defaultZoom = getConfig().get<number>('singlePointZoom') ?? 14;
         this.logInfo(`Flying to location (${latitude}, ${longitude}) at zoom ${zoom ?? defaultZoom}`);
-        webview.postMessage({
+        this.postCameraMessage({
             type: 'flyToLocation',
             latitude,
             longitude,
@@ -151,7 +205,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo(`Fitting bounding box with ${coordinates.length} coordinate(s)`);
-        webview.postMessage({
+        this.postCameraMessage({
             type: 'fitBoundingBox',
             coordinates,
             boundingBox: bbox
@@ -164,7 +218,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo('Fitting to bounding box only');
-        webview.postMessage({
+        this.postCameraMessage({
             type: 'fitBoundsOnly',
             boundingBox: bbox
         });
@@ -176,7 +230,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo(`Flying to bookmark "${bookmark.name}"`);
-        webview.postMessage({
+        this.postCameraMessage({
             type: 'flyToBookmark',
             bookmark
         });
@@ -263,12 +317,13 @@ export abstract class MapWebviewController {
         }
 
         return new Promise<ViewState | undefined>((resolve) => {
-            this._pendingViewStateResolve = resolve;
+            this._pendingViewStateResolves.push(resolve);
             webview.postMessage({ type: 'requestViewState' });
 
             setTimeout(() => {
-                if (this._pendingViewStateResolve === resolve) {
-                    this._pendingViewStateResolve = undefined;
+                const index = this._pendingViewStateResolves.indexOf(resolve);
+                if (index !== -1) {
+                    this._pendingViewStateResolves.splice(index, 1);
                     resolve(undefined);
                 }
             }, 5000);
@@ -292,12 +347,13 @@ export abstract class MapWebviewController {
             bearing: number;
             pitch: number;
         } | undefined>((resolve) => {
-            this._pendingMapCenterResolve = resolve;
+            this._pendingMapCenterResolves.push(resolve);
             webview.postMessage({ type: 'getMapCenter' });
 
             setTimeout(() => {
-                if (this._pendingMapCenterResolve === resolve) {
-                    this._pendingMapCenterResolve = undefined;
+                const index = this._pendingMapCenterResolves.indexOf(resolve);
+                if (index !== -1) {
+                    this._pendingMapCenterResolves.splice(index, 1);
                     resolve(undefined);
                 }
             }, 5000);
@@ -314,17 +370,18 @@ export abstract class MapWebviewController {
                 MapWebviewController.lastActiveViewType = this.getViewType();
                 const viewState = parseViewStateFromMessage(message);
 
-                if (this._pendingViewStateResolve) {
-                    this._pendingViewStateResolve(viewState);
-                    this._pendingViewStateResolve = undefined;
-                }
+                const pendingResolves = this._pendingViewStateResolves;
+                this._pendingViewStateResolves = [];
+                pendingResolves.forEach((resolve) => {
+                    resolve(viewState);
+                });
 
                 if (!viewState) {
                     break;
                 }
 
                 this._lastViewState = viewState;
-                await saveViewStateToSettings(viewState, this._currentBaseMapId);
+                await saveViewStateToSettings(viewState, this._currentBaseMapId, this.getViewType());
                 break;
             }
 
@@ -345,7 +402,28 @@ export abstract class MapWebviewController {
             case 'mapReady':
                 MapWebviewController.lastActiveViewType = this.getViewType();
                 this.logInfo(`Map ready in ${this.getViewType()}`);
+                if (this._mapReadyResolve) {
+                    this._mapReadyResolve();
+                    this._mapReadyResolve = undefined;
+                }
                 this._onMapReady?.();
+
+                // The page is now loaded and able to receive messages; deliver
+                // any camera commands that were dropped while it was loading.
+                // Yield one microtask first so in-flight postMessage promises
+                // have settled and their rejections are recorded.
+                await Promise.resolve();
+                if (this._pendingCameraMessages.length > 0) {
+                    const webview = this.getWebview();
+                    const queued = this._pendingCameraMessages;
+                    this._pendingCameraMessages = [];
+                    if (webview) {
+                        queued.forEach((message) => {
+                            webview.postMessage(message);
+                        });
+                        this.logInfo(`Delivered ${queued.length} queued camera command(s)`);
+                    }
+                }
                 break;
 
             case 'log': {
@@ -383,20 +461,21 @@ export abstract class MapWebviewController {
             }
 
             case 'mapCenterResponse': {
-                if (this._pendingMapCenterResolve) {
-                    const error = message.error as string | undefined;
-                    if (error) {
-                        this._pendingMapCenterResolve(undefined as any);
-                    } else {
-                        this._pendingMapCenterResolve({
-                            center: message.center as { latitude: number; longitude: number },
-                            zoom: message.zoom as number,
-                            bearing: message.bearing as number,
-                            pitch: message.pitch as number
-                        });
-                    }
-                    this._pendingMapCenterResolve = undefined;
-                }
+                const error = message.error as string | undefined;
+                const center = error
+                    ? undefined
+                    : {
+                        center: message.center as { latitude: number; longitude: number },
+                        zoom: message.zoom as number,
+                        bearing: message.bearing as number,
+                        pitch: message.pitch as number
+                    };
+
+                const pendingResolves = this._pendingMapCenterResolves;
+                this._pendingMapCenterResolves = [];
+                pendingResolves.forEach((resolve) => {
+                    resolve(center);
+                });
                 break;
             }
 
@@ -434,7 +513,7 @@ export abstract class MapWebviewController {
 
     public async saveCurrentViewState(): Promise<void> {
         if (this._lastViewState) {
-            await saveViewStateToSettings(this._lastViewState, this._currentBaseMapId);
+            await saveViewStateToSettings(this._lastViewState, this._currentBaseMapId, this.getViewType());
         }
     }
 
@@ -447,7 +526,6 @@ export abstract class MapWebviewController {
         const config = this.getConfiguration();
         const searchResultsMap = new Map<string, SearchResultData>();
         const requestId = ++this._geocodingRequestId;
-        this._pendingGeocodingRequests.set(requestId, true);
         this.logInfo(`Geocoding search for "${query}"`);
 
         try {
@@ -458,7 +536,7 @@ export abstract class MapWebviewController {
                 searchResultsMap
             );
 
-            if (requestId !== this._geocodingRequestId || !this._pendingGeocodingRequests.get(requestId)) {
+            if (requestId !== this._geocodingRequestId) {
                 return;
             }
 
@@ -487,7 +565,7 @@ export abstract class MapWebviewController {
                 results
             });
         } catch {
-            if (requestId !== this._geocodingRequestId || !this._pendingGeocodingRequests.get(requestId)) {
+            if (requestId !== this._geocodingRequestId) {
                 return;
             }
 
@@ -495,18 +573,22 @@ export abstract class MapWebviewController {
                 type: 'geocodingSearchError',
                 message: 'Search failed. Please try again.'
             });
-        } finally {
-            this._pendingGeocodingRequests.delete(requestId);
         }
     }
 
     protected setupMessageListener(webview: vscode.Webview): void {
-        webview.onDidReceiveMessage(
+        if (this._messageListenerDisposable && this._messageListenerWebview === webview) {
+            return;
+        }
+
+        this._messageListenerDisposable?.dispose();
+        this._messageListenerDisposable = webview.onDidReceiveMessage(
             (msg: unknown) => {
                 this.handleWebviewMessage(msg);
             },
             undefined,
             []
         );
+        this._messageListenerWebview = webview;
     }
 }

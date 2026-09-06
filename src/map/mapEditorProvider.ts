@@ -8,6 +8,7 @@ import { MapWebviewController } from './mapWebviewController';
  */
 export class MapEditorProvider extends MapWebviewController {
     private _panel?: vscode.WebviewPanel;
+    private _panelMessageDisposable?: vscode.Disposable;
 
     protected getViewType(): string {
         return 'mapEditor';
@@ -36,6 +37,12 @@ export class MapEditorProvider extends MapWebviewController {
         if (this._panel) {
             try {
                 this._panel.reveal(column);
+                // Refresh stale content: a webview reload (e.g. crash recovery)
+                // clears the HTML and the message listener.
+                this._panelMessageDisposable?.dispose();
+                this._panelMessageDisposable = undefined;
+                this._panel.webview.html = this.getHtmlForWebview(this._panel.webview);
+                this.attachPanelMessageListener(this._panel);
                 return this._panel;
             } catch {
                 this._panel = undefined;
@@ -61,14 +68,18 @@ export class MapEditorProvider extends MapWebviewController {
         this._panel.webview.options = this.getWebviewOptions();
         this._panel.webview.html = this.getHtmlForWebview(this._panel.webview);
 
-        this._panel.webview.onDidReceiveMessage(
+        this.attachPanelMessageListener(this._panel);
+
+        return this._panel;
+    }
+
+    private attachPanelMessageListener(panel: vscode.WebviewPanel): void {
+        this._panelMessageDisposable = panel.webview.onDidReceiveMessage(
             (message: unknown) => {
                 this.handleWebviewMessage(message);
             },
             undefined,
             []
         );
-
-        return this._panel;
     }
 }

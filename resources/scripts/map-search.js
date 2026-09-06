@@ -32,12 +32,23 @@ function debounce(func, wait) {
 var searchResults = [];
 var selectedResultIndex = -1;
 var isSearching = false;
+var lastSearchQuery = '';
 
 // DOM elements (initialized in initializeSearch)
 var searchContainer = null;
 var searchInput = null;
 var searchResultsEl = null;
 var clearBtn = null;
+var searchDebouncedSearch = null;
+
+/**
+ * Cancels any pending debounced search so a stale query cannot fire later.
+ */
+function cancelPendingSearch() {
+	if (searchDebouncedSearch && typeof searchDebouncedSearch.cancel === 'function') {
+		searchDebouncedSearch.cancel();
+	}
+}
 
 /**
  * Apply transparency to search results popup
@@ -127,14 +138,17 @@ function initializeSearch() {
 	var debouncedSearch = debounce(function(query) {
 		performSearch(query);
 	}, 300);
+	// Exposed so hideSearchResults can drop a pending search timer
+	searchDebouncedSearch = debouncedSearch;
 
 	// Input event handler with debounce
 	searchInput.addEventListener('input', function() {
 		updateClearButton();
 
 		var query = searchInput.value;
-		
-		if (query.length < 2) {
+
+		if (query.trim().length < 2) {
+			cancelPendingSearch();
 			hideSearchResults();
 			return;
 		}
@@ -213,19 +227,35 @@ function performSearch(query) {
 	}
 
 	isSearching = true;
+	lastSearchQuery = query;
 	showSearchLoading();
 
-	// Send message to extension to perform the search
+	// Send message to extension to perform the search (echo the query so the
+	// response can be correlated back to this request)
 	sendMessage('geocodingSearch', { query: query });
 }
 
 /**
  * Handle geocoding search results from the extension
  * @param {Array} results - Array of geocoding results
+ * @param {string} [query] - The query the results belong to
  */
-function handleGeocodingSearchResults(results) {
+function handleGeocodingSearchResults(results, query) {
 	isSearching = false;
-	
+
+	// Ignore responses for a query the user already changed or cleared
+	if (query !== undefined && query !== lastSearchQuery) {
+		dismissSearchResults();
+		return;
+	}
+	if (query === undefined) {
+		var currentQuery = searchInput ? searchInput.value.trim() : '';
+		if (currentQuery.length < 2 || currentQuery !== lastSearchQuery) {
+			dismissSearchResults();
+			return;
+		}
+	}
+
 	if (!results || results.length === 0) {
 		searchResults = [];
 		selectedResultIndex = -1;
@@ -246,6 +276,11 @@ function handleGeocodingSearchResults(results) {
 function handleGeocodingSearchError(message) {
 	isSearching = false;
 	console.error('Search error:', message);
+	var currentQuery = searchInput ? searchInput.value.trim() : '';
+	if (currentQuery.length < 2 || currentQuery !== lastSearchQuery) {
+		dismissSearchResults();
+		return;
+	}
 	showSearchError(message || 'Search failed. Please try again.');
 }
 
@@ -397,9 +432,20 @@ function showSearchNoResults() {
 }
 
 /**
+ * Hide search results without cancelling a pending search (used to dismiss
+ * stale responses while a newer query is still in flight).
+ */
+function dismissSearchResults() {
+	searchResultsEl.classList.remove('visible');
+	searchResultsEl.innerHTML = '';
+}
+
+/**
  * Hide search results
  */
 function hideSearchResults() {
+	cancelPendingSearch();
+	lastSearchQuery = '';
 	searchResultsEl.classList.remove('visible');
 	searchResultsEl.innerHTML = '';
 }

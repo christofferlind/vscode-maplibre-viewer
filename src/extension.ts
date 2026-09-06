@@ -8,13 +8,14 @@ import { geojsonAdapter } from './adapters/geojsonAdapter';
 import { gpxAdapter } from './adapters/gpxAdapter';
 import { MapViewProvider } from './map/mapViewProvider';
 import { MapEditorProvider } from './map/mapEditorProvider';
+import { MapWebviewController } from './map/mapWebviewController';
 import { ProviderManager } from './map/providerManager';
 import { showOperationError, confirmAction, getCoordinateSelectionState } from './extensionUtils';
-import { StoredViewState } from './map/mapWebviewTypes';
+import { StoredViewState, StoredPerViewState } from './map/mapWebviewTypes';
 import { handleSearchOnMap } from './searchHandler';
-import { handleTextSelection, handleFileSelection } from './selectionHandler';
+import { handleTextSelection, handleFileSelection, resetFileSelectionState } from './selectionHandler';
 import { loadCustomCoordinatePatterns, registerLanguageCommands, registerCoordinateSelectionCommands } from './commandRegistration';
-import { getConfig, onConfigurationChanged } from './services/configService';
+import { getConfig, onConfigurationChanged, setViewStateWriteGuard } from './services/configService';
 import { debounce } from './services/debounce';
 import { calculateBoundingBoxFromGeoJson } from './services/coordinateParser';
 
@@ -63,7 +64,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
         const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
         const customBasemaps = config.get<BaseMapStyle[]>('baseMaps', []);
         const alwaysShowDemoTiles = config.get<boolean>('alwaysShowDemoTiles', false);
-        const shouldShow = customBasemaps.length === 0 || alwaysShowDemoTiles;
+        const externalBasemapCount = layerTreeProvider.getBasemaps().filter(
+            bm => !customBasemaps.some(cb => cb.id === bm.id)
+        ).length;
+        const shouldShow = (customBasemaps.length === 0 && externalBasemapCount === 0) || alwaysShowDemoTiles;
 
         if (shouldShow && !demoBasemapDisposable) {
             demoBasemapDisposable = api.registerBasemap(demoBasemap);
@@ -75,7 +79,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     updateDemoBasemapRegistration();
 
-    const savedViewState = getConfig().get<StoredViewState>('lastViewState');
+    const savedLastViewState = getConfig().get<StoredPerViewState | StoredViewState>('lastViewState');
+    const savedViewState = savedLastViewState
+        && ('mapsView' in savedLastViewState || 'mapEditor' in savedLastViewState)
+        ? (savedLastViewState as StoredPerViewState).mapsView
+        : savedLastViewState as StoredViewState | undefined;
     if (savedViewState?.baseMapId) {
         try {
             await layerTreeProvider.setActiveBaseMap(savedViewState.baseMapId);
@@ -139,6 +147,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
         vscode.commands.registerCommand('vscodeMaplibreViewer.toggleLayer', async (layer: OverlayLayer) => {
             try {
                 await layerTreeProvider.toggleLayerVisibility(layer.id);
+
+                // Back-fill the "Selected file" layer when it becomes visible:
+                // while hidden, file activations were skipped, so re-process the
+                // active editor now.
+                if (layer.id === 'selected-file') {
+                    const selectedFileLayer = layerTreeProvider.getSelectedFileLayer();
+                    if (selectedFileLayer?.visible) {
+                        resetFileSelectionState();
+                        if (vscode.window.activeTextEditor) {
+                            await handleFileSelection(
+                                vscode.window.activeTextEditor,
+                                layerTreeProvider,
+                                providerManager,
+                                fileToGeoJsonAdapters
+                            );
+                        }
+                    }
+                }
             } catch (error) {
                 showOperationError('toggle layer', error);
             }
@@ -311,11 +337,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     bookmarkManager.registerCommands(context, bookmarkTreeProvider, providerManager);
 
+    // Set while the extension itself writes lastViewState so the resulting
+    // configuration event does not broadcast a redundant configUpdate on
+    // every map pan (feedback loop that fights the user mid-drag).
+    let suppressConfigUpdate = false;
+
     context.subscriptions.push(
-        onConfigurationChanged(() => {
+        onConfigurationChanged((event) => {
+            if (suppressConfigUpdate && event.affectsConfiguration('vscodeMaplibreViewer.lastViewState')) {
+                return;
+            }
             providerManager.updateConfiguration();
         })
     );
+
+    setViewStateWriteGuard(() => {
+        suppressConfigUpdate = true;
+        setTimeout(() => {
+            suppressConfigUpdate = false;
+        }, 0);
+    });
 
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
@@ -404,6 +445,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 }
 
 export async function deactivate(): Promise<void> {
+    // Only the provider that moved last persists its state; the other view's
+    // state was already written per-view on every moveend.
+    if (mapsViewProvider && mapEditorProvider) {
+        const lastViewType = MapWebviewController.lastActiveViewType;
+        if (lastViewType === 'mapEditor') {
+            await mapEditorProvider.saveCurrentViewState();
+        } else {
+            await mapsViewProvider.saveCurrentViewState();
+        }
+        return;
+    }
     if (mapsViewProvider) {
         await mapsViewProvider.saveCurrentViewState();
     }

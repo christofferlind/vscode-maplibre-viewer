@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { ViewState } from '../bookmarks/bookmarkTypes';
 import { MapConfig, StoredViewState } from './mapWebviewTypes';
+import { notifyViewStateWriteStarted } from '../services/configService';
 
 /**
  * Generates a random nonce for Content Security Policy
@@ -14,11 +15,41 @@ export function getNonce(): string {
 }
 
 /**
+ * View types that persist their own last view state key
+ */
+const VIEW_STATE_KEYS = ['mapsView', 'mapEditor'] as const;
+
+type ViewStateKey = (typeof VIEW_STATE_KEYS)[number];
+
+export interface StoredPerViewState {
+    mapsView?: StoredViewState;
+    mapEditor?: StoredViewState;
+}
+
+/**
+ * Normalizes a view type to a persisted key
+ */
+function viewStateKey(viewType?: string): ViewStateKey {
+    return viewType === 'mapEditor' ? 'mapEditor' : 'mapsView';
+}
+
+/**
  * Gets the current configuration from VS Code settings
  */
-export function getMapConfiguration(): MapConfig {
+export function getMapConfiguration(viewType?: string): MapConfig {
     const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
-    const lastViewState = config.get<StoredViewState>('lastViewState');
+    const stored = config.get<StoredPerViewState | StoredViewState>('lastViewState');
+
+    let lastViewState: StoredViewState | undefined;
+    if (stored) {
+        if ('mapsView' in stored || 'mapEditor' in stored) {
+            const perView = stored as StoredPerViewState;
+            lastViewState = perView[viewStateKey(viewType)];
+        } else {
+            // Legacy single-object storage: use it for both view types
+            lastViewState = stored as StoredViewState;
+        }
+    }
 
     return {
         geocodingApiKey: config.get<string>('geocodingApiKey') || '',
@@ -39,9 +70,14 @@ export function getMapConfiguration(): MapConfig {
 }
 
 /**
- * Saves the current view state to VS Code settings
+ * Saves the current view state to VS Code settings, keyed by view type so the
+ * sidebar and editor panels do not clobber each other's state.
  */
-export async function saveViewStateToSettings(viewState: ViewState, currentBaseMapId?: string): Promise<void> {
+export async function saveViewStateToSettings(
+    viewState: ViewState,
+    currentBaseMapId?: string,
+    viewType?: string
+): Promise<void> {
     const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
     const stateToStore: StoredViewState = {
         center: {
@@ -54,8 +90,16 @@ export async function saveViewStateToSettings(viewState: ViewState, currentBaseM
         baseMapId: currentBaseMapId
     };
 
+    const stored = config.get<StoredPerViewState>('lastViewState');
+    const perView: StoredPerViewState = (stored && ('mapsView' in stored || 'mapEditor' in stored))
+        ? { ...(stored as StoredPerViewState) }
+        : {};
+
+    perView[viewStateKey(viewType)] = stateToStore;
+
     try {
-        await config.update('lastViewState', stateToStore, vscode.ConfigurationTarget.Global);
+        notifyViewStateWriteStarted();
+        await config.update('lastViewState', perView, vscode.ConfigurationTarget.Global);
     } catch (error) {
         console.error('Failed to save view state:', error);
     }
@@ -147,7 +191,8 @@ export function generateWebviewHtml(
     viewType?: string
 ): string {
     const nonce = getNonce();
-    const styleUrl = currentBaseMapStyleUrl || 'https://demotiles.maplibre.org/style.json';
+    const styleUrl = currentBaseMapStyleUrl
+        || getWebviewUri(extensionUri, webview, 'resources', 'styles', 'default-style.json').toString();
 
     const maplibreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.js');
     const maplibreCssUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
