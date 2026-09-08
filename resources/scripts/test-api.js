@@ -94,6 +94,22 @@ window.__test = {
     },
 
     /**
+     * Get the current view state of the map (center, zoom, bearing, pitch).
+     * @returns {Object} Current map view state, or an error marker if the map is not initialized
+     */
+    getViewState: function() {
+        var map = window.MapCore && window.MapCore.getMap();
+        if (!map) { return { error: 'map not initialized' }; }
+        var center = map.getCenter();
+        return {
+            center: { latitude: center.lat, longitude: center.lng },
+            zoom: map.getZoom(),
+            bearing: map.getBearing(),
+            pitch: map.getPitch()
+        };
+    },
+
+    /**
      * Check whether the map load error overlay is currently visible.
      * @returns {boolean} True if the error overlay is showing
      */

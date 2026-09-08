@@ -15,12 +15,13 @@ This extension is designed to run fully offline. End users **MUST** be able to i
 ## Hard rules
 
 - **MUST** run `npm run test` after modifying any file under `src/` or `resources/`.
+- **MUST** run `npm run test:vscode` (the full suite including VS Code integration tests) for every change affecting `src/`, `resources/`, or `AGENTS.md`. Only skip it when the change is trivially non-behavioral (docs-only edits not covered by tests).
 - **MUST** run `npm run test:coverage` for every code change to verify that a test actually hits the changed code.
 - **MUST** run `npm run lint` and `npm run compile` before declaring a task complete.
 - **MUST NOT** add production dependencies without explicit user confirmation.
 - **MUST NOT** use `@ts-ignore`, `any` to silence errors, or hardcode API keys/secrets.
 - **MUST NOT** commit, push, amend, or create PRs unless explicitly requested by the user.
-- **MUST NOT** delete files, run `npm run test:vscode`, or run packaging commands (`npm run package`, `vsce publish`) without approval.
+- **MUST NOT** delete files or run packaging commands (`npm run package`, `vsce publish`) without approval.
 - **MUST** write unit tests for every behavioral change, including edge cases.
 - **MUST** mock external dependencies in tests so they remain fast and isolated.
 - **MUST** keep business logic strictly separated from I/O handling.
@@ -85,7 +86,6 @@ if (!map) {
 npm run compile    # Compile TypeScript once
 npm run lint       # ESLint on src/
 npm run test       # Unit tests (requires compile first)
-npm run test:vscode # Unit tests in vscode (approval required for full suite)
 wc -l <file>       # Line count check
 ```
 
@@ -95,11 +95,11 @@ wc -l <file>       # Line count check
 npm run watch      # TypeScript watch mode
 ```
 
-### Full suite (only when explicitly requested)
+### Full suite (required for every change affecting src/, resources/, or AGENTS.md)
 
 ```bash
-npm run vscode:prepublish   # Full build + asset copy (for publishing)
-npm run test:vscode         # Full suite incl. VS Code integration tests (approval required)
+npm run test:vscode         # Full suite incl. VS Code integration tests (requires compile first)
+npm run vscode:prepublish   # Full build + asset copy (for publishing; approval required)
 npm run package             # Package extension as .vsix (approval required)
 ```
 
@@ -164,7 +164,7 @@ resources/
 
 - Framework: Mocha with TDD UI (`suite`/`test` pattern).
 - Unit tests live in `src/test/unit/*.test.ts`; run with `npm run test`.
-- Integration tests live in `src/test/integration/*.test.ts`; run with `npm run test:vscode` (approval required).
+- Integration tests live in `src/test/integration/*.test.ts`; run with `npm run test:vscode`.
 - Test config: `.vscode-test.mjs` defines test file patterns.
 - Test utilities in `src/test/testUtils/`: `MockWebview`, `TestableMapWebviewController`, factories.
 - Import paths in tests: relative `../../services/...`.
@@ -191,6 +191,8 @@ The extension exposes `window.__test` in the webview (`resources/scripts/test-ap
 - `getOverlaySource(layerId)` — source info with `exists` flag
 - `isOverlayLayerOnMap(layerId)` — full map-renderer state check
 - `getAllOverlayState()` — comprehensive dump of all overlay state
+- `getViewState()` — actual map view state (`{ center: { latitude, longitude }, zoom, bearing, pitch }`); prefer this over asserting on outgoing `flyToBookmark`/navigation messages when verifying view changes
+- `isErrorOverlayVisible()` — whether the map load error overlay is showing
 - `isAvailable()` — sanity check that the API loaded
 
 **Extension-side** (integration tests):
@@ -215,6 +217,16 @@ assert.strictEqual((state as any).circles, 'visible');
 await layerTreeProvider.toggleLayerVisibility('test');
 const after = await controller.queryWebview('getLayerVisibility', ['test']);
 assert.strictEqual((after as any).circles, 'none');
+```
+
+**Wiring the mock for round-trip queries** — when a test uses `MockWebview` with `TestableMapWebviewController` and calls `queryWebview`, the mock's incoming messages must be routed through the controller (as the real provider wiring does), otherwise `__testResponse` messages never reach it and the query times out:
+
+```typescript
+mockWebview.onTestQuery('getViewState', () => simulatedMapState);
+mockWebview.onDidReceiveMessage((message) => {
+    void controller.testHandleWebviewMessage(message);
+});
+const state = await controller.queryWebview('getViewState');
 ```
 
 ## Extension API

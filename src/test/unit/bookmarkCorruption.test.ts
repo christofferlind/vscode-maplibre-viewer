@@ -29,6 +29,23 @@ const vscodeStub = {
         appendMarkdown(text: string): void {
             this.value += text;
         }
+    },
+    EventEmitter: class EventEmitter {
+        private listeners: ((value: unknown) => void)[] = [];
+        event = (listener: (value: unknown) => void): { dispose: () => void } => {
+            this.listeners.push(listener);
+            return { dispose: (): void => {
+                this.listeners = this.listeners.filter(l => l !== listener);
+            } };
+        };
+        fire(value: unknown): void {
+            for (const listener of this.listeners) {
+                listener(value);
+            }
+        }
+        dispose(): void {
+            this.listeners = [];
+        }
     }
 };
 const originalPrototypeRequire = ModuleCtor.prototype.require;

@@ -13,7 +13,8 @@ import {
     buildGeocodingResults
 } from './mapWebviewUtils';
 import { getConfig } from '../services/configService';
-import { logInfo, logError, logLine, showErrorLog } from '../services/logger';
+import { logInfo, logError, logLine } from '../services/logger';
+import { logMapError, MapErrorNotifier } from './mapErrorNotifier';
 
 /** Message type guard helpers */
 function isRecord(msg: unknown): msg is Record<string, unknown> {
@@ -239,6 +240,17 @@ export abstract class MapWebviewController {
         });
     }
 
+    public updateBookmarks(bookmarks: MapBookmark[]): void {
+        const webview = this.getWebview();
+        if (!webview) {
+            return;
+        }
+        this.postStateMessage({
+            type: 'bookmarksUpdated',
+            bookmarks
+        });
+    }
+
     public setBaseMap(baseMap: BaseMapStyle): void {
         this._currentBaseMapStyleUrl = baseMap.styleUrl;
         this._currentBaseMapId = baseMap.id;
@@ -436,24 +448,10 @@ export abstract class MapWebviewController {
             }
 
             case 'mapError': {
-                const errorMessage = typeof message.message === 'string' ? message.message : String(message.message);
-                const details = message.details as string | undefined;
-                const stack = message.stack as string | undefined;
-                const source = message.source as string | undefined;
-
-                logError(errorMessage);
-                if (source) {
-                    logLine('[INFO]', `Source: ${source}`);
-                }
-                if (details) {
-                    logLine('[INFO]', `Details: ${details}`);
-                }
-                if (stack) {
-                    logLine('[INFO]', `Stack: ${stack}`);
-                }
-                logLine('[INFO]', '---');
-
-                this._showMapErrorThrottled(errorMessage);
+                logMapError(message);
+                this._mapErrorNotifier.showThrottled(
+                    typeof message.message === 'string' ? message.message : String(message.message)
+                );
                 break;
             }
 
@@ -504,27 +502,7 @@ export abstract class MapWebviewController {
 
     private _onMapReady?: () => void;
 
-    private _lastMapErrorNotificationTime = 0;
-
-    /**
-     * Webview errors can fire rapidly (e.g. one failed tile request per tile
-     * while panning a raster basemap offline). Only surface the first error in
-     * a 10 second window as a notification; everything is still logged.
-     */
-    private _showMapErrorThrottled(errorMessage: string): void {
-        const now = Date.now();
-        if (now - this._lastMapErrorNotificationTime < 10000) {
-            return;
-        }
-        this._lastMapErrorNotificationTime = now;
-
-        const showLog = 'Show Error Log';
-        void vscode.window.showErrorMessage(errorMessage, showLog).then((selection) => {
-            if (selection === showLog) {
-                showErrorLog();
-            }
-        });
-    }
+    private _mapErrorNotifier = new MapErrorNotifier();
 
     public onMapReady(callback: () => void): void {
         this._onMapReady = callback;

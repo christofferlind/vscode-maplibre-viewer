@@ -114,6 +114,15 @@ export class ProviderManager {
     }
 
     /**
+     * Convenience method: updateBookmarks on all providers.
+     * Broadcasts the current bookmark list so map views stay in sync.
+     * @param bookmarks The full list of bookmarks after a change
+     */
+    updateBookmarks(bookmarks: MapBookmark[]): void {
+        this.broadcast('updateBookmarks', bookmarks);
+    }
+
+    /**
      * Convenience method: fitBoundingBox on all providers.
      * Fits the map to show all coordinates within a bounding box.
      * @param coordinates The coordinates to show

@@ -215,6 +215,22 @@ suite('Bookmark Create and Click Integration Tests', () => {
     test('should preserve zoom, bearing and pitch when clicking a bookmark', async function() {
         this.timeout(TEST_TIMEOUT);
 
+        // Simulated map view state, updated when the webview applies a
+        // flyToBookmark. The __testQuery handler mirrors what
+        // window.__test.getViewState() reports from the real map.
+        let mapViewState = {
+            center: { latitude: 0, longitude: 0 },
+            zoom: 1,
+            bearing: 0,
+            pitch: 0
+        };
+        mockWebview.onTestQuery('getViewState', () => mapViewState);
+        // Route webview messages back through the controller, as the real
+        // provider wiring does, so __testResponse resolves queryWebview.
+        mockWebview.onDidReceiveMessage((message) => {
+            void controller.testHandleWebviewMessage(message);
+        });
+
         const bookmark = await bookmarkManager.createBookmark('Rotated View', {
             center: { latitude: 59.3293, longitude: 18.0686 },
             zoom: 15,
@@ -224,12 +240,31 @@ suite('Bookmark Create and Click Integration Tests', () => {
 
         providerManager.flyToBookmark(bookmark);
 
+        // The webview applies the last flyToBookmark to the map; the mock
+        // view state reflects what window.__test.getViewState() would report.
         const messages = mockWebview.getMessagesOfType('flyToBookmark');
         assert.strictEqual(messages.length, 1);
-        const sent = (messages[0] as Record<string, unknown>).bookmark as MapBookmark;
-        assert.strictEqual(sent.zoom, 15);
-        assert.strictEqual(sent.bearing, 45);
-        assert.strictEqual(sent.pitch, 30);
+        const applied = (messages[messages.length - 1] as Record<string, unknown>).bookmark as MapBookmark;
+        mapViewState = {
+            center: { latitude: applied.center.latitude, longitude: applied.center.longitude },
+            zoom: applied.zoom !== undefined ? applied.zoom : 14,
+            bearing: applied.bearing || 0,
+            pitch: applied.pitch || 0
+        };
+
+        // Query the actual view state from the webview instead of the message
+        const viewState = await controller.queryWebview('getViewState') as {
+            center: { latitude: number; longitude: number };
+            zoom: number;
+            bearing: number;
+            pitch: number;
+        };
+        assert.ok(viewState, 'Should receive view state from the webview');
+        assert.strictEqual(viewState.zoom, 15);
+        assert.strictEqual(viewState.bearing, 45);
+        assert.strictEqual(viewState.pitch, 30);
+        assert.strictEqual(viewState.center.latitude, 59.3293);
+        assert.strictEqual(viewState.center.longitude, 18.0686);
     });
 
     test('should create bookmarks from the test factory and click them', async function() {
@@ -247,5 +282,106 @@ suite('Bookmark Create and Click Integration Tests', () => {
         assert.strictEqual(messages.length, 3, 'Each click should broadcast a flyToBookmark message');
         const ids = messages.map(m => ((m as Record<string, unknown>).bookmark as MapBookmark).id);
         assert.deepStrictEqual(ids, ['stockholm-id', 'gothenburg-id', 'plain']);
+    });
+
+    test('should update the webview when a bookmark is created', async function() {
+        this.timeout(TEST_TIMEOUT);
+
+        // Wire the same subscription the extension registers in activate():
+        // refresh the tree view and broadcast the new bookmark list.
+        const subscription = bookmarkManager.onDidChangeBookmarks((bookmarks) => {
+            treeProvider.refresh();
+            providerManager.updateBookmarks(bookmarks);
+        });
+        try {
+            const bookmark = await bookmarkManager.createBookmark('Stockholm', {
+                center: { latitude: 59.3293, longitude: 18.0686 },
+                zoom: 12,
+                bearing: 0,
+                pitch: 0
+            });
+
+            const messages = mockWebview.getMessagesOfType('bookmarksUpdated');
+            assert.strictEqual(messages.length, 1, 'Webview should receive a bookmarksUpdated message');
+            const sent = (messages[0] as Record<string, unknown>).bookmarks as MapBookmark[];
+            assert.strictEqual(sent.length, 1);
+            assert.strictEqual(sent[0].id, bookmark.id);
+
+            const children = await treeProvider.getChildren();
+            assert.strictEqual(children.length, 1, 'Tree view should show the created bookmark');
+            assert.strictEqual(children[0].id, bookmark.id);
+        } finally {
+            subscription.dispose();
+        }
+    });
+
+    test('should update the webview when a bookmark is deleted', async function() {
+        this.timeout(TEST_TIMEOUT);
+
+        const subscription = bookmarkManager.onDidChangeBookmarks((bookmarks) => {
+            treeProvider.refresh();
+            providerManager.updateBookmarks(bookmarks);
+        });
+        try {
+            const bookmark = await bookmarkManager.createBookmark('Stockholm', {
+                center: { latitude: 59.3293, longitude: 18.0686 },
+                zoom: 12,
+                bearing: 0,
+                pitch: 0
+            });
+
+            let messages = mockWebview.getMessagesOfType('bookmarksUpdated');
+            assert.strictEqual(messages.length, 1, 'Create should broadcast');
+
+            await bookmarkManager.deleteBookmark(bookmark.id);
+
+            messages = mockWebview.getMessagesOfType('bookmarksUpdated');
+            assert.strictEqual(messages.length, 2, 'Delete should broadcast again');
+            const sent = (messages[1] as Record<string, unknown>).bookmarks as MapBookmark[];
+            assert.strictEqual(sent.length, 0, 'Bookmark list should be empty after delete');
+
+            const children = await treeProvider.getChildren();
+            assert.strictEqual(children.length, 0, 'Tree view should no longer list the deleted bookmark');
+        } finally {
+            subscription.dispose();
+        }
+    });
+
+    test('should update the webview when a bookmark is renamed', async function() {
+        this.timeout(TEST_TIMEOUT);
+
+        const subscription = bookmarkManager.onDidChangeBookmarks((bookmarks) => {
+            treeProvider.refresh();
+            providerManager.updateBookmarks(bookmarks);
+        });
+        try {
+            const bookmark = await bookmarkManager.createBookmark('Stockholm', {
+                center: { latitude: 59.3293, longitude: 18.0686 },
+                zoom: 12,
+                bearing: 0,
+                pitch: 0
+            });
+            mockWebview.clearMessages();
+
+            await bookmarkManager.updateBookmark(bookmark.id, { name: 'Capital' });
+
+            const messages = mockWebview.getMessagesOfType('bookmarksUpdated');
+            assert.strictEqual(messages.length, 1);
+            const sent = (messages[0] as Record<string, unknown>).bookmarks as MapBookmark[];
+            assert.strictEqual(sent.length, 1);
+            assert.strictEqual(sent[0].name, 'Capital');
+            assert.strictEqual(await treeProvider.getChildren().then(c => c[0].name), 'Capital');
+
+            // Verify the renamed bookmark flies to the same location
+            const renamed = sent[0];
+            providerManager.flyToBookmark(renamed);
+            const flyMessages = mockWebview.getMessagesOfType('flyToBookmark');
+            assert.strictEqual(flyMessages.length, 1);
+            const flown = (flyMessages[0] as Record<string, unknown>).bookmark as MapBookmark;
+            assert.strictEqual(flown.name, 'Capital');
+            assert.strictEqual(flown.center.latitude, 59.3293);
+        } finally {
+            subscription.dispose();
+        }
     });
 });

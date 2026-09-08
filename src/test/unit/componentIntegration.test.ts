@@ -143,6 +143,13 @@ function createHarness(): TestHarness {
         }
     });
 
+    // Mirror the extension.ts wiring: bookmark changes refresh the tree view
+    // and broadcast the new bookmark list to all registered map webviews.
+    bookmarkManager.onDidChangeBookmarks((bookmarks) => {
+        bookmarkTree.refresh();
+        providerManager.updateBookmarks(bookmarks);
+    });
+
     return {
         vscodeState,
         bookmarkManager,
@@ -229,6 +236,44 @@ suite('High-level integration: components work together', () => {
 
             const deleted = await harness.bookmarkManager.deleteBookmark(bookmark.id);
             assert.strictEqual(deleted, true);
+            assert.strictEqual((await harness.bookmarkTree.getChildren()).length, 0);
+        });
+
+        test('creating a bookmark broadcasts bookmarksUpdated to every webview', async () => {
+            const bookmark = await harness.bookmarkManager.createBookmark('Office', sampleViewState());
+
+            for (const webview of harness.webviews) {
+                const messages = webview.getMessagesOfType('bookmarksUpdated');
+                assert.strictEqual(messages.length, 1, 'each webview gets one bookmarksUpdated');
+                const message = messages[0] as { bookmarks: MapBookmark[] };
+                assert.strictEqual(message.bookmarks.length, 1);
+                assert.strictEqual(message.bookmarks[0].id, bookmark.id);
+                assert.strictEqual(message.bookmarks[0].name, 'Office');
+            }
+        });
+
+        test('updating and deleting a bookmark broadcasts the new list', async () => {
+            const bookmark = await harness.bookmarkManager.createBookmark('Office', sampleViewState());
+            for (const webview of harness.webviews) {
+                webview.clearMessages();
+            }
+
+            await harness.bookmarkManager.updateBookmark(bookmark.id, { name: 'Renamed Office' });
+            for (const webview of harness.webviews) {
+                const messages = webview.getMessagesOfType('bookmarksUpdated');
+                assert.strictEqual(messages.length, 1);
+                const message = messages[0] as { bookmarks: MapBookmark[] };
+                assert.strictEqual(message.bookmarks.length, 1);
+                assert.strictEqual(message.bookmarks[0].name, 'Renamed Office');
+            }
+
+            await harness.bookmarkManager.deleteBookmark(bookmark.id);
+            for (const webview of harness.webviews) {
+                const messages = webview.getMessagesOfType('bookmarksUpdated');
+                assert.strictEqual(messages.length, 2);
+                const message = messages[1] as { bookmarks: MapBookmark[] };
+                assert.strictEqual(message.bookmarks.length, 0);
+            }
             assert.strictEqual((await harness.bookmarkTree.getChildren()).length, 0);
         });
 

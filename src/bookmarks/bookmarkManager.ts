@@ -9,6 +9,7 @@ import { confirmAction, showOperationError } from '../extensionUtils';
 import { formatCoordinates, formatViewState } from '../services/coordinateParser';
 import { formatBookmarkDescriptionFromBookmark } from '../services/bookmarkFormatter';
 import { logInfo } from '../services/logger';
+import { generateId, validateBookmark } from './bookmarkValidation';
 
 /**
  * Storage key for bookmarks in globalState
@@ -16,59 +17,22 @@ import { logInfo } from '../services/logger';
 const BOOKMARKS_STORAGE_KEY = 'vscodeMaplibreViewer.bookmarks';
 
 /**
- * Generates a unique ID for bookmarks
- * @returns A unique string identifier
- */
-function generateId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2, 12);
-}
-
-/**
- * Validates that a bookmark has valid data
- * @param bookmark The bookmark to validate
- * @returns True if valid, false otherwise
- */
-function validateBookmark(bookmark: unknown): bookmark is MapBookmark {
-    if (!bookmark || typeof bookmark !== 'object') {
-        return false;
-    }
-    
-    const b = bookmark as Partial<MapBookmark>;
-    
-    // Required fields
-    if (typeof b.id !== 'string' || b.id.trim().length === 0) {
-        return false;
-    }
-    if (typeof b.name !== 'string' || b.name.trim().length === 0) {
-        return false;
-    }
-    if (!b.center || typeof b.center.latitude !== 'number' || typeof b.center.longitude !== 'number') {
-        return false;
-    }
-    if (typeof b.zoom !== 'number') {
-        return false;
-    }
-    
-    // Validate coordinate ranges
-    if (b.center.latitude < -90 || b.center.latitude > 90) {
-        return false;
-    }
-    if (b.center.longitude < -180 || b.center.longitude > 180) {
-        return false;
-    }
-    if (b.zoom < 0 || b.zoom > 28) {
-        return false;
-    }
-    
-    return true;
-}
-
-/**
  * Manages map view bookmarks with persistence using VSCode's globalState
  */
 export class BookmarkManager {
     private readonly _globalState: vscode.Memento;
-    
+
+    /**
+     * Fires whenever the bookmark collection changes (create, update,
+     * delete, clear) so UI surfaces can re-render with the new state.
+     */
+    private readonly _onDidChangeBookmarks = new vscode.EventEmitter<MapBookmark[]>();
+
+    /**
+     * Event fired with the full list of bookmarks after any change.
+     */
+    public readonly onDidChangeBookmarks: vscode.Event<MapBookmark[]> = this._onDidChangeBookmarks.event;
+
     /**
      * Creates a new BookmarkManager
      * @param globalState VSCode's globalState for persistent storage
@@ -158,10 +122,11 @@ export class BookmarkManager {
                 throw new Error('Cannot save bookmark: the bookmark data is invalid.');
             }
 
-            collection.bookmarks[existingIndex] = merged;
-            logInfo(`Updated bookmark "${merged.name}" (${merged.id})`);
-            await this.saveCollection(collection);
-            return merged;
+        collection.bookmarks[existingIndex] = merged;
+        logInfo(`Updated bookmark "${merged.name}" (${merged.id})`);
+        await this.saveCollection(collection);
+        this._onDidChangeBookmarks.fire(this.getAllBookmarks());
+        return merged;
         }
 
         // Add new bookmark
@@ -184,6 +149,7 @@ export class BookmarkManager {
         logInfo(`Saved bookmark "${prepared.name}" (${prepared.id})`);
 
         await this.saveCollection(collection);
+        this._onDidChangeBookmarks.fire(this.getAllBookmarks());
         return prepared;
     }
     
@@ -260,6 +226,7 @@ export class BookmarkManager {
         collection.bookmarks.splice(index, 1);
         await this.saveCollection(collection);
         logInfo(`Deleted bookmark "${removed.name}" (${removed.id})`);
+        this._onDidChangeBookmarks.fire(this.getAllBookmarks());
         return true;
     }
     
@@ -321,6 +288,7 @@ export class BookmarkManager {
             lastUpdated: new Date().toISOString()
         });
         logInfo('Cleared all bookmarks');
+        this._onDidChangeBookmarks.fire([]);
     }
     
     /**

@@ -50,6 +50,7 @@ export type WebviewMessageType =
     | 'fitBoundingBox'
     | 'fitBoundsOnly'
     | 'flyToBookmark'
+    | 'bookmarksUpdated'
     | 'setBaseMap'
     | 'updateOverlayLayers'
     | 'updateSelectedFileLayer'

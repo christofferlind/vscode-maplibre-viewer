@@ -348,6 +348,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     bookmarkManager.registerCommands(context, bookmarkTreeProvider, providerManager);
 
+    // Keep every UI surface in sync whenever the bookmark collection changes:
+    // the tree view re-renders and map webviews receive the new bookmark list.
+    context.subscriptions.push(
+        bookmarkManager.onDidChangeBookmarks((bookmarks) => {
+            bookmarkTreeProvider.refresh();
+            providerManager.updateBookmarks(bookmarks);
+        })
+    );
+
     // Set while the extension itself writes lastViewState so the resulting
     // configuration event does not broadcast a redundant configUpdate on
     // every map pan (feedback loop that fights the user mid-drag).
