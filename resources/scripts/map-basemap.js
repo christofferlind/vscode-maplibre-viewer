@@ -16,6 +16,12 @@
  */
 function notifyMapReadyWhenStyleLoaded(map) {
 	var done = false;
+	// Right after setStyle() the old style still reports isStyleLoaded() as
+	// true, so a synchronous check would post mapReady against the stale
+	// style and overlays re-added then get wiped when the new style applies.
+	// Require at least one styledata/load event after setStyle before the
+	// isStyleLoaded() result is trusted.
+	var sawStyleEvent = false;
 	// 'styledata' fires during style loading and may never fire again after
 	// the initial load; a bounded retry guarantees mapReady is eventually
 	// posted even if no event arrives while isStyleLoaded() is false.
@@ -52,10 +58,6 @@ function notifyMapReadyWhenStyleLoaded(map) {
 		if (done) {
 			return;
 		}
-		if (map.isStyleLoaded()) {
-			onDone();
-			return;
-		}
 		if (attempts >= MAX_ATTEMPTS) {
 			console.warn('[MapBasemap] Style never reported loaded; giving up on mapReady');
 			done = true;
@@ -63,10 +65,33 @@ function notifyMapReadyWhenStyleLoaded(map) {
 			return;
 		}
 		attempts++;
+		if (!sawStyleEvent) {
+			// Wait for the first post-setStyle style event before trusting
+			// isStyleLoaded(); timers alone must not report readiness.
+			map.once('styledata', onStyleEvent);
+			map.once('load', onStyleEvent);
+			pendingTimers.push(setTimeout(retry, 50));
+			return;
+		}
+		if (map.isStyleLoaded()) {
+			onDone();
+			return;
+		}
 		map.once('styledata', retry);
 		// Also guard with 'load' in case styledata no longer fires
 		map.once('load', retry);
 		pendingTimers.push(setTimeout(retry, 50));
+	};
+	var onStyleEvent = function() {
+		if (done) {
+			return;
+		}
+		sawStyleEvent = true;
+		if (map.isStyleLoaded()) {
+			onDone();
+			return;
+		}
+		retry();
 	};
 	retry();
 }

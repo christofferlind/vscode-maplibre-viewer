@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.2] - 2026-09-08
+
+### Added
+
+- New "Copy Coordinates" command available from the right-click menu on the map, letting you copy the coordinates of any clicked point.
+- Bookmarks now emit a change notification, so all open map panels and the bookmarks list update immediately when a bookmark is created, edited, or deleted.
+
+### Fixed
+
+- Map panels and sidebar views no longer show outdated bookmark information after updates.
+- Improved error reporting when a map fails to load.
+- Hardened GPX, KML, and CSV file parsing against malformed content, preventing crashes on broken or unusual files.
+- Improved robustness of map search, overlays, and base map switching in edge cases.
+
 ## [0.6.1] - 2026-09-08
 
 ### Fixed

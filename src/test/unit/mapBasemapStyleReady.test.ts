@@ -86,6 +86,9 @@ function loadMapBasemap(initialStyleLoaded: boolean): TestHarness {
         getPitch: () => 0,
         setStyle: (styleArg, opts) => {
             setStyleCalls.push({ style: styleArg, opts });
+            // Like real MapLibre, a pending setStyle makes isStyleLoaded()
+            // report false until the new style is applied.
+            styleLoaded = false;
         },
         jumpTo: options => {
             jumpToCalls.push(options);
@@ -183,14 +186,16 @@ function loadMapBasemap(initialStyleLoaded: boolean): TestHarness {
 suite('MapBasemap mapReady style loading', () => {
 
     suite('updateMapStyle', () => {
-        test('posts mapReady synchronously when style is already loaded', () => {
+        test('does not post mapReady synchronously after setStyle on a loaded style', () => {
             const harness = loadMapBasemap(true);
 
             harness.basemap.updateMapStyle('https://example.com/style.json');
 
-            assert.strictEqual(harness.posted.length, 1, 'Should post exactly one message');
-            assert.strictEqual(harness.posted[0].type, 'mapReady');
-            assert.strictEqual(harness.onceHandlerCount('styledata'), 0, 'No styledata handler needed when style is loaded');
+            // Real MapLibre flips isStyleLoaded() to false when setStyle is
+            // called; without the event gate the synchronous path would have
+            // posted mapReady against the stale style.
+            assert.strictEqual(harness.posted.length, 0, 'No mapReady synchronously after setStyle');
+            assert.strictEqual(harness.onceHandlerCount('styledata'), 1, 'Waits for styledata after setStyle');
         });
 
         test('does not post mapReady while style is still loading', () => {
@@ -199,6 +204,34 @@ suite('MapBasemap mapReady style loading', () => {
             harness.basemap.updateMapStyle('https://example.com/style.json');
 
             assert.strictEqual(harness.posted.length, 0, 'No mapReady before style is loaded');
+        });
+
+        test('posts mapReady when the first post-setStyle styledata fires and the new style is loaded', () => {
+            const harness = loadMapBasemap(true);
+
+            harness.basemap.updateMapStyle('https://example.com/style.json');
+
+            harness.setStyleLoaded(true);
+            harness.fireOnce('styledata');
+
+            assert.strictEqual(harness.posted.length, 1, 'Exactly one mapReady after styledata');
+            assert.strictEqual(harness.posted[0].type, 'mapReady');
+        });
+
+        test('does not trust isStyleLoaded() before the first post-setStyle style event', () => {
+            const harness = loadMapBasemap(true);
+
+            // Even if the map still reported the old style as loaded right
+            // after setStyle (as MapLibre can briefly do), mapReady must wait
+            // for an actual style event.
+            harness.basemap.updateMapStyle('https://example.com/style.json');
+
+            assert.strictEqual(harness.posted.length, 0, 'No mapReady without a post-setStyle style event');
+
+            harness.setStyleLoaded(true);
+            harness.fireOnce('styledata');
+
+            assert.strictEqual(harness.posted.length, 1, 'mapReady only after the new style actually loaded');
         });
 
         test('posts exactly one mapReady after styledata fires once', () => {
@@ -237,10 +270,26 @@ suite('MapBasemap mapReady style loading', () => {
             assert.strictEqual(harness.posted[0].type, 'mapReady');
         });
 
+        test('a styledata event while the new style is still loading does not leak handlers', () => {
+            const harness = loadMapBasemap(false);
+
+            harness.basemap.updateMapStyle('https://example.com/style.json');
+
+            // First styledata arrives before the new style is ready; the
+            // loop must re-arm itself and eventually post mapReady
+            harness.fireOnce('styledata');
+            harness.setStyleLoaded(true);
+            harness.fireOnce('styledata');
+
+            assert.strictEqual(harness.posted.length, 1, 'Exactly one mapReady after the style finally loads');
+        });
+
         test('stores the new style URL via setCurrentStyleUrl before posting mapReady', () => {
             const harness = loadMapBasemap(true);
 
             harness.basemap.updateMapStyle('https://example.com/style.json');
+            harness.setStyleLoaded(true);
+            harness.fireOnce('styledata');
 
             assert.deepStrictEqual(harness.setCurrentStyleUrlCalls, ['https://example.com/style.json']);
         });
