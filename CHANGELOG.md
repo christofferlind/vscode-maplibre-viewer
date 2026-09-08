@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - 2026-09-08
+
+### Fixed
+
+- Bookmarks are no longer accidentally deleted when saving with incomplete data, and invalid entries are cleaned up more safely.
+- Updating a bookmark no longer wipes existing details, and invalid updates now show a clear error message.
+- Creating a bookmark from the picker now captures where the map currently is, not where it was when the picker opened.
+- Flying to a bookmark in a newly opened map panel now waits for the map to finish loading instead of using a fixed delay.
+- Search results are less likely to be stale or duplicated when typing quickly.
+- Improved overall stability of the map when switching between tabs and handling messages.
+
 ## [0.6.0] - 2026-09-04
 
 ### Added
