@@ -64,6 +64,11 @@ export abstract class MapWebviewController {
      */
     public static lastActiveViewType = 'mapsView';
 
+    /**
+     * The last coordinate the user right-clicked on any map view, used by the Copy Coordinates command
+     */
+    public static lastClickedLngLat?: { lng: number; lat: number };
+
     protected logInfo(message: string): void {
         logInfo(message);
     }
@@ -388,6 +393,7 @@ export abstract class MapWebviewController {
             case 'contextMenu': {
                 const lngLat = message.lngLat as { lng: number; lat: number } | undefined;
                 if (lngLat) {
+                    MapWebviewController.lastClickedLngLat = lngLat;
                     await vscode.commands.executeCommand('setContext', 'maplibre:clickedLngLat', lngLat);
                     await vscode.commands.executeCommand('setContext', 'maplibre:hasClickedLngLat', true);
                     MapWebviewController.lastActiveViewType = this.getViewType();
@@ -497,7 +503,9 @@ export abstract class MapWebviewController {
 
             case 'mouseMove': {
                 const mouseLngLat = message.lngLat as { lng: number; lat: number } | undefined;
-                if (mouseLngLat) {
+                if (mouseLngLat && typeof mouseLngLat.lat === 'number' && typeof mouseLngLat.lng === 'number') {
+                    MapWebviewController.lastClickedLngLat = mouseLngLat;
+                    await vscode.commands.executeCommand('setContext', 'maplibre:hasClickedLngLat', true);
                     await vscode.commands.executeCommand('vscodeMaplibreViewer.updateCoordinates', mouseLngLat);
                 }
                 break;

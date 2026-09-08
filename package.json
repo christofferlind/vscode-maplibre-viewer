@@ -225,6 +225,11 @@
         "title": "Map: Open Map Editor",
         "category": "MapLibre Viewer",
         "icon": "$(map)"
+      },
+      {
+        "command": "vscodeMaplibreViewer.copyCoordinates",
+        "title": "Copy Coordinates",
+        "category": "MapLibre Viewer"
       }
     ],
     "menus": {
@@ -384,6 +389,11 @@
           "command": "vscodeMaplibreViewer.openSettings",
           "when": "true",
           "group": "4_settings"
+        },
+        {
+          "command": "vscodeMaplibreViewer.copyCoordinates",
+          "when": "maplibre:hasClickedLngLat",
+          "group": "5_copy"
         }
       ],
       "webview/context/setMapLanguage": [

@@ -28,6 +28,7 @@ export interface VscodeStubState {
     getValues: (section: string, defaultValue?: unknown) => unknown;
     setGetValues: (fn: (section: string, defaultValue?: unknown) => unknown) => void;
     executeCommands: string[];
+    executeCommandArgs: unknown[];
     updateCalls: Array<{ section: string; value: unknown; target: number }>;
     createdPanels: StubWebviewPanel[];
     disposeListeners: Array<() => void>;
@@ -56,6 +57,7 @@ export function createVscodeStub(): { vscode: Record<string, unknown>; state: Vs
             state.getValues = fn;
         },
         executeCommands: [],
+        executeCommandArgs: [],
         updateCalls: [],
         createdPanels: [],
         disposeListeners: [],
@@ -113,8 +115,11 @@ export function createVscodeStub(): { vscode: Record<string, unknown>; state: Vs
         }
     }
 
-    const executeCommand = async (command: string): Promise<undefined> => {
+    const executeCommand = async (command: string, arg?: unknown): Promise<undefined> => {
         state.executeCommands.push(command);
+        if (arg !== undefined) {
+            state.executeCommandArgs.push(arg);
+        }
         return undefined;
     };
 

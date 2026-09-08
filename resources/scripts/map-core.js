@@ -277,6 +277,7 @@ function initializeMap(initialViewState) {
 			var canvas = map.getCanvas();
 			if (canvas) {
 				canvas.setAttribute('data-vscode-context', JSON.stringify({
+					'maplibre:hasClickedLngLat': true,
 					'maplibre:clickedLngLat': {
 						lng: lngLat.lng,
 						lat: lngLat.lat
@@ -299,6 +300,15 @@ function initializeMap(initialViewState) {
 	var pendingMouseLngLat = null;
 	map.on('mousemove', function(e) {
 		pendingMouseLngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+		// Keep the context-menu state current with the pointer position so
+		// "Copy coordinates" is available without requiring a click first.
+		var moveCanvas = map.getCanvas();
+		if (moveCanvas) {
+			moveCanvas.setAttribute('data-vscode-context', JSON.stringify({
+				'maplibre:hasClickedLngLat': true,
+				'maplibre:clickedLngLat': pendingMouseLngLat
+			}));
+		}
 		if (mouseMoveThrottleTimer !== null) {
 			return;
 		}

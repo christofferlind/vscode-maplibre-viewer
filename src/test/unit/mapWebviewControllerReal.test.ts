@@ -422,14 +422,18 @@ suite('MapWebviewController real module - message handling', () => {
 
     test('contextMenu with lngLat sets active view type', async () => {
         MapWebviewController.lastActiveViewType = 'mapsView';
+        MapWebviewController.lastClickedLngLat = undefined;
         await controller.handleWebviewMessage({ type: 'contextMenu', lngLat: { lng: 18.1, lat: 59.3 } });
         assert.strictEqual(MapWebviewController.lastActiveViewType, 'test-view');
+        assert.deepStrictEqual(MapWebviewController.lastClickedLngLat, { lng: 18.1, lat: 59.3 });
     });
 
     test('contextMenu without lngLat is ignored', async () => {
         MapWebviewController.lastActiveViewType = 'mapsView';
+        MapWebviewController.lastClickedLngLat = undefined;
         await controller.handleWebviewMessage({ type: 'contextMenu' });
         assert.strictEqual(MapWebviewController.lastActiveViewType, 'mapsView');
+        assert.strictEqual(MapWebviewController.lastClickedLngLat, undefined);
     });
 
     test('geocodingSearch posts results for a short query', async () => {
@@ -536,6 +540,23 @@ suite('MapWebviewController real module - message handling', () => {
     test('mouseMove executes the updateCoordinates command', async () => {
         await controller.handleWebviewMessage({ type: 'mouseMove', lngLat: { lng: 17, lat: 55 } });
         assert.ok(controllerLoaded.vscodeState.executeCommands.includes('vscodeMaplibreViewer.updateCoordinates'));
+    });
+
+    test('mouseMove updates lastClickedLngLat and enables copy context key', async () => {
+        MapWebviewController.lastClickedLngLat = undefined;
+        await controller.handleWebviewMessage({ type: 'mouseMove', lngLat: { lng: 17, lat: 55 } });
+        assert.deepStrictEqual(MapWebviewController.lastClickedLngLat, { lng: 17, lat: 55 });
+        const setContextIndexes = controllerLoaded.vscodeState.executeCommands
+            .map((command, index) => (command === 'setContext' ? index : -1))
+            .filter((index) => index !== -1);
+        const contextNames = setContextIndexes.map((index) => controllerLoaded.vscodeState.executeCommandArgs[index]);
+        assert.ok(contextNames.includes('maplibre:hasClickedLngLat'));
+    });
+
+    test('mouseMove without valid lngLat does not update lastClickedLngLat', async () => {
+        MapWebviewController.lastClickedLngLat = { lng: 1, lat: 2 };
+        await controller.handleWebviewMessage({ type: 'mouseMove' });
+        assert.deepStrictEqual(MapWebviewController.lastClickedLngLat, { lng: 1, lat: 2 });
     });
 
     test('saveCurrentViewState persists last view state', async () => {

@@ -11,6 +11,7 @@ import { MapEditorProvider } from './map/mapEditorProvider';
 import { MapWebviewController } from './map/mapWebviewController';
 import { ProviderManager } from './map/providerManager';
 import { showOperationError, confirmAction, getCoordinateSelectionState } from './extensionUtils';
+import { formatCoordinate } from './services/coordinateFormatter';
 import { StoredViewState, StoredPerViewState } from './map/mapWebviewTypes';
 import { handleSearchOnMap } from './searchHandler';
 import { handleTextSelection, handleFileSelection, resetFileSelectionState } from './selectionHandler';
@@ -430,6 +431,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
     context.subscriptions.push(
         vscode.commands.registerCommand('vscodeMaplibreViewer.openMapEditor', async () => {
             await mapEditorProvider.createPanel();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.copyCoordinates', async () => {
+            const lngLat = MapWebviewController.lastClickedLngLat;
+            if (!lngLat || typeof lngLat.lat !== 'number' || typeof lngLat.lng !== 'number') {
+                vscode.window.showWarningMessage('No map coordinate to copy. Right-click on the map first.');
+                return;
+            }
+            await vscode.env.clipboard.writeText(formatCoordinate({ latitude: lngLat.lat, longitude: lngLat.lng }));
+            vscode.window.showInformationMessage(`Copied: ${formatCoordinate({ latitude: lngLat.lat, longitude: lngLat.lng })}`);
         })
     );
 
