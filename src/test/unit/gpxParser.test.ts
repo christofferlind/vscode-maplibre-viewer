@@ -78,4 +78,63 @@ suite('GpxParser Test Suite', () => {
         assert.strictEqual(features[0].properties.elevation, 42.7);
     });
 
+    test('should not fabricate a track when track points appear before a track', () => {
+        const content = '<?xml version="1.0"?><gpx>' +
+            '<trkseg><trkpt lat="45.0" lon="-75.0"/><trkpt lat="46.0" lon="-76.0"/></trkseg>' +
+            '<trk><name>Real Track</name><trkseg><trkpt lat="10.0" lon="10.0"/><trkpt lat="11.0" lon="11.0"/></trkseg></trk>' +
+            '</gpx>';
+        const features = parseFeatures(content);
+
+        const trackFeatures = features.filter(f => f.properties.type === 'track');
+        assert.strictEqual(trackFeatures.length, 1, 'Only the real track should be found');
+        assert.ok(String(trackFeatures[0].properties.name).startsWith('Real Track'));
+    });
+
+    test('should decode XML entities in waypoint names', () => {
+        const content = '<?xml version="1.0"?><gpx>' +
+            '<wpt lat="47.6" lon="-122.3"><name>A &amp; B &amp;lt;x&amp;gt;</name></wpt>' +
+            '</gpx>';
+        const features = parseFeatures(content);
+
+        assert.strictEqual(features[0].properties.name, 'A & B &lt;x&gt;');
+    });
+
+    test('should strip CDATA wrappers in names', () => {
+        const content = '<?xml version="1.0"?><gpx>' +
+            '<wpt lat="47.6" lon="-122.3"><name><![CDATA[<b>Waypoint</b>]]></name></wpt>' +
+            '</gpx>';
+        const features = parseFeatures(content);
+
+        assert.strictEqual(features[0].properties.name, '<b>Waypoint</b>');
+    });
+
+    test('should decode astral-plane numeric character references in names', () => {
+        const content = '<?xml version="1.0"?><gpx>' +
+            '<wpt lat="47.6" lon="-122.3"><name>&#128512;</name></wpt>' +
+            '</gpx>';
+        const features = parseFeatures(content);
+
+        assert.strictEqual(features[0].properties.name, '\u{1F600}');
+    });
+
+    test('should accept lon attribute before lat', () => {
+        const content = '<?xml version="1.0"?><gpx>' +
+            '<wpt lon="-122.3" lat="47.6"/>' +
+            '</gpx>';
+        const features = parseFeatures(content);
+
+        assert.strictEqual(features.length, 1);
+        assert.deepStrictEqual(features[0].geometry.coordinates, [-122.3, 47.6]);
+    });
+
+    test('should accept single-quoted lat/lon attributes', () => {
+        const content = "<?xml version=\"1.0\"?><gpx>" +
+            "<wpt lat='47.6' lon='-122.3'/>" +
+            '</gpx>';
+        const features = parseFeatures(content);
+
+        assert.strictEqual(features.length, 1);
+        assert.deepStrictEqual(features[0].geometry.coordinates, [-122.3, 47.6]);
+    });
+
 });

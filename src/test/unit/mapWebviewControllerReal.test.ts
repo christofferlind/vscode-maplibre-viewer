@@ -542,15 +542,14 @@ suite('MapWebviewController real module - message handling', () => {
         assert.ok(controllerLoaded.vscodeState.executeCommands.includes('vscodeMaplibreViewer.updateCoordinates'));
     });
 
-    test('mouseMove updates lastClickedLngLat and enables copy context key', async () => {
-        MapWebviewController.lastClickedLngLat = undefined;
+    test('mouseMove updates coordinates without overwriting lastClickedLngLat', async () => {
+        MapWebviewController.lastClickedLngLat = { lng: 1, lat: 2 };
         await controller.handleWebviewMessage({ type: 'mouseMove', lngLat: { lng: 17, lat: 55 } });
-        assert.deepStrictEqual(MapWebviewController.lastClickedLngLat, { lng: 17, lat: 55 });
-        const setContextIndexes = controllerLoaded.vscodeState.executeCommands
-            .map((command, index) => (command === 'setContext' ? index : -1))
-            .filter((index) => index !== -1);
-        const contextNames = setContextIndexes.map((index) => controllerLoaded.vscodeState.executeCommandArgs[index]);
-        assert.ok(contextNames.includes('maplibre:hasClickedLngLat'));
+        assert.deepStrictEqual(MapWebviewController.lastClickedLngLat, { lng: 1, lat: 2 });
+        const updateCommands = controllerLoaded.vscodeState.executeCommands.filter(
+            (command: string) => command === 'vscodeMaplibreViewer.updateCoordinates'
+        );
+        assert.ok(updateCommands.length >= 1, 'updateCoordinates command executed');
     });
 
     test('mouseMove without valid lngLat does not update lastClickedLngLat', async () => {

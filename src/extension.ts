@@ -65,13 +65,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
         const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
         const customBasemaps = config.get<BaseMapStyle[]>('baseMaps', []);
         const alwaysShowDemoTiles = config.get<boolean>('alwaysShowDemoTiles', false);
+        // Count only genuinely external basemaps: registered basemaps that are
+        // neither user-configured nor the demo basemap itself. Counting the
+        // demo basemap here made this function dispose it on the second run.
         const externalBasemapCount = layerTreeProvider.getBasemaps().filter(
-            bm => !customBasemaps.some(cb => cb.id === bm.id)
+            bm => !customBasemaps.some(cb => cb.id === bm.id) && bm.id !== demoBasemap.id
         ).length;
         const shouldShow = (customBasemaps.length === 0 && externalBasemapCount === 0) || alwaysShowDemoTiles;
 
         if (shouldShow && !demoBasemapDisposable) {
             demoBasemapDisposable = api.registerBasemap(demoBasemap);
+            context.subscriptions.push(demoBasemapDisposable);
         } else if (!shouldShow && demoBasemapDisposable) {
             demoBasemapDisposable.dispose();
             demoBasemapDisposable = undefined;
@@ -119,20 +123,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
     mapsViewProvider.onMapReady(sendVisibleOverlayLayers);
     mapEditorProvider.onMapReady(sendVisibleOverlayLayers);
 
-    layerTreeProvider.onDidChangeLayers((event) => {
-        if (event.type === 'baseMap') {
-            providerManager.setBaseMap(event.data as BaseMapStyle);
-            onDidChangeActiveBasemapEmitter.fire(event.data as BaseMapStyle);
-        } else if (event.type === 'overlay') {
-            sendVisibleOverlayLayers();
-        }
-    });
+    context.subscriptions.push(onDidChangeActiveBasemapEmitter);
 
-    layerTreeProvider.onDidAddLayerViaDragDrop((event) => {
-        if (event.bbox) {
-            providerManager.fitBoundsOnly(event.bbox);
-        }
-    });
+    context.subscriptions.push(
+        layerTreeProvider.onDidChangeLayers((event) => {
+            if (event.type === 'baseMap') {
+                providerManager.setBaseMap(event.data as BaseMapStyle);
+                onDidChangeActiveBasemapEmitter.fire(event.data as BaseMapStyle);
+            } else if (event.type === 'overlay') {
+                sendVisibleOverlayLayers();
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        layerTreeProvider.onDidAddLayerViaDragDrop((event) => {
+            if (event.bbox) {
+                providerManager.fitBoundsOnly(event.bbox);
+            }
+        })
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('vscodeMaplibreViewer.setBaseMap', async (baseMap: BaseMapStyle) => {

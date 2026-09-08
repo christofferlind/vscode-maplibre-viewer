@@ -114,21 +114,99 @@ export function parseGpxContent(content: string): object {
 }
 
 /**
+ * Strips a CDATA wrapper if present, returning the raw inner text.
+ */
+function stripCdata(text: string): string {
+    const cdataMatch = /^<!\[CDATA\[([\s\S]*?)\]\]>$/i.exec(text.trim());
+    if (cdataMatch) {
+        return cdataMatch[1];
+    }
+    return text;
+}
+
+/**
+ * Decodes a single numeric character reference into a proper string,
+ * handling astral-plane code points via surrogate pairs.
+ */
+function fromCodePoint(value: number): string {
+    if (!Number.isFinite(value) || value < 0 || value > 0x10ffff) {
+        return '';
+    }
+    if (value <= 0xffff) {
+        return String.fromCharCode(value);
+    }
+    const offset = value - 0x10000;
+    return String.fromCharCode(0xd800 + (offset >> 10), 0xdc00 + (offset & 0x3ff));
+}
+
+/**
+ * Decodes XML entities in a string. Handles the five predefined XML entities,
+ * &nbsp;, and numeric character references.
+ * &amp; is decoded last so doubly-escaped sequences like &amp;lt; stay as &lt;.
+ */
+function decodeXmlEntities(text: string): string {
+    return text
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex) => fromCodePoint(parseInt(hex, 16)))
+        .replace(/&#(\d+);/g, (_match, dec) => fromCodePoint(parseInt(dec, 10)))
+        .replace(/&amp;/g, '&');
+}
+
+/**
+ * Extracts text content of the first matching element, decoding entities and
+ * stripping CDATA wrappers.
+ */
+function extractElementText(content: string, tagName: string): string | undefined {
+    const match = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)</${tagName}>`, 'i').exec(content);
+    if (match) {
+        return decodeXmlEntities(stripCdata(match[1].trim()));
+    }
+    return undefined;
+}
+
+/**
+ * Parses a lat/lon attribute pair from a point element opening tag.
+ * Accepts lat and lon in any order, and both double and single quotes.
+ * @returns The parsed point or undefined when attributes are missing/invalid
+ */
+function parsePointAttributes(tag: string): { lat: number; lon: number } | undefined {
+    const latMatch = /lat\s*=\s*("([^"]*)"|'([^']*)')/i.exec(tag);
+    const lonMatch = /lon\s*=\s*("([^"]*)"\s*|'([^']*)')/i.exec(tag);
+    if (!latMatch || !lonMatch) {
+        return undefined;
+    }
+    const lat = parseFloat(latMatch[2] ?? latMatch[3]);
+    const lon = parseFloat(lonMatch[2] ?? lonMatch[3]);
+    if (isNaN(lat) || isNaN(lon)) {
+        return undefined;
+    }
+    return { lat, lon };
+}
+
+/**
  * Extracts waypoints (wpt elements) from GPX content.
  */
 function extractWaypoints(content: string): GpxPoint[] {
     const points: GpxPoint[] = [];
-    const wptRegex = /<wpt\s+lat="([^"]*)"\s+lon="([^"]*)"[^>]*?(?:\/>|>([\s\S]*?)<\/wpt>)/gi;
+
+    // Strip <trkpt>/<rtept> blocks first so a <wpt> prefix match cannot
+    // consume them (the old `<wpt\s` regex overmatched nothing, but the
+    // attribute scan below must only see real waypoints).
+    const wptBlockRegex = /<wpt(?=[\s/>])[^>]*?(?:\/>|>([\s\S]*?)<\/wpt>)/gi;
     let match: RegExpExecArray | null;
 
-    while ((match = wptRegex.exec(content)) !== null) {
-        const lat = parseFloat(match[1]);
-        const lon = parseFloat(match[2]);
+    while ((match = wptBlockRegex.exec(content)) !== null) {
+        const attrs = parsePointAttributes(match[0]);
+        if (!attrs) {
+            continue;
+        }
 
-        if (isNaN(lat) || isNaN(lon)) { continue; }
-
-        const innerContent = match[3] ?? '';
-        const point: GpxPoint = { lat, lon };
+        const innerContent = match[1] ?? '';
+        const point: GpxPoint = { lat: attrs.lat, lon: attrs.lon };
 
         // Extract elevation
         const eleMatch = /<ele[^>]*>([\s\S]*?)<\/ele>/i.exec(innerContent);
@@ -139,29 +217,10 @@ function extractWaypoints(content: string): GpxPoint[] {
             }
         }
 
-        // Extract name
-        const nameMatch = /<name[^>]*>([\s\S]*?)<\/name>/i.exec(innerContent);
-        if (nameMatch) {
-            point.name = nameMatch[1].trim();
-        }
-
-        // Extract description
-        const descMatch = /<desc[^>]*>([\s\S]*?)<\/desc>/i.exec(innerContent);
-        if (descMatch) {
-            point.desc = descMatch[1].trim();
-        }
-
-        // Extract type
-        const typeMatch = /<type[^>]*>([\s\S]*?)<\/type>/i.exec(innerContent);
-        if (typeMatch) {
-            point.type = typeMatch[1].trim();
-        }
-
-        // Extract time
-        const timeMatch = /<time[^>]*>([\s\S]*?)<\/time>/i.exec(innerContent);
-        if (timeMatch) {
-            point.time = timeMatch[1].trim();
-        }
+        point.name = extractElementText(innerContent, 'name');
+        point.desc = extractElementText(innerContent, 'desc');
+        point.type = extractElementText(innerContent, 'type');
+        point.time = extractElementText(innerContent, 'time');
 
         points.push(point);
     }
@@ -174,27 +233,25 @@ function extractWaypoints(content: string): GpxPoint[] {
  */
 function extractRoutes(content: string): GpxRoute[] {
     const routes: GpxRoute[] = [];
-    const rteRegex = /<rte[^>]*>([\s\S]*?)<\/rte>/gi;
+
+    // Match the exact element name so <rtept>/<rteXXX> cannot be consumed as
+    // a route opening tag.
+    const rteRegex = /<rte(?=[\s/>])[^>]*>([\s\S]*?)<\/rte>/gi;
     let match: RegExpExecArray | null;
 
     while ((match = rteRegex.exec(content)) !== null) {
         const rteContent = match[1];
         const route: GpxRoute = { points: [] };
 
-        // Extract route name
-        const nameMatch = /<name[^>]*>([\s\S]*?)<\/name>/i.exec(rteContent);
-        if (nameMatch) {
-            route.name = nameMatch[1].trim();
-        }
+        route.name = extractElementText(rteContent, 'name');
 
         // Extract route points (rtept) - handle both self-closing and regular tags
-        const rteptRegex = /<rtept\s+lat="([^"]*)"\s+lon="([^"]*)"[^>]*\/?>/gi;
+        const rteptRegex = /<rtept(?=[\s/>])[^>]*?(?:\/>|>[\s\S]*?<\/rtept>)/gi;
         let ptMatch: RegExpExecArray | null;
         while ((ptMatch = rteptRegex.exec(rteContent)) !== null) {
-            const lat = parseFloat(ptMatch[1]);
-            const lon = parseFloat(ptMatch[2]);
-            if (!isNaN(lat) && !isNaN(lon)) {
-                route.points.push({ lat, lon });
+            const attrs = parsePointAttributes(ptMatch[0]);
+            if (attrs) {
+                route.points.push(attrs);
             }
         }
 
@@ -211,34 +268,33 @@ function extractRoutes(content: string): GpxRoute[] {
  */
 function extractTracks(content: string): GpxTrack[] {
     const tracks: GpxTrack[] = [];
-    const trkRegex = /<trk[^>]*>([\s\S]*?)<\/trk>/gi;
+
+    // Match the exact element name so <trkpt>/<trkseg> cannot be consumed as
+    // a track opening tag (which fabricated spurious tracks with duplicated
+    // segments when track points appeared before a track).
+    const trkRegex = /<trk(?=[\s/>])[^>]*>([\s\S]*?)<\/trk>/gi;
     let match: RegExpExecArray | null;
 
     while ((match = trkRegex.exec(content)) !== null) {
         const trkContent = match[1];
         const track: GpxTrack = { segments: [] };
 
-        // Extract track name
-        const nameMatch = /<name[^>]*>([\s\S]*?)<\/name>/i.exec(trkContent);
-        if (nameMatch) {
-            track.name = nameMatch[1].trim();
-        }
+        track.name = extractElementText(trkContent, 'name');
 
         // Extract track segments (trkseg)
-        const trksegRegex = /<trkseg[^>]*>([\s\S]*?)<\/trkseg>/gi;
+        const trksegRegex = /<trkseg(?=[\s/>])[^>]*>([\s\S]*?)<\/trkseg>/gi;
         let segMatch: RegExpExecArray | null;
         while ((segMatch = trksegRegex.exec(trkContent)) !== null) {
             const segContent = segMatch[1];
             const points: GpxPoint[] = [];
 
             // Extract track points (trkpt) - handle both self-closing and regular tags
-            const trkptRegex = /<trkpt\s+lat="([^"]*)"\s+lon="([^"]*)"[^>]*\/?>/gi;
+            const trkptRegex = /<trkpt(?=[\s/>])[^>]*?(?:\/>|>[\s\S]*?<\/trkpt>)/gi;
             let ptMatch: RegExpExecArray | null;
             while ((ptMatch = trkptRegex.exec(segContent)) !== null) {
-                const lat = parseFloat(ptMatch[1]);
-                const lon = parseFloat(ptMatch[2]);
-                if (!isNaN(lat) && !isNaN(lon)) {
-                    points.push({ lat, lon });
+                const attrs = parsePointAttributes(ptMatch[0]);
+                if (attrs) {
+                    points.push({ lat: attrs.lat, lon: attrs.lon });
                 }
             }
 

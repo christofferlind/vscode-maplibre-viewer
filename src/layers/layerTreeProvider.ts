@@ -182,7 +182,13 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
             );
 
             for (const { layer, bbox } of result.addedLayers) {
-                await this.addOverlayLayer(layer);
+                try {
+                    await this.addOverlayLayer(layer);
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    vscode.window.showErrorMessage(`Failed to add layer "${layer.name}": ${message}`);
+                    continue;
+                }
                 this._onDidAddLayerViaDragDrop.fire({ layer, bbox });
             }
         }
@@ -396,14 +402,24 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         }
 
         this._externalBasemaps.set(basemap.id, basemap);
+        const activeBeforeRegister = this._activeBaseMapId;
         this._rebuildBaseMaps();
         this._onDidChangeTreeData.fire(undefined);
         logInfo(`Registered basemap "${basemap.name}" (${basemap.id})`);
 
         return new vscode.Disposable(() => {
             this._externalBasemaps.delete(basemap.id);
+            const activeBeforeDispose = this._activeBaseMapId;
             this._rebuildBaseMaps();
             this._onDidChangeTreeData.fire(undefined);
+            // If the disposed basemap was active and the rebuild fell back to
+            // another basemap, notify the webviews so they follow the change.
+            if (this._activeBaseMapId !== activeBeforeDispose) {
+                const newActive = this.getActiveBaseMap();
+                if (newActive) {
+                    this._onDidChangeLayers.fire({ type: 'baseMap', data: newActive });
+                }
+            }
             logInfo(`Unregistered basemap "${basemap.name}" (${basemap.id})`);
         });
     }

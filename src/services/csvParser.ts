@@ -220,6 +220,33 @@ function detectCoordinateColumns(headers: string[]): [number, number] {
 }
 
 /**
+ * Parses a numeric CSV value. A comma is treated as a decimal mark only when
+ * the value is in European decimal form (single comma, no other separators);
+ * values like "1,234,567" (thousands separators) are rejected rather than
+ * silently misparsed.
+ * @param value The raw string value
+ * @returns The parsed number or NaN if the value is not numeric
+ */
+function parseCsvNumber(value: string): number {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+        return NaN;
+    }
+
+    let normalized = trimmed;
+    if (trimmed.includes(',')) {
+        const commaCount = (trimmed.match(/,/g) ?? []).length;
+        if (commaCount === 1 && !trimmed.includes('.')) {
+            normalized = trimmed.replace(',', '.');
+        } else {
+            return NaN;
+        }
+    }
+
+    return parseFloat(normalized);
+}
+
+/**
  * Converts parsed CSV data to a GeoJSON FeatureCollection.
  */
 function convertToGeoJson(parsed: CsvParseResult, fileName?: string): object {
@@ -232,8 +259,8 @@ function convertToGeoJson(parsed: CsvParseResult, fileName?: string): object {
         const latStr = row.values[latIndex] || '';
         const lngStr = row.values[lngIndex] || '';
 
-        const lat = parseFloat(latStr.replace(',', '.'));
-        const lng = parseFloat(lngStr.replace(',', '.'));
+        const lat = parseCsvNumber(latStr);
+        const lng = parseCsvNumber(lngStr);
 
         if (isNaN(lat) || isNaN(lng)) {
             errors.push(`Row ${row.lineNumber}: invalid coordinates (lat="${latStr}", lng="${lngStr}")`);
@@ -265,7 +292,7 @@ function convertToGeoJson(parsed: CsvParseResult, fileName?: string): object {
             }
             if (raw) {
                 // Try to parse as number
-                const num = parseFloat(raw.replace(',', '.'));
+                const num = parseCsvNumber(raw);
                 properties[parsed.headers[j]] = isNaN(num) ? raw : num;
             }
         }

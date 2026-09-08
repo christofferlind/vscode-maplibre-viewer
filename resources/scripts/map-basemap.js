@@ -21,33 +21,54 @@ function notifyMapReadyWhenStyleLoaded(map) {
 	// posted even if no event arrives while isStyleLoaded() is false.
 	var attempts = 0;
 	var MAX_ATTEMPTS = 100;
-	var post = function() {
+	var pendingTimers = [];
+	var detach = function() {
+		// Guard: not every map-like object exposes off()
+		if (typeof map.off !== 'function') {
+			return;
+		}
+		map.off('styledata', retry);
+		map.off('load', retry);
+	};
+	var onDone = function() {
+		if (done) {
+			return;
+		}
+		done = true;
+		// Clear pending timers and detach this round's once-listeners so they
+		// do not accumulate when the retry loop is abandoned or a later load
+		// event fires.
+		for (var i = 0; i < pendingTimers.length; i++) {
+			clearTimeout(pendingTimers[i]);
+		}
+		pendingTimers = [];
+		detach();
+		console.log('[MapBasemap] Style loaded; posting mapReady');
+		vscode.postMessage({
+			type: 'mapReady'
+		});
+	};
+	var retry = function() {
 		if (done) {
 			return;
 		}
 		if (map.isStyleLoaded()) {
-			done = true;
-			console.log('[MapBasemap] Style loaded; posting mapReady');
-			vscode.postMessage({
-				type: 'mapReady'
-			});
+			onDone();
 			return;
 		}
 		if (attempts >= MAX_ATTEMPTS) {
 			console.warn('[MapBasemap] Style never reported loaded; giving up on mapReady');
+			done = true;
+			detach();
 			return;
 		}
 		attempts++;
-		map.once('styledata', function() {
-			post();
-		});
+		map.once('styledata', retry);
 		// Also guard with 'load' in case styledata no longer fires
-		map.once('load', function() {
-			post();
-		});
-		setTimeout(post, 50);
+		map.once('load', retry);
+		pendingTimers.push(setTimeout(retry, 50));
 	};
-	post();
+	retry();
 }
 
 /**
@@ -214,8 +235,10 @@ function changeMapLanguage(language) {
 			// Use native/local names
 			textField = ['get', 'name'];
 		} else {
-			// Use specific language
-			textField = ['get', 'name:' + language];
+			// Fall back to the native name when the style has no localized
+			// name for the requested language; otherwise labels disappear
+			// entirely for languages with partial coverage.
+			textField = ['coalesce', ['get', 'name:' + language], ['get', 'name']];
 		}
 
 		// Get all layers in the current style

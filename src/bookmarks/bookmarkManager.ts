@@ -20,7 +20,7 @@ const BOOKMARKS_STORAGE_KEY = 'vscodeMaplibreViewer.bookmarks';
  * @returns A unique string identifier
  */
 function generateId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2, 12);
 }
 
 /**
@@ -56,7 +56,7 @@ function validateBookmark(bookmark: unknown): bookmark is MapBookmark {
     if (b.center.longitude < -180 || b.center.longitude > 180) {
         return false;
     }
-    if (b.zoom < 0 || b.zoom > 24) {
+    if (b.zoom < 0 || b.zoom > 28) {
         return false;
     }
     
@@ -136,40 +136,55 @@ export class BookmarkManager {
         await this._globalState.update(BOOKMARKS_STORAGE_KEY, collection);
     }
     
-    /**
-     * Saves a new bookmark or updates an existing one
-     * @param bookmark The bookmark to save
-     * @returns The saved bookmark
-     */
     public async saveBookmark(bookmark: MapBookmark): Promise<MapBookmark> {
         await this.sanitizeCollection();
         const collection = this.getCollection();
-        
+
         // Check if bookmark with same ID exists (update case)
         const existingIndex = collection.bookmarks.findIndex(b => b.id === bookmark.id);
-        
+
         if (existingIndex >= 0) {
-            // Update existing bookmark
-            bookmark.updatedAt = new Date().toISOString();
-            collection.bookmarks[existingIndex] = bookmark;
-            logInfo(`Updated bookmark "${bookmark.name}" (${bookmark.id})`);
-        } else {
-            // Add new bookmark
-            if (!bookmark.id) {
-                bookmark.id = generateId();
+            // Update existing bookmark, preserving stored metadata the caller
+            // may not have supplied (id, createdAt).
+            const existing = collection.bookmarks[existingIndex];
+            const merged: MapBookmark = {
+                ...bookmark,
+                id: existing.id,
+                createdAt: bookmark.createdAt ?? existing.createdAt,
+                updatedAt: new Date().toISOString()
+            };
+
+            if (!validateBookmark(merged)) {
+                throw new Error('Cannot save bookmark: the bookmark data is invalid.');
             }
-            if (!bookmark.createdAt) {
-                bookmark.createdAt = new Date().toISOString();
-            }
-            if (!bookmark.updatedAt) {
-                bookmark.updatedAt = new Date().toISOString();
-            }
-            collection.bookmarks.push(bookmark);
-            logInfo(`Saved bookmark "${bookmark.name}" (${bookmark.id})`);
+
+            collection.bookmarks[existingIndex] = merged;
+            logInfo(`Updated bookmark "${merged.name}" (${merged.id})`);
+            await this.saveCollection(collection);
+            return merged;
         }
-        
+
+        // Add new bookmark
+        const prepared = { ...bookmark };
+        if (!prepared.id) {
+            prepared.id = generateId();
+        }
+        if (!prepared.createdAt) {
+            prepared.createdAt = new Date().toISOString();
+        }
+        if (!prepared.updatedAt) {
+            prepared.updatedAt = new Date().toISOString();
+        }
+
+        if (!validateBookmark(prepared)) {
+            throw new Error('Cannot save bookmark: the bookmark data is invalid.');
+        }
+
+        collection.bookmarks.push(prepared);
+        logInfo(`Saved bookmark "${prepared.name}" (${prepared.id})`);
+
         await this.saveCollection(collection);
-        return bookmark;
+        return prepared;
     }
     
     /**
@@ -300,7 +315,11 @@ export class BookmarkManager {
      * Clears all bookmarks
      */
     public async clearAll(): Promise<void> {
-        await this._globalState.update(BOOKMARKS_STORAGE_KEY, undefined);
+        await this.saveCollection({
+            version: 1,
+            bookmarks: [],
+            lastUpdated: new Date().toISOString()
+        });
         logInfo('Cleared all bookmarks');
     }
     
@@ -327,7 +346,11 @@ export class BookmarkManager {
     ): void {
         // Register command to navigate to a bookmark from the tree view
         context.subscriptions.push(
-            vscode.commands.registerCommand('vscodeMaplibreViewer.goToBookmark', (bookmark: MapBookmark) => {
+            vscode.commands.registerCommand('vscodeMaplibreViewer.goToBookmark', (bookmark?: MapBookmark) => {
+                if (!bookmark) {
+                    vscode.window.showInformationMessage('Select a bookmark from the Bookmarks view to navigate to it.');
+                    return;
+                }
                 providerManager.flyToBookmark(bookmark);
             })
         );
@@ -357,7 +380,11 @@ export class BookmarkManager {
 
         // Register command to delete a bookmark from the tree view context menu
         context.subscriptions.push(
-            vscode.commands.registerCommand('vscodeMaplibreViewer.deleteBookmark', async (bookmark: MapBookmark) => {
+            vscode.commands.registerCommand('vscodeMaplibreViewer.deleteBookmark', async (bookmark?: MapBookmark) => {
+                if (!bookmark || !bookmark.id) {
+                    vscode.window.showInformationMessage('Select a bookmark from the Bookmarks view to delete it.');
+                    return;
+                }
                 if (await confirmAction(`Are you sure you want to delete bookmark "${bookmark.name}"?`, 'Delete')) {
                     await this.deleteBookmark(bookmark.id);
                     bookmarkTreeProvider.refresh();
@@ -373,8 +400,13 @@ export class BookmarkManager {
                 const providers = providerManager.getProviders();
                 // Find the appropriate provider based on the active view type
                 const provider = isEditor
-                    ? providers.find(p => p instanceof MapEditorProvider) || providers[0]
-                    : providers.find(p => p instanceof MapViewProvider) || providers[0];
+                    ? (providers.find(p => p instanceof MapEditorProvider) ?? providers[0])
+                    : (providers.find(p => p instanceof MapViewProvider) ?? providers[0]);
+
+                if (!provider || typeof provider.getCurrentViewState !== 'function') {
+                    vscode.window.showWarningMessage('Map view is not available. Open the map first, then save a bookmark.');
+                    return;
+                }
                 return this.handleSaveBookmark(bookmarkTreeProvider, provider);
             })
         );
@@ -508,14 +540,18 @@ export class BookmarkManager {
         }
 
         try {
-            await this.updateBookmark(bookmark.id, {
+            const updated = await this.updateBookmark(bookmark.id, {
                 center: viewState.center,
                 zoom: viewState.zoom,
-                bearing: viewState.bearing,
-                pitch: viewState.pitch
+                bearing: viewState.bearing ?? 0,
+                pitch: viewState.pitch ?? 0
             });
             bookmarkTreeProvider.refresh();
-            vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" updated successfully.`);
+            if (updated) {
+                vscode.window.showInformationMessage(`Bookmark "${bookmark.name}" updated successfully.`);
+            } else {
+                vscode.window.showWarningMessage(`Bookmark "${bookmark.name}" no longer exists and was not updated.`);
+            }
         } catch (error) {
             showOperationError('update bookmark', error);
         }

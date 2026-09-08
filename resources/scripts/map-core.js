@@ -10,6 +10,7 @@ var map = null;
 var currentStyleUrl = null;
 var flyToDuration = 500;
 var viewStateDebounceTimer = null;
+var beforeUnloadHandler = null;
 var mapLoaded = false;
 
 // Configuration (will be set from main)
@@ -132,6 +133,26 @@ var errorDrainTimer = null;
 var MAX_ERROR_DRAIN_ATTEMPTS = 20;
 
 /**
+ * Detect recoverable per-tile fetch failures. MapLibre surfaces a failed tile
+ * request as an AJAXError with a numeric status; these fire one per tile while
+ * panning offline raster/vector sources and must not be forwarded to the
+ * extension as fatal errors. Failures before the initial 'load' (style fetch)
+ * are not tile errors and are still forwarded.
+ * @param {Object} e - MapLibre error event
+ * @returns {boolean} True when the error is a tile fetch failure
+ */
+function isTileFetchError(e) {
+	if (!mapLoaded) {
+		return false;
+	}
+	var error = e && e.error;
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+	return typeof error.status === 'number';
+}
+
+/**
  * When map errors occur while operations are queued (e.g. a failed style
  * fetch), retry the drain with a short delay, capped so a permanently broken
  * map does not spin forever.
@@ -199,6 +220,12 @@ function initializeMap(initialViewState) {
 			// fires and queued operations would be stranded forever. Attempt a
 			// bounded drain so they are not lost permanently.
 			attemptErrorRecoveryDrain();
+			// Individual tile fetch failures are recoverable and can flood the
+			// extension host with one message per tile while panning; only
+			// forward other errors (style load failures, runtime errors).
+			if (isTileFetchError(e)) {
+				return;
+			}
 			var errorMsg = 'Unknown error occurred';
 			var details = '';
 			var stack = '';
@@ -261,12 +288,18 @@ function initializeMap(initialViewState) {
 			}, 500);
 		});
 
-		// Save view state immediately before the webview is unloaded
-		window.addEventListener('beforeunload', function() {
+		// Save view state immediately before the webview is unloaded. A named
+		// handler is used so it can be removed before adding again; otherwise
+		// recreating the map (basemap switches) stacks listeners.
+		if (beforeUnloadHandler) {
+			window.removeEventListener('beforeunload', beforeUnloadHandler);
+		}
+		beforeUnloadHandler = function() {
 			if (map) {
 				saveViewStateToExtension();
 			}
-		});
+		};
+		window.addEventListener('beforeunload', beforeUnloadHandler);
 
 		// Add a listener for the right-click event - send coordinates to extension for native context menu
 		map.on('contextmenu', function(e) {

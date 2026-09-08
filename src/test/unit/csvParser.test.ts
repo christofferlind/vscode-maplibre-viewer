@@ -123,4 +123,32 @@ suite('CsvParser', () => {
             );
         });
     });
+
+    suite('numeric value parsing', () => {
+        test('should treat European decimal commas as decimal marks', () => {
+            const result = parseCsvContent('lat,lng\n"59,3","18,07"');
+            const features = getFeatures(result);
+            assert.deepStrictEqual(features[0].geometry.coordinates, [18.07, 59.3]);
+        });
+
+        test('should reject thousands-separated numbers instead of misparsing', () => {
+            assert.throws(
+                () => parseCsvContent('lat,lng\n"1,234,567","1,234,567"'),
+                /Failed to parse any valid coordinates/
+            );
+        });
+
+        test('should keep non-numeric property values with commas intact', () => {
+            const result = parseCsvContent('lat,lng,sales\n52.0,13.0,"1,000 units"');
+            const features = getFeatures(result);
+            assert.strictEqual(features[0].properties['sales'], '1,000 units');
+        });
+
+        test('should reject numbers mixing dot and comma', () => {
+            assert.throws(
+                () => parseCsvContent('lat,lng\n"1.234,567","18"'),
+                /Failed to parse any valid coordinates/
+            );
+        });
+    });
 });

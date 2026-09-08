@@ -90,11 +90,15 @@ function createSearchResultItem(
  * @returns Array of QuickPick items
  */
 function parseMapTilerResults(
-	features: MapTilerFeature[],
+	features: MapTilerFeature[] | undefined,
 	searchResultsMap: Map<string, SearchResultData>
 ): vscode.QuickPickItem[] {
 	const items: vscode.QuickPickItem[] = [];
-	
+
+	if (!Array.isArray(features)) {
+		return items;
+	}
+
 	features.slice(0, 10).forEach((feature) => {
 		if (feature.center === undefined || feature.center.length !== 2) {
 			return;
@@ -123,11 +127,15 @@ function parseMapTilerResults(
  * @returns Array of QuickPick items
  */
 function parsePhotonResults(
-	features: PhotonFeature[],
+	features: PhotonFeature[] | undefined,
 	searchResultsMap: Map<string, SearchResultData>
 ): vscode.QuickPickItem[] {
 	const items: vscode.QuickPickItem[] = [];
-	
+
+	if (!Array.isArray(features)) {
+		return items;
+	}
+
 	features.slice(0, 10).forEach((feature) => {
 		if (!feature.geometry || feature.geometry.coordinates.length !== 2) {
 			return;
@@ -182,6 +190,11 @@ export async function performGeocodingSearch(
         return [];
     }
 
+    // Invalidate any results left over from a previous search before starting
+    // the fetch, so stale entries cannot resolve to wrong coordinates while a
+    // newer request is in flight.
+    searchResultsMap.clear();
+
     // Build API URL
     let apiUrl: string;
     if (geocodingApiKey && geocodingApiKey.length > 0) {
@@ -197,15 +210,13 @@ export async function performGeocodingSearch(
     }
 
     const data = await response.json() as GeocodingResponse;
-
-    // Clear previous results
-    searchResultsMap.clear();
+    const features = data?.features;
 
     // Parse results based on API type
     if (geocodingApiKey && geocodingApiKey.length > 0) {
-        return parseMapTilerResults(data.features as MapTilerFeature[], searchResultsMap);
+        return parseMapTilerResults(features as MapTilerFeature[] | undefined, searchResultsMap);
     } else {
-        return parsePhotonResults(data.features as PhotonFeature[], searchResultsMap);
+        return parsePhotonResults(features as PhotonFeature[] | undefined, searchResultsMap);
     }
 }
 

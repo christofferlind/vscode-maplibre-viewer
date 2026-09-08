@@ -4,12 +4,13 @@ import { MapBookmark, ViewState } from '../bookmarks/bookmarkTypes';
 import { BaseMapStyle, OverlayLayer } from '../layers/layerTypes';
 import { Coordinate } from '../services/coordinateParser';
 import { performGeocodingSearch, SearchResultData } from '../services/geocodingSearch';
-import { MapConfig, StoredViewState, GeocodingResult } from './mapWebviewTypes';
+import { MapConfig, StoredViewState } from './mapWebviewTypes';
 import {
     getMapConfiguration,
     saveViewStateToSettings,
     generateWebviewHtml,
-    parseViewStateFromMessage
+    parseViewStateFromMessage,
+    buildGeocodingResults
 } from './mapWebviewUtils';
 import { getConfig } from '../services/configService';
 import { logInfo, logError, logLine, showErrorLog } from '../services/logger';
@@ -40,12 +41,11 @@ export abstract class MapWebviewController {
     private _mapReadyResolve?: () => void;
     private _mapReadyPromise?: Promise<void>;
     /**
-     * Camera commands posted while the webview page is still loading (or was
-     * just reloaded) are silently dropped by VS Code. Unsent messages are held
-     * here and flushed when the webview next signals 'mapReady'.
+     * Messages posted while the webview page is still loading (or was just
+     * reloaded) are silently dropped by VS Code. Unsent messages are held here
+     * and flushed when the webview next signals 'mapReady'.
      */
-    private _pendingCameraMessages: Array<Record<string, unknown>> = [];
-    private _inFlightCameraMessages = new Set<Record<string, unknown>>();
+    private _pendingWebviewMessages: Array<Record<string, unknown>> = [];
     protected _currentBaseMapStyleUrl?: string;
     protected _currentBaseMapId?: string;
     protected _lastViewState?: ViewState;
@@ -74,11 +74,11 @@ export abstract class MapWebviewController {
     }
 
     /**
-     * Posts a camera message to the webview, holding it for later delivery if
+     * Posts a state message to the webview, holding it for later delivery if
      * the webview reports it cannot receive messages yet (page loading or
      * reloading). Queued messages flush on the next 'mapReady' signal.
      */
-    private postCameraMessage(message: Record<string, unknown>): void {
+    private postStateMessage(message: Record<string, unknown>): void {
         const webview = this.getWebview();
         if (!webview) {
             return;
@@ -88,17 +88,15 @@ export abstract class MapWebviewController {
             const result = webview.postMessage(message);
             if (result && typeof (result as Thenable<boolean>).then === 'function') {
                 (result as Thenable<boolean>).then((ok) => {
-                    this._inFlightCameraMessages.delete(message);
                     if (!ok) {
-                        this._pendingCameraMessages.push(message);
+                        this._pendingWebviewMessages.push(message);
                     }
                 }, () => {
-                    this._inFlightCameraMessages.delete(message);
-                    this._pendingCameraMessages.push(message);
+                    this._pendingWebviewMessages.push(message);
                 });
             }
         } catch {
-            this._pendingCameraMessages.push(message);
+            this._pendingWebviewMessages.push(message);
         }
     }
 
@@ -153,7 +151,7 @@ export abstract class MapWebviewController {
         }
         const config = this.getConfiguration();
         this.logInfo(`Sending configuration update to ${this.getViewType()}`);
-        webview.postMessage({
+        this.postStateMessage({
             type: 'configUpdate',
             config: { ...config, initialViewState: undefined }
         });
@@ -180,7 +178,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo(`Setting map language to "${languageCode}"`);
-        webview.postMessage({
+        this.postStateMessage({
             type: 'languageChange',
             language: languageCode
         });
@@ -193,7 +191,7 @@ export abstract class MapWebviewController {
         }
         const defaultZoom = getConfig().get<number>('singlePointZoom') ?? 14;
         this.logInfo(`Flying to location (${latitude}, ${longitude}) at zoom ${zoom ?? defaultZoom}`);
-        this.postCameraMessage({
+        this.postStateMessage({
             type: 'flyToLocation',
             latitude,
             longitude,
@@ -210,7 +208,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo(`Fitting bounding box with ${coordinates.length} coordinate(s)`);
-        this.postCameraMessage({
+        this.postStateMessage({
             type: 'fitBoundingBox',
             coordinates,
             boundingBox: bbox
@@ -223,7 +221,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo('Fitting to bounding box only');
-        this.postCameraMessage({
+        this.postStateMessage({
             type: 'fitBoundsOnly',
             boundingBox: bbox
         });
@@ -235,7 +233,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo(`Flying to bookmark "${bookmark.name}"`);
-        this.postCameraMessage({
+        this.postStateMessage({
             type: 'flyToBookmark',
             bookmark
         });
@@ -250,7 +248,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo(`Setting basemap to "${baseMap.name}" (${baseMap.id})`);
-        webview.postMessage({
+        this.postStateMessage({
             type: 'setBaseMap',
             basemap: {
                 id: baseMap.id,
@@ -272,7 +270,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo(`Updating ${layers.length} overlay layer(s)`);
-        webview.postMessage({
+        this.postStateMessage({
             type: 'updateOverlayLayers',
             layers
         });
@@ -284,7 +282,7 @@ export abstract class MapWebviewController {
             return;
         }
         this.logInfo(geojson ? 'Updating selected file layer with GeoJSON' : 'Clearing selected file layer');
-        webview.postMessage({
+        this.postStateMessage({
             type: 'updateSelectedFileLayer',
             geojson
         });
@@ -392,7 +390,7 @@ export abstract class MapWebviewController {
 
             case 'contextMenu': {
                 const lngLat = message.lngLat as { lng: number; lat: number } | undefined;
-                if (lngLat) {
+                if (lngLat && typeof lngLat.lat === 'number' && typeof lngLat.lng === 'number') {
                     MapWebviewController.lastClickedLngLat = lngLat;
                     await vscode.commands.executeCommand('setContext', 'maplibre:clickedLngLat', lngLat);
                     await vscode.commands.executeCommand('setContext', 'maplibre:hasClickedLngLat', true);
@@ -415,20 +413,17 @@ export abstract class MapWebviewController {
                 this._onMapReady?.();
 
                 // The page is now loaded and able to receive messages; deliver
-                // any camera commands that were dropped while it was loading.
+                // any messages that were dropped while it was loading.
                 // Yield one microtask first so in-flight postMessage promises
                 // have settled and their rejections are recorded.
                 await Promise.resolve();
-                if (this._pendingCameraMessages.length > 0) {
-                    const webview = this.getWebview();
-                    const queued = this._pendingCameraMessages;
-                    this._pendingCameraMessages = [];
-                    if (webview) {
-                        queued.forEach((message) => {
-                            webview.postMessage(message);
-                        });
-                        this.logInfo(`Delivered ${queued.length} queued camera command(s)`);
-                    }
+                if (this._pendingWebviewMessages.length > 0) {
+                    const queued = this._pendingWebviewMessages;
+                    this._pendingWebviewMessages = [];
+                    queued.forEach((queuedMessage) => {
+                        this.postStateMessage(queuedMessage);
+                    });
+                    this.logInfo(`Delivered ${queued.length} queued message(s)`);
                 }
                 break;
 
@@ -441,7 +436,7 @@ export abstract class MapWebviewController {
             }
 
             case 'mapError': {
-                const errorMessage = message.message as string;
+                const errorMessage = typeof message.message === 'string' ? message.message : String(message.message);
                 const details = message.details as string | undefined;
                 const stack = message.stack as string | undefined;
                 const source = message.source as string | undefined;
@@ -458,11 +453,7 @@ export abstract class MapWebviewController {
                 }
                 logLine('[INFO]', '---');
 
-                const showLog = 'Show Error Log';
-                const selection = await vscode.window.showErrorMessage(errorMessage, showLog);
-                if (selection === showLog) {
-                    showErrorLog();
-                }
+                this._showMapErrorThrottled(errorMessage);
                 break;
             }
 
@@ -504,8 +495,6 @@ export abstract class MapWebviewController {
             case 'mouseMove': {
                 const mouseLngLat = message.lngLat as { lng: number; lat: number } | undefined;
                 if (mouseLngLat && typeof mouseLngLat.lat === 'number' && typeof mouseLngLat.lng === 'number') {
-                    MapWebviewController.lastClickedLngLat = mouseLngLat;
-                    await vscode.commands.executeCommand('setContext', 'maplibre:hasClickedLngLat', true);
                     await vscode.commands.executeCommand('vscodeMaplibreViewer.updateCoordinates', mouseLngLat);
                 }
                 break;
@@ -514,6 +503,28 @@ export abstract class MapWebviewController {
     }
 
     private _onMapReady?: () => void;
+
+    private _lastMapErrorNotificationTime = 0;
+
+    /**
+     * Webview errors can fire rapidly (e.g. one failed tile request per tile
+     * while panning a raster basemap offline). Only surface the first error in
+     * a 10 second window as a notification; everything is still logged.
+     */
+    private _showMapErrorThrottled(errorMessage: string): void {
+        const now = Date.now();
+        if (now - this._lastMapErrorNotificationTime < 10000) {
+            return;
+        }
+        this._lastMapErrorNotificationTime = now;
+
+        const showLog = 'Show Error Log';
+        void vscode.window.showErrorMessage(errorMessage, showLog).then((selection) => {
+            if (selection === showLog) {
+                showErrorLog();
+            }
+        });
+    }
 
     public onMapReady(callback: () => void): void {
         this._onMapReady = callback;
@@ -548,25 +559,7 @@ export abstract class MapWebviewController {
                 return;
             }
 
-            const results: GeocodingResult[] = [];
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                const data = searchResultsMap.get(String(i));
-                if (data) {
-                    results.push({
-                        name: item.label,
-                        type: item.description || 'place',
-                        lat: data.lat,
-                        lng: data.lng,
-                        bbox: data.bbox ? {
-                            west: data.bbox.southwest.longitude,
-                            south: data.bbox.southwest.latitude,
-                            east: data.bbox.northeast.longitude,
-                            north: data.bbox.northeast.latitude
-                        } : undefined
-                    });
-                }
-            }
+            const results = buildGeocodingResults(items, searchResultsMap);
 
             webview.postMessage({
                 type: 'geocodingSearchResults',
@@ -592,7 +585,9 @@ export abstract class MapWebviewController {
         this._messageListenerDisposable?.dispose();
         this._messageListenerDisposable = webview.onDidReceiveMessage(
             (msg: unknown) => {
-                this.handleWebviewMessage(msg);
+                this.handleWebviewMessage(msg).catch((error) => {
+                    logError(`Error handling webview message: ${error instanceof Error ? error.message : String(error)}`);
+                });
             },
             undefined,
             []

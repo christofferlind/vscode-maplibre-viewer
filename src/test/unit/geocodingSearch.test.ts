@@ -289,4 +289,50 @@ suite('GeocodingSearch unit tests', () => {
             assert.strictEqual(geocodingSearchModule.extractSearchTextFromArgs({ lngLat: { lng: 1, lat: 2 } }), '');
         });
     });
+
+    suite('stale result invalidation (bug fix)', () => {
+        test('clears previous results before awaiting the fetch', async () => {
+            let resolveFetch: (value: Response) => void = () => undefined;
+            globalThis.fetch = ((_url: RequestInfo | URL) => {
+                return new Promise((resolve) => {
+                    resolveFetch = resolve;
+                });
+            }) as typeof fetch;
+
+            const resultsMap = new Map<string, { lat: number; lng: number }>();
+            resultsMap.set('0', { lat: 1, lng: 2 });
+
+            const pending = geocodingSearchModule.performGeocodingSearch('query', 'test-key', 'https://photon.example/api/', resultsMap);
+
+            // Wait until fetch is invoked, then check that the stale entry was
+            // already invalidated before the response arrives.
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            assert.strictEqual(resultsMap.size, 0, 'stale results must be cleared before the fetch resolves');
+
+            resolveFetch({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve({ features: [] })
+            } as unknown as Response);
+            await pending;
+        });
+
+        test('returns empty items when the response body has no features array', async () => {
+            globalThis.fetch = createMockFetch({} as { features: MockFeature[] });
+
+            const resultsMap = new Map();
+            const items = await geocodingSearchModule.performGeocodingSearch('query', 'test-key', 'https://photon.example/api/', resultsMap);
+
+            assert.deepStrictEqual(items, []);
+        });
+
+        test('returns empty items for a null response body', async () => {
+            globalThis.fetch = createMockFetch(null as unknown as { features: MockFeature[] });
+
+            const resultsMap = new Map();
+            const items = await geocodingSearchModule.performGeocodingSearch('query', undefined, 'https://photon.example/api/', resultsMap);
+
+            assert.deepStrictEqual(items, []);
+        });
+    });
 });

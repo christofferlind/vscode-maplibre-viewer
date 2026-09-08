@@ -14,6 +14,8 @@ interface KmlPlacemark {
 interface KmlGeometry {
     type: string;
     coordinates: unknown; // Can be number[], number[][], number[][][], or number[][][][]
+    // For MultiGeometry: list of nested geometries
+    geometries?: KmlGeometry[];
 }
 
 /**
@@ -34,8 +36,13 @@ export function parseKmlFile(filePath: string): object {
 export function parseKmlContent(content: string): object {
     const features: object[] = [];
 
+    // Some GIS exporters namespace-prefix every element
+    // (e.g. <kml:Placemark>); strip the prefixes so the element regexes match.
+    const normalized = content.replace(/<([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)/g, '<$2')
+        .replace(/<\/([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)/g, '</$2');
+
     // Extract all Placemark elements using simple string parsing
-    const placemarks = extractPlacemarks(content);
+    const placemarks = extractPlacemarks(normalized);
 
     for (const placemark of placemarks) {
         const feature = placemarkToFeature(placemark);
@@ -79,13 +86,13 @@ function parsePlacemarkContent(content: string): KmlPlacemark {
     // Extract name
     const nameMatch = /<name[^>]*>([\s\S]*?)<\/name>/i.exec(content);
     if (nameMatch) {
-        placemark.name = decodeXmlEntities(nameMatch[1].trim());
+        placemark.name = decodeXmlEntities(stripCdata(nameMatch[1].trim()));
     }
 
     // Extract description
     const descMatch = /<description[^>]*>([\s\S]*?)<\/description>/i.exec(content);
     if (descMatch) {
-        placemark.description = decodeXmlEntities(descMatch[1].trim());
+        placemark.description = decodeXmlEntities(stripCdata(descMatch[1].trim()));
     }
 
     // Extract geometry
@@ -98,7 +105,52 @@ function parsePlacemarkContent(content: string): KmlPlacemark {
  * Extracts geometry from a Placemark content string.
  * Supports Point, LineString, Polygon, and MultiGeometry.
  */
+/**
+ * Finds the outermost MultiGeometry block, tolerating nested MultiGeometry
+ * elements by counting open/close tags instead of relying on a non-greedy
+ * regex (which would stop at the first nested closing tag).
+ * @returns The inner content of the outermost MultiGeometry, or undefined
+ */
+function extractOuterMultiGeometryContent(content: string): string | undefined {
+    const openRegex = /<MultiGeometry[^>]*>/gi;
+    let depth = 0;
+    let innerStart = -1;
+
+    const tokenRegex = /<(\/?)MultiGeometry[^>]*>/gi;
+    let token: RegExpExecArray | null;
+    while ((token = tokenRegex.exec(content)) !== null) {
+        if (token[1] === '/') {
+            depth--;
+            if (depth === 0) {
+                return content.substring(innerStart, token.index);
+            }
+        } else {
+            if (depth === 0) {
+                innerStart = token.index + token[0].length;
+            }
+            depth++;
+        }
+    }
+    return undefined;
+}
+
 function extractGeometry(content: string): KmlGeometry | undefined {
+    // Try MultiGeometry first so contained primitives are not mistaken for
+    // the placemark's own geometry.
+    const multiInner = extractOuterMultiGeometryContent(content);
+    if (multiInner !== undefined) {
+        // Extract every contained geometry so valid KML is not silently
+        // reduced to its first child.
+        const geometries = extractAllGeometries(multiInner);
+        if (geometries.length > 0) {
+            return {
+                type: 'MultiGeometry',
+                coordinates: [],
+                geometries
+            };
+        }
+    }
+
     // Try Point
     const pointMatch = /<Point[^>]*>([\s\S]*?)<\/Point>/i.exec(content);
     if (pointMatch) {
@@ -168,14 +220,143 @@ function extractGeometry(content: string): KmlGeometry | undefined {
         }
     }
 
-    // Try MultiGeometry
-    const multiMatch = /<MultiGeometry[^>]*>([\s\S]*?)<\/MultiGeometry>/i.exec(content);
-    if (multiMatch) {
-        // Recursively extract geometries from within MultiGeometry
-        // For simplicity, we'll just take the first geometry found
-        return extractGeometry(multiMatch[1]);
+    return undefined;
+}
+
+/**
+ * Removes all MultiGeometry blocks (tolerating nesting) from the content,
+ * collecting each outermost block's parsed geometries into the target array.
+ */
+function removeNestedMultiGeometry(content: string, target: KmlGeometry[]): string {
+    let result = '';
+    let index = 0;
+
+    while (index < content.length) {
+        const openMatch = /<MultiGeometry[^>]*>/i.exec(content.slice(index));
+        if (!openMatch) {
+            result += content.slice(index);
+            break;
+        }
+        const openStart = index + openMatch.index;
+        result += content.slice(index, openStart);
+
+        // Scan forward for the matching close tag, accounting for nesting
+        const tokenRegex = /<(\/?)MultiGeometry[^>]*>/gi;
+        tokenRegex.lastIndex = openStart + openMatch[0].length;
+        let depth = 1;
+        let closeEnd = -1;
+        let token: RegExpExecArray | null;
+        while ((token = tokenRegex.exec(content)) !== null) {
+            if (token[1] === '/') {
+                depth--;
+                if (depth === 0) {
+                    closeEnd = token.index + token[0].length;
+                    break;
+                }
+            } else {
+                depth++;
+            }
+        }
+
+        if (closeEnd === -1) {
+            // Unbalanced markup: treat the rest as plain content
+            result += content.slice(openStart);
+            break;
+        }
+
+        const inner = content.substring(openStart + openMatch[0].length, closeEnd - '</MultiGeometry>'.length);
+        const nested = extractAllGeometries(inner);
+        if (nested.length > 0) {
+            target.push({
+                type: 'GeometryCollection',
+                coordinates: [],
+                geometries: nested
+            });
+        }
+        index = closeEnd;
     }
 
+    return result;
+}
+
+/**
+ * Extracts all top-level geometries from MultiGeometry content.
+ * Nested MultiGeometry elements recurse into a GeometryCollection.
+ */
+function extractAllGeometries(content: string): KmlGeometry[] {
+    const geometries: KmlGeometry[] = [];
+
+    // Remove nested MultiGeometry blocks first so they can be collected
+    // without their inner primitives being double-counted.
+    const nestedMulti: KmlGeometry[] = [];
+    const contentWithoutMulti = removeNestedMultiGeometry(content, nestedMulti);
+
+    const pointMatch = /<Point[^>]*>([\s\S]*?)<\/Point>/i.exec(contentWithoutMulti);
+    if (pointMatch) {
+        const coords = parseCoordinateString(pointMatch[1]);
+        if (coords.length > 0) {
+            geometries.push({ type: 'Point', coordinates: coords[0] });
+        }
+    }
+
+    const lineMatch = /<LineString[^>]*>([\s\S]*?)<\/LineString>/i.exec(contentWithoutMulti);
+    if (lineMatch) {
+        const coords = parseCoordinateString(lineMatch[1]);
+        if (coords.length > 0) {
+            geometries.push({ type: 'LineString', coordinates: coords });
+        }
+    }
+
+    const polygonRegex = /<Polygon[^>]*>([\s\S]*?)<\/Polygon>/gi;
+    let polygonMatch: RegExpExecArray | null;
+    while ((polygonMatch = polygonRegex.exec(contentWithoutMulti)) !== null) {
+        const polygon = extractPolygonRings(polygonMatch[1]);
+        if (polygon) {
+            geometries.push(polygon);
+        }
+    }
+
+    // Standalone LinearRings (not already consumed as polygon boundaries)
+    const contentWithoutPolygons = contentWithoutMulti.replace(/<Polygon[^>]*>[\s\S]*?<\/Polygon>/gi, '');
+    const ringRegex = /<LinearRing[^>]*>([\s\S]*?)<\/LinearRing>/gi;
+    let ringMatch: RegExpExecArray | null;
+    while ((ringMatch = ringRegex.exec(contentWithoutPolygons)) !== null) {
+        const coords = parseCoordinateString(ringMatch[1]);
+        if (coords.length > 0) {
+            geometries.push({ type: 'LinearRing', coordinates: coords });
+        }
+    }
+
+    geometries.push(...nestedMulti);
+    return geometries;
+}
+
+/**
+ * Extracts outer/inner rings from Polygon element content.
+ */
+function extractPolygonRings(polygonContent: string): KmlGeometry | undefined {
+    const rings: number[][][] = [];
+
+    const outerMatch = /<outerBoundaryIs[^>]*>([\s\S]*?)<\/outerBoundaryIs>/i.exec(polygonContent);
+    if (outerMatch) {
+        const outerCoords = extractRingCoordinates(outerMatch[1]);
+        if (outerCoords.length > 0) {
+            rings.push(outerCoords);
+        }
+    }
+
+    const innerRegex = /<innerBoundaryIs[^>]*>([\s\S]*?)<\/innerBoundaryIs>/gi;
+    let innerMatch: RegExpExecArray | null;
+    while ((innerMatch = innerRegex.exec(polygonContent)) !== null) {
+        const innerCoords = extractRingCoordinates(innerMatch[1]);
+        if (innerCoords.length > 0) {
+            rings.push(innerCoords);
+        }
+    }
+
+    if (rings.length > 0) {
+        return { type: 'Polygon', coordinates: rings };
+    }
     return undefined;
 }
 
@@ -274,23 +455,59 @@ function convertGeometry(kmlGeom: KmlGeometry): object | undefined {
                 type: 'Polygon',
                 coordinates: kmlGeom.coordinates as number[][][]
             };
+        case 'GeometryCollection':
+        case 'MultiGeometry':
+            return {
+                type: 'GeometryCollection',
+                geometries: (kmlGeom.geometries ?? [])
+                    .map(convertGeometry)
+                    .filter((g): g is object => g !== undefined)
+            };
         default:
             return undefined;
     }
 }
 
 /**
+ * Strips a CDATA wrapper if present, returning the raw inner text.
+ */
+function stripCdata(text: string): string {
+    const cdataMatch = /^<!\[CDATA\[([\s\S]*?)\]\]>$/i.exec(text.trim());
+    if (cdataMatch) {
+        return cdataMatch[1];
+    }
+    return text;
+}
+
+/**
+ * Decodes a single numeric character reference into a proper string,
+ * handling astral-plane code points via surrogate pairs.
+ */
+function fromCodePoint(value: number): string {
+    if (!Number.isFinite(value) || value < 0 || value > 0x10ffff) {
+        return '';
+    }
+    if (value <= 0xffff) {
+        return String.fromCharCode(value);
+    }
+    value -= 0x10000;
+    return String.fromCharCode(0xd800 + (value >> 10), 0xdc00 + (value & 0x3ff));
+}
+
+/**
  * Decodes common XML entities in a string.
- * Handles the five predefined XML entities and numeric character references.
+ * Handles the five predefined XML entities, common named HTML entities found
+ * in KML descriptions, and numeric character references.
  * &amp; is decoded last so doubly-escaped sequences like &amp;lt; stay as &lt;.
  */
 function decodeXmlEntities(text: string): string {
     return text
+        .replace(/&nbsp;/g, ' ')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"')
         .replace(/&apos;/g, "'")
-        .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
-        .replace(/&#(\d+);/g, (_match, dec) => String.fromCharCode(parseInt(dec, 10)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex) => fromCodePoint(parseInt(hex, 16)))
+        .replace(/&#(\d+);/g, (_match, dec) => fromCodePoint(parseInt(dec, 10)))
         .replace(/&amp;/g, '&');
 }

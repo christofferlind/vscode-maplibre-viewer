@@ -39,6 +39,8 @@ var searchContainer = null;
 var searchInput = null;
 var searchResultsEl = null;
 var clearBtn = null;
+// Set when the search UI is unavailable so message handlers can no-op safely
+var searchDisabled = false;
 var searchDebouncedSearch = null;
 
 /**
@@ -119,8 +121,9 @@ function initializeSearch() {
 	searchResultsEl = document.getElementById('search-results');
 	clearBtn = document.getElementById('search-clear-btn');
 
-	if (!searchContainer || !searchInput || !searchResultsEl) {
+	if (!searchContainer || !searchInput || !searchResultsEl || !clearBtn) {
 		console.warn('Search elements not found');
+		searchDisabled = true;
 		return;
 	}
 
@@ -288,6 +291,10 @@ function handleGeocodingSearchError(message) {
  * Render search results
  */
 function renderSearchResults() {
+	if (searchDisabled || !searchResultsEl) {
+		return;
+	}
+
 	if (searchResults.length === 0) {
 		showSearchNoResults();
 		return;
@@ -410,6 +417,9 @@ function navigateToResult(index) {
  * Show loading state
  */
 function showSearchLoading() {
+	if (searchDisabled || !searchResultsEl) {
+		return;
+	}
 	searchResultsEl.innerHTML = '<div class="search-loading">Searching...</div>';
 	searchResultsEl.classList.add('visible');
 }
@@ -419,6 +429,9 @@ function showSearchLoading() {
  * @param {string} message - Error message
  */
 function showSearchError(message) {
+	if (searchDisabled || !searchResultsEl) {
+		return;
+	}
 	searchResultsEl.innerHTML = '<div class="search-error">' + escapeHtml(message) + '</div>';
 	searchResultsEl.classList.add('visible');
 }
@@ -427,6 +440,9 @@ function showSearchError(message) {
  * Show no results state
  */
 function showSearchNoResults() {
+	if (searchDisabled || !searchResultsEl) {
+		return;
+	}
 	searchResultsEl.innerHTML = '<div class="search-no-results">No results found</div>';
 	searchResultsEl.classList.add('visible');
 }
@@ -436,6 +452,9 @@ function showSearchNoResults() {
  * stale responses while a newer query is still in flight).
  */
 function dismissSearchResults() {
+	if (searchDisabled || !searchResultsEl) {
+		return;
+	}
 	searchResultsEl.classList.remove('visible');
 	searchResultsEl.innerHTML = '';
 }
@@ -446,6 +465,9 @@ function dismissSearchResults() {
 function hideSearchResults() {
 	cancelPendingSearch();
 	lastSearchQuery = '';
+	if (searchDisabled || !searchResultsEl) {
+		return;
+	}
 	searchResultsEl.classList.remove('visible');
 	searchResultsEl.innerHTML = '';
 }
@@ -454,6 +476,9 @@ function hideSearchResults() {
  * Update clear button visibility
  */
 function updateClearButton() {
+	if (!clearBtn) {
+		return;
+	}
 	if (searchInput.value.length > 0) {
 		clearBtn.style.display = 'block';
 	} else {

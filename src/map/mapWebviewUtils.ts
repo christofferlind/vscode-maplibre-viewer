@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ViewState } from '../bookmarks/bookmarkTypes';
-import { MapConfig, StoredViewState } from './mapWebviewTypes';
+import { MapConfig, StoredViewState, GeocodingResult } from './mapWebviewTypes';
 import { notifyViewStateWriteStarted } from '../services/configService';
 
 /**
@@ -183,6 +183,19 @@ function renderTemplate(html: string, context: TemplateContext): string {
 /**
  * Generates HTML for the webview from template
  */
+let cachedWorkerBase64: string | undefined;
+let cachedWorkerBase64Uri: string | undefined;
+
+function getWorkerBase64(extensionUri: vscode.Uri): string {
+    if (cachedWorkerBase64Uri === extensionUri.toString() && cachedWorkerBase64 !== undefined) {
+        return cachedWorkerBase64;
+    }
+    const workerPath = path.join(extensionUri.fsPath, 'resources', 'maplibre-gl', 'maplibre-gl-worker.js');
+    const workerContent = fs.readFileSync(workerPath, 'utf8');
+    cachedWorkerBase64 = Buffer.from(workerContent).toString('base64');
+    cachedWorkerBase64Uri = extensionUri.toString();
+    return cachedWorkerBase64;
+}
 export function generateWebviewHtml(
     extensionUri: vscode.Uri,
     webview: vscode.Webview,
@@ -208,8 +221,7 @@ export function generateWebviewHtml(
     const mainCssUri = getWebviewUri(extensionUri, webview, 'resources', 'styles', 'main.css');
 
     const workerPath = path.join(extensionUri.fsPath, 'resources', 'maplibre-gl', 'maplibre-gl-worker.js');
-    const workerContent = fs.readFileSync(workerPath, 'utf8');
-    const workerBase64 = Buffer.from(workerContent).toString('base64');
+    const workerBase64 = getWorkerBase64(extensionUri);
 
     const htmlPath = path.join(extensionUri.fsPath, 'resources', 'map-view.html');
     let htmlContent = fs.readFileSync(htmlPath, 'utf8');
@@ -239,7 +251,7 @@ export function generateWebviewHtml(
 
     // Handle the special initialViewState replacement (not a simple placeholder)
     const initialViewStateJson = config.initialViewState
-        ? JSON.stringify(config.initialViewState)
+        ? JSON.stringify(config.initialViewState).replace(/</g, '\\u003c')
         : 'null';
     htmlContent = htmlContent.replace(
         /initialViewState: null/g,
@@ -256,17 +268,56 @@ export function parseViewStateFromMessage(message: unknown): ViewState | undefin
     const msg = message as Record<string, unknown>;
     const viewState = msg.viewState as Record<string, unknown> | undefined;
 
-    if (viewState && viewState.center) {
-        const center = viewState.center as Record<string, number>;
+    if (viewState && typeof viewState === 'object' && viewState.center) {
+        const center = viewState.center as Record<string, unknown>;
+        const latitude = center.lat ?? center.latitude;
+        const longitude = center.lng ?? center.longitude;
+        const zoom = viewState.zoom;
+
+        if (typeof latitude !== 'number' || typeof longitude !== 'number' || typeof zoom !== 'number') {
+            return undefined;
+        }
+
         return {
             center: {
-                latitude: center.lat ?? center.latitude,
-                longitude: center.lng ?? center.longitude
+                latitude,
+                longitude
             },
-            zoom: viewState.zoom as number,
-            bearing: (viewState.bearing as number) || 0,
-            pitch: (viewState.pitch as number) || 0
+            zoom,
+            bearing: typeof viewState.bearing === 'number' ? viewState.bearing : 0,
+            pitch: typeof viewState.pitch === 'number' ? viewState.pitch : 0
         };
     }
     return undefined;
+}
+
+/**
+ * Converts geocoding QuickPick items plus their indexed coordinate data into
+ * the result shape sent to the webview. Items without matching coordinate
+ * data are skipped.
+ */
+export function buildGeocodingResults(
+    items: { label: string; description?: string }[],
+    searchResultsMap: Map<string, { lat: number; lng: number; bbox?: { southwest: { latitude: number; longitude: number }; northeast: { latitude: number; longitude: number } } }>
+): GeocodingResult[] {
+    const results: GeocodingResult[] = [];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const data = searchResultsMap.get(String(i));
+        if (data) {
+            results.push({
+                name: item.label,
+                type: item.description || 'place',
+                lat: data.lat,
+                lng: data.lng,
+                bbox: data.bbox ? {
+                    west: data.bbox.southwest.longitude,
+                    south: data.bbox.southwest.latitude,
+                    east: data.bbox.northeast.longitude,
+                    north: data.bbox.northeast.latitude
+                } : undefined
+            });
+        }
+    }
+    return results;
 }

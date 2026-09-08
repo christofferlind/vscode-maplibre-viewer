@@ -82,11 +82,22 @@ function syncAllOverlays(layers) {
 				}
 			}
 			
-			var overlaySourceIds = [];
+			var referencedSources = [];
 			for (var k = 0; k < style.layers.length; k++) {
 				var layer = style.layers[k];
-				if (layer.source && layer.source.indexOf('overlay-') === 0 && overlaySourceIds.indexOf(layer.source) === -1) {
-					overlaySourceIds.push(layer.source);
+				if (layer.source && layer.source.indexOf('overlay-') === 0 && referencedSources.indexOf(layer.source) === -1) {
+					referencedSources.push(layer.source);
+				}
+			}
+
+			// Sources added but never referenced by a layer (e.g. addLayer
+			// threw on a transient style reload) would otherwise survive every
+			// sync and block re-adding with the same id.
+			var allSources = map.getStyle() && map.getStyle().sources ? Object.keys(map.getStyle().sources) : [];
+			var overlaySourceIds = [];
+			for (var s = 0; s < allSources.length; s++) {
+				if (allSources[s].indexOf('overlay-') === 0) {
+					overlaySourceIds.push(allSources[s]);
 				}
 			}
 			
@@ -193,14 +204,36 @@ function addOverlayLayer(layer) {
 				};
 				map.addSource(sourceId, vectorSource);
 
-				console.warn('Vector tile layers require additional configuration for source-layer');
+				// Vector tiles need a source-layer to reference; without one we
+				// cannot render anything, so do not leave a dangling source.
+				if (layer.source.sourceLayer) {
+					var vectorLayer = {
+						id: 'overlay-' + layer.id,
+						type: 'fill',
+						source: sourceId,
+						'source-layer': layer.source.sourceLayer,
+						paint: {
+							'fill-color': layer.color || '#FF0000',
+							'fill-opacity': (layer.opacity !== undefined ? layer.opacity : 1) * 0.5
+						}
+					};
+					map.addLayer(vectorLayer);
+				} else {
+					console.warn('Vector tile layers require a source-layer; skipping layer creation');
+					map.removeSource(sourceId);
+				}
 
 			} else if (layer.type === 'raster') {
+				// MapLibre expects a {z}/{x}/{y} tile URL template in the
+				// `tiles` array; `url` is reserved for TileJSON documents.
 				var rasterSource = {
 					type: 'raster',
-					url: layer.source.url,
+					tiles: [layer.source.url],
 					tileSize: layer.source.tileSize || 256
 				};
+				if (layer.source.attribution) {
+					rasterSource.attribution = layer.source.attribution;
+				}
 				map.addSource(sourceId, rasterSource);
 
 			var rasterLayer = {
@@ -328,6 +361,14 @@ function updateLayerVisibility(layer) {
  * @param {Object} geojson - GeoJSON data
  */
 function updateSelectedFileLayerSource(geojson) {
+	if (!window.MapCore.isMapStyleLoaded()) {
+		console.log('[MapOverlays] Style not loaded yet, queueing updateSelectedFileLayerSource');
+		window.MapCore.queueOperation(function() {
+			updateSelectedFileLayerSource(geojson);
+		});
+		return;
+	}
+
 	if (!window.MapUtils.withMap(function(map) {
 		console.log('[MapOverlays] Updating selected file layer with GeoJSON data');
 
@@ -358,6 +399,14 @@ function updateSelectedFileLayerSource(geojson) {
  * Clear the selected file layer
  */
 function clearSelectedFileLayer() {
+	if (!window.MapCore.isMapStyleLoaded()) {
+		console.log('[MapOverlays] Style not loaded yet, queueing clearSelectedFileLayer');
+		window.MapCore.queueOperation(function() {
+			clearSelectedFileLayer();
+		});
+		return;
+	}
+
 	if (!window.MapUtils.withMap(function(map) {
 		console.log('Clearing selected file layer');
 
