@@ -181,4 +181,25 @@ suite('MapNavigation temp marker timers (bug fix)', () => {
 
         assert.strictEqual(harness.pendingTimerCount(), 1, 'fitBoundingBox must replace the pending cleanup timer');
     });
+
+    test('showTemporaryMarker adds a marker at the location and schedules cleanup', () => {
+        harness.nav.showTemporaryMarker(59.3293, 18.0686);
+
+        assert.strictEqual(harness.markers.length, 1, 'one marker must be added');
+        assert.strictEqual(harness.pendingTimerCount(), 1, 'cleanup timer must be scheduled');
+
+        harness.advance(10000);
+        assert.strictEqual(harness.markers.every((m) => m.removed), true,
+            'marker must be removed after 10 seconds');
+    });
+
+    test('showTemporaryMarker cancels a previous pending cleanup timer', () => {
+        harness.nav.showTemporaryMarker(1, 1);
+        harness.nav.showTemporaryMarker(2, 2);
+
+        assert.strictEqual(harness.pendingTimerCount(), 1, 'new marker must replace the pending timer');
+
+        harness.advance(10000);
+        assert.strictEqual(harness.markers.every((m) => m.removed), true);
+    });
 });

@@ -1,4 +1,4 @@
-# Maplibre Viewer
+# MapLibre Viewer
 
 A VS Code extension that provides an interactive map viewer powered by MapLibre GL JS and vector tiles. Perfect for visualizing geographic data and coordinates directly in your editor.
 

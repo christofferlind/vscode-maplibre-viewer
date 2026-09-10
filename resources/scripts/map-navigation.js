@@ -62,6 +62,22 @@ function flyToLocation(latitude, longitude, zoom) {
 }
 
 /**
+ * Show a temporary marker at a location, reusing the temporary markers
+ * array and its 10 second cleanup schedule.
+ * @param {number} latitude - Latitude coordinate
+ * @param {number} longitude - Longitude coordinate
+ */
+function showTemporaryMarker(latitude, longitude) {
+	if (!window.MapUtils.withMap(function(map) {
+		var marker = new maplibregl.Marker()
+			.setLngLat([longitude, latitude])
+			.addTo(map);
+		window.temporaryMarkers.push(marker);
+		scheduleTemporaryMarkerCleanup();
+	})) return;
+}
+
+/**
  * Clear all temporary markers
  */
 function clearTemporaryMarkers() {
@@ -165,6 +181,7 @@ function flyToBookmark(bookmark) {
 // Export functions for use in other modules
 window.MapNavigation = {
 	flyToLocation: flyToLocation,
+	showTemporaryMarker: showTemporaryMarker,
 	clearTemporaryMarkers: clearTemporaryMarkers,
 	fitBoundingBox: fitBoundingBox,
 	fitBoundsOnly: fitBoundsOnly,

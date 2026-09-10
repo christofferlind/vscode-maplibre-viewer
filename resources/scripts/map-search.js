@@ -368,6 +368,9 @@ function flyToResult(result) {
 			zoom: 14,
 			duration: flyToDuration
 		});
+
+		// Point results have no area to show, so mark the location
+		window.MapNavigation.showTemporaryMarker(result.lat, result.lng);
 	}
 }
 
@@ -399,6 +402,9 @@ function previewResultOnHover(index) {
 		map.panTo([result.lng, result.lat], {
 			duration: 500
 		});
+
+		// Point results have no area to show, so mark the location
+		window.MapNavigation.showTemporaryMarker(result.lat, result.lng);
 	}
 }
 
@@ -504,5 +510,7 @@ window.MapSearch = {
 	clearResults: hideSearchResults,
 	applyTransparency: applySearchResultsTransparency,
 	handleGeocodingSearchResults: handleGeocodingSearchResults,
-	handleGeocodingSearchError: handleGeocodingSearchError
+	handleGeocodingSearchError: handleGeocodingSearchError,
+	flyToResult: flyToResult,
+	previewResultOnHover: previewResultOnHover
 };

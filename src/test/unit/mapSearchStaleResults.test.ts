@@ -21,6 +21,11 @@ interface Harness {
     getVisible: () => boolean;
     getResultsHtml: () => string;
     respondWithResults: (results: unknown[], query?: string) => void;
+    mapStubs: {
+        flyToCalls: Array<{ center: [number, number] }>;
+        panToCalls: Array<{ center: [number, number] }>;
+    };
+    markerCalls: Array<{ lat: number; lng: number }>;
 }
 
 function createHarness(): Harness {
@@ -69,10 +74,29 @@ function makeElement(): SearchElement {
     elements['search-results'] = makeElement();
     elements['search-clear-btn'] = makeElement();
 
+    const mapStubs = {
+        flyToCalls: [] as Array<{ center: [number, number] }>,
+        panToCalls: [] as Array<{ center: [number, number] }>,
+        flyTo: function (options: { center: [number, number] }): void {
+            mapStubs.flyToCalls.push({ center: options.center });
+        },
+        panTo: function (center: [number, number], _options?: unknown): void {
+            mapStubs.panToCalls.push({ center });
+        }
+    };
+
+    const markerCalls: Array<{ lat: number; lng: number }> = [];
+
     const windowObj: Record<string, unknown> = {
         MapConfig: { enableSearch: true, searchResultsTransparency: 20 },
-        MapCore: { getMap: () => null },
-        MapUtils: { getConfig: () => 500, fitBoundsWithDefaults: () => undefined }
+        MapCore: { getMap: () => mapStubs },
+        MapUtils: { getConfig: () => 500, fitBoundsWithDefaults: () => undefined },
+        MapNavigation: {
+            showTemporaryMarker: (lat: number, lng: number) => {
+                markerCalls.push({ lat, lng });
+            },
+            clearTemporaryMarkers: () => undefined
+        }
     };
     windowObj.window = windowObj;
 
@@ -138,7 +162,9 @@ function makeElement(): SearchElement {
         getResultsHtml: () => elements['search-results'].innerHTML,
         respondWithResults: (results: unknown[], query?: string) => {
             search.handleGeocodingSearchResults(results, query);
-        }
+        },
+        mapStubs,
+        markerCalls
     };
 }
 
@@ -232,5 +258,44 @@ suite('MapSearch stale results (bug fix)', () => {
     test('transparency of 0 produces a valid rgba background', () => {
         const search = harness.search as unknown as { applyTransparency(p: number): void };
         assert.doesNotThrow(() => search.applyTransparency(0));
+    });
+});
+
+suite('MapSearch point result pin', () => {
+    let harness: Harness;
+
+    setup(() => {
+        harness = createHarness();
+    });
+
+    test('flyToResult shows a marker for a point result without bbox', () => {
+        harness.search.flyToResult({ name: 'Paris', type: 'city', lat: 48.85, lng: 2.35 });
+
+        assert.strictEqual(harness.mapStubs.flyToCalls.length, 1);
+        assert.strictEqual(harness.mapStubs.flyToCalls[0]?.center[0], 2.35);
+        assert.strictEqual(harness.mapStubs.flyToCalls[0]?.center[1], 48.85);
+        assert.strictEqual(harness.markerCalls.length, 1, 'point result must show a pin');
+        assert.deepStrictEqual(harness.markerCalls[0], { lat: 48.85, lng: 2.35 });
+    });
+
+    test('flyToResult does not show a pin for bbox results', () => {
+        harness.search.flyToResult({
+            name: 'France',
+            type: 'country',
+            lat: 46.6,
+            lng: 2.4,
+            bbox: { west: -5, south: 41, east: 9, north: 51 }
+        });
+
+        assert.strictEqual(harness.markerCalls.length, 0, 'area results must not show a pin');
+    });
+
+    test('hover preview shows a marker for point results', () => {
+        harness.search.performSearch('paris');
+        harness.respondWithResults([{ name: 'Paris', type: 'city', lat: 48.85, lng: 2.35 }], 'paris');
+        harness.search.previewResultOnHover(0);
+
+        assert.strictEqual(harness.markerCalls.length, 1, 'hover preview of point result must show a pin');
+        assert.deepStrictEqual(harness.markerCalls[0], { lat: 48.85, lng: 2.35 });
     });
 });
