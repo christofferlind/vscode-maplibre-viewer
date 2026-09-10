@@ -45,7 +45,139 @@ for (const cached of [
 
 const vscode = nodeRequire('vscode') as typeof vscodeStub;
 
-import { handleFileSelection, resetFileSelectionState } from '../../selectionHandler';
+import { handleFileSelection, handleTextSelection, resetFileSelectionState } from '../../selectionHandler';
+
+suite('handleTextSelection with WKT', () => {
+    function resetMocks(): void {
+        capturedErrorMessage = undefined;
+        vscode.window.activeTextEditor = undefined;
+        resetFileSelectionState();
+    }
+
+    function createSelectionEditor(selectedText: string, uri = 'file:///test.wkt'): {
+        selection: { isEmpty: boolean; anchor: { line: number; character: number }; active: { line: number; character: number } };
+        document: { getText: (_selection: unknown) => string; uri: { toString: () => string } };
+    } {
+        return {
+            selection: {
+                isEmpty: false,
+                anchor: { line: 0, character: 0 },
+                active: { line: 0, character: selectedText.length }
+            },
+            document: {
+                getText: (): string => selectedText,
+                uri: { toString: (): string => uri }
+            }
+        };
+    }
+
+    function createRecordingProviderManager(): {
+        updatedGeoJson: (object | null)[];
+        fitBoundsOnlyCalls: unknown[];
+        updateSelectedFileLayer: (geojson: object | null) => void;
+        fitBoundsOnly: (bbox: unknown) => void;
+        fitBoundingBox: (coords: unknown[], bbox: unknown) => void;
+        flyToLocation: (lat: number, lng: number, zoom?: number) => void;
+    } {
+        const manager = {
+            updatedGeoJson: [] as (object | null)[],
+            fitBoundsOnlyCalls: [] as unknown[],
+            updateSelectedFileLayer: (geojson: object | null): void => {
+                manager.updatedGeoJson.push(geojson);
+            },
+            fitBoundsOnly: (bbox: unknown): void => {
+                manager.fitBoundsOnlyCalls.push(bbox);
+            },
+            fitBoundingBox: (_coords: unknown[], _bbox: unknown): void => {},
+            flyToLocation: (_lat: number, _lng: number, _zoom?: number): void => {}
+        };
+        return manager as unknown as ReturnType<typeof createRecordingProviderManager>;
+    }
+
+    test('renders selected WKT Point as GeoJSON on the map', async () => {
+        resetMocks();
+        const providerManager = createRecordingProviderManager();
+        vscode.window.activeTextEditor = createSelectionEditor('POINT (18.0686 59.3293)') as unknown as any;
+
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        assert.strictEqual(providerManager.updatedGeoJson.length, 1);
+        const fc = providerManager.updatedGeoJson[0] as { type: string; features: unknown[] };
+        assert.strictEqual(fc.type, 'FeatureCollection');
+        assert.strictEqual(fc.features.length, 1);
+        assert.strictEqual(providerManager.fitBoundsOnlyCalls.length, 1, 'should fit bounds to geometry');
+        assert.strictEqual(capturedErrorMessage, undefined);
+    });
+
+    test('does not re-render when the same WKT selection re-fires', async () => {
+        resetMocks();
+        const providerManager = createRecordingProviderManager();
+        const editor = createSelectionEditor('POINT (18.0686 59.3293)');
+        vscode.window.activeTextEditor = editor as unknown as any;
+
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        assert.strictEqual(providerManager.updatedGeoJson.length, 1, 'should render only once for identical selection');
+        assert.strictEqual(providerManager.fitBoundsOnlyCalls.length, 1, 'should fit bounds only once');
+    });
+
+    test('renders again when the WKT selection changes', async () => {
+        resetMocks();
+        const providerManager = createRecordingProviderManager();
+        vscode.window.activeTextEditor = createSelectionEditor('POINT (18.0686 59.3293)') as unknown as any;
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        vscode.window.activeTextEditor = createSelectionEditor('POINT (11.1111 22.2222)') as unknown as any;
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        assert.strictEqual(providerManager.updatedGeoJson.length, 2, 'should render for each distinct selection');
+    });
+
+    test('renders again after resetFileSelectionState', async () => {
+        resetMocks();
+        const providerManager = createRecordingProviderManager();
+        vscode.window.activeTextEditor = createSelectionEditor('POINT (18.0686 59.3293)') as unknown as any;
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        resetFileSelectionState();
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        assert.strictEqual(providerManager.updatedGeoJson.length, 2, 'should render again after state reset');
+    });
+
+    test('shows an error when WKT parsing fails', async () => {
+        resetMocks();
+        const providerManager = createRecordingProviderManager();
+        vscode.window.activeTextEditor = createSelectionEditor('POINT (999 999)') as unknown as any;
+
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        assert.strictEqual(providerManager.updatedGeoJson.length, 0);
+        assert.ok(capturedErrorMessage !== undefined, 'should show error message');
+    });
+
+    test('falls back to coordinate parsing for non-WKT selections', () => {
+        resetMocks();
+        const providerManager = createRecordingProviderManager();
+        vscode.window.activeTextEditor = createSelectionEditor('59.3293, 18.0686') as unknown as any;
+
+        handleTextSelection(providerManager as unknown as any);
+
+        assert.strictEqual(providerManager.updatedGeoJson.length, 0);
+        assert.strictEqual(capturedErrorMessage, undefined);
+    });
+});
 
 suite('handleFileSelection', () => {
     let tempDir: string;

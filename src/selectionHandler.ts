@@ -3,7 +3,8 @@
  */
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromGeoJson } from './services/coordinateParser';
+import { parseMultipleCoordinates, calculateBoundingBox, extractCoordinatesFromGeoJson, calculateBoundingBoxFromGeoJson } from './services/coordinateParser';
+import { isWktText, parseWktToGeoJson } from './services/wktParser';
 import { LayerTreeProvider } from './layers/layerTreeProvider';
 import { ProviderManager } from './map/providerManager';
 import { FileToGeoJsonAdapter } from './services/api';
@@ -14,12 +15,18 @@ import { showOperationError } from './extensionUtils';
 // to its bounding box on every tab switch.
 let lastAppliedFileUri: string | undefined;
 
+// Tracks the last WKT selection (by document URI and selection range) that
+// was rendered so re-firing selection events for the same unchanged selection
+// does not repeatedly re-render the layer and re-fit the map.
+let lastAppliedWktKey: string | undefined;
+
 /**
- * Clears the remembered last applied file URI so the next activation
- * of any file is processed again.
+ * Clears the remembered last applied file URI and WKT selection key so the
+ * next activation of any file or selection is processed again.
  */
 export function resetFileSelectionState(): void {
     lastAppliedFileUri = undefined;
+    lastAppliedWktKey = undefined;
 }
 
 /**
@@ -43,9 +50,20 @@ export function handleTextSelection(providerManager: ProviderManager): void {
         return;
     }
 
+    // WKT geometry takes precedence over plain coordinate parsing
+    if (isWktText(selectedText)) {
+        const wktKey = `${editor.document.uri.toString()}#${selection.anchor.line}:${selection.anchor.character}-${selection.active.line}:${selection.active.character}#${selectedText}`;
+        if (wktKey === lastAppliedWktKey) {
+            return;
+        }
+        lastAppliedWktKey = wktKey;
+        void handleWktSelection(selectedText, providerManager);
+        return;
+    }
+
     // Try to parse multiple coordinates from the selected text
     const coordinates = parseMultipleCoordinates(selectedText);
-    
+
     if (coordinates.length > 1) {
         // Multiple coordinates found - calculate bounding box and fit all
         const bbox = calculateBoundingBox(coordinates);
@@ -57,6 +75,27 @@ export function handleTextSelection(providerManager: ProviderManager): void {
         const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
         const singlePointZoom = config.get<number>('singlePointZoom') ?? 14;
         providerManager.flyToLocation(coordinates[0].latitude, coordinates[0].longitude, singlePointZoom);
+    }
+}
+
+/**
+ * Renders selected WKT geometry on the map as the selected file layer
+ * and fits the map to the geometry's bounding box.
+ */
+async function handleWktSelection(selectedText: string, providerManager: ProviderManager): Promise<void> {
+    try {
+        const { geojson, geometryCount } = parseWktToGeoJson(selectedText);
+        console.log(`Parsed ${geometryCount} WKT geometrie(s) from selection`);
+        providerManager.updateSelectedFileLayer(geojson);
+
+        const bbox = calculateBoundingBoxFromGeoJson(geojson);
+        if (bbox) {
+            providerManager.fitBoundsOnly(bbox);
+        }
+    } catch (error) {
+        lastAppliedWktKey = undefined;
+        console.error('Error parsing WKT selection:', error);
+        showOperationError('parse WKT selection', error);
     }
 }
 

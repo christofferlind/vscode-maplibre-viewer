@@ -133,6 +133,15 @@ export class ProviderManager {
     }
 
     /**
+     * Convenience method: updateSelectedFileLayer on all providers.
+     * Renders GeoJSON in the "Selected file" layer on all maps.
+     * @param geojson The GeoJSON object to render, or null to clear
+     */
+    updateSelectedFileLayer(geojson: object | null): void {
+        this.broadcast('updateSelectedFileLayer', geojson);
+    }
+
+    /**
      * Convenience method: updateConfiguration on all providers.
      * Updates the map configuration when settings change.
      */
