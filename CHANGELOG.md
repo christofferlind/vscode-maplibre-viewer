@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-09-11
+
+### Added
+
+- New "Map Information" view that shows details about the features you click on the map, including their properties.
+- New clipboard overlay layer that automatically renders coordinates and geometry copied to the clipboard as text, which can be toggled on and off from the layers view.
+- WKT content containing multiple geometries on separate lines is now all rendered on the map, instead of only the first geometry.
+
 ## [0.6.3] - 2026-09-11
 
 ### Added
