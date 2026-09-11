@@ -81,12 +81,13 @@ function splitTopLevel(text: string): string[] {
 }
 
 /**
- * Parses a list of WKT geometries separated by top-level commas.
- * A GEOMETRYCOLLECTION is flattened into its member geometries.
+ * Parses a list of WKT geometries separated by top-level commas, newlines
+ * or other whitespace between complete geometries. A GEOMETRYCOLLECTION is
+ * flattened into its member geometries.
  */
 function parseGeometryList(text: string): GeometryMap[] {
     const geometries: GeometryMap[] = [];
-    for (const chunk of splitTopLevel(text)) {
+    for (const chunk of splitGeometrySegments(text)) {
         const geometry = parseGeometry(chunk.trim());
         if (geometry) {
             if (isGeometryCollection(geometry)) {
@@ -97,6 +98,36 @@ function parseGeometryList(text: string): GeometryMap[] {
         }
     }
     return geometries;
+}
+
+/**
+ * Splits text into individual geometry strings. Geometries may be separated
+ * by top-level commas, newlines or whitespace. Splitting happens at the
+ * start of each WKT geometry keyword that occurs at parenthesis depth 0,
+ * so geometry-internal commas and nested keywords (e.g. POINT inside a
+ * MULTIPOINT or GEOMETRYCOLLECTION) never cause a split.
+ */
+function splitGeometrySegments(text: string): string[] {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) {
+        return [];
+    }
+    const segments: string[] = [];
+    let depth = 0;
+    let start = 0;
+    const keywordRegex = /\b(POINT|LINESTRING|POLYGON|MULTIPOINT|MULTILINESTRING|MULTIPOLYGON|GEOMETRYCOLLECTION)\b/gi;
+    let match: RegExpExecArray | null;
+    while ((match = keywordRegex.exec(trimmed)) !== null) {
+        if (depth > 0) {
+            continue;
+        }
+        if (match.index > start) {
+            segments.push(trimmed.slice(start, match.index));
+        }
+        start = match.index;
+    }
+    segments.push(trimmed.slice(start));
+    return segments;
 }
 
 function isGeometryCollection(geometry: GeometryMap): boolean {

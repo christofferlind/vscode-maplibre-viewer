@@ -106,6 +106,29 @@ suite('wktParser', () => {
             assert.strictEqual(result.geometryCount, 2);
         });
 
+        test('parses multiple geometries separated by newlines', () => {
+            const result = parseWktToGeoJson('POINT (1 2)\nPOINT (3 4)\nLINESTRING (0 0, 1 1)');
+            assert.strictEqual(result.geometryCount, 3);
+            const fc = result.geojson as { type: string; features: unknown[] };
+            assert.strictEqual(fc.features.length, 3);
+            assert.deepStrictEqual((fc.features[0] as { geometry: { type: string } }).geometry.type, 'Point');
+            assert.deepStrictEqual((fc.features[1] as { geometry: { type: string } }).geometry.type, 'Point');
+            assert.deepStrictEqual((fc.features[2] as { geometry: { type: string } }).geometry.type, 'LineString');
+        });
+
+        test('parses geometries on separate lines without commas or trailing separators', () => {
+            const wkt = 'POLYGON ((0 0, 1 0, 1 1, 0 0))\nPOINT (18.0686 59.3293)';
+            const result = parseWktToGeoJson(wkt);
+            assert.strictEqual(result.geometryCount, 2);
+            const fc = result.geojson as { features: { geometry: { type: string } }[] };
+            assert.deepStrictEqual(fc.features.map((feature) => feature.geometry.type), ['Polygon', 'Point']);
+        });
+
+        test('does not split on nested keywords inside geometry bodies', () => {
+            const result = parseWktToGeoJson('GEOMETRYCOLLECTION (POINT (1 2), LINESTRING (0 0, 1 1))\nPOINT (3 4)');
+            assert.strictEqual(result.geometryCount, 3);
+        });
+
         test('parses a real-world MultiPolygon with two rings', () => {
             const wkt = 'MULTIPOLYGON (((17.80 59.40, 17.82 59.40, 17.82 59.42, 17.80 59.42, 17.80 59.40)), ((17.85 59.43, 17.87 59.43, 17.87 59.45, 17.85 59.45, 17.85 59.43)))';
             const result = parseWktToGeoJson(wkt);

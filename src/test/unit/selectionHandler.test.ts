@@ -155,6 +155,24 @@ suite('handleTextSelection with WKT', () => {
         assert.strictEqual(providerManager.updatedGeoJson.length, 2, 'should render again after state reset');
     });
 
+    test('renders every WKT geometry when the selection contains multiple', async () => {
+        resetMocks();
+        const providerManager = createRecordingProviderManager();
+        const multiWkt = 'POINT (18.0686 59.3293)\nPOINT (11.9746 57.7089)\nLINESTRING (0 0, 1 1)';
+        vscode.window.activeTextEditor = createSelectionEditor(multiWkt) as unknown as any;
+
+        handleTextSelection(providerManager as unknown as any);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        assert.strictEqual(providerManager.updatedGeoJson.length, 1, 'should render the selection as one layer');
+        const fc = providerManager.updatedGeoJson[0] as { type: string; features: { geometry: { type: string } }[] };
+        assert.strictEqual(fc.type, 'FeatureCollection');
+        assert.strictEqual(fc.features.length, 3, 'should include all geometries from the selection');
+        assert.deepStrictEqual(fc.features.map((feature) => feature.geometry.type), ['Point', 'Point', 'LineString']);
+        assert.strictEqual(providerManager.fitBoundsOnlyCalls.length, 1, 'should fit bounds once for all geometries');
+        assert.strictEqual(capturedErrorMessage, undefined);
+    });
+
     test('shows an error when WKT parsing fails', async () => {
         resetMocks();
         const providerManager = createRecordingProviderManager();
