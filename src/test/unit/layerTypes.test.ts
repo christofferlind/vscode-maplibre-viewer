@@ -5,7 +5,8 @@ import {
     isBaseMapStyle,
     isOverlayLayer,
     DEFAULT_OVERLAY_LAYERS,
-    SELECTED_FILE_LAYER_ID
+    SELECTED_FILE_LAYER_ID,
+    CLIPBOARD_LAYER_ID,
 } from '../../layers/layerTypes';
 
 suite('layerTypes Type Guards', () => {
@@ -74,10 +75,20 @@ suite('layerTypes Type Guards', () => {
         });
 
         test('should provide a default overlay layer for the selected file', () => {
-            assert.strictEqual(DEFAULT_OVERLAY_LAYERS.length, 1);
+            assert.strictEqual(DEFAULT_OVERLAY_LAYERS.length, 2);
             assert.strictEqual(DEFAULT_OVERLAY_LAYERS[0].id, SELECTED_FILE_LAYER_ID);
             assert.strictEqual(DEFAULT_OVERLAY_LAYERS[0].type, 'geojson');
             assert.strictEqual(DEFAULT_OVERLAY_LAYERS[0].visible, false);
+        });
+        test('should define the clipboard layer id', () => {
+            assert.strictEqual(CLIPBOARD_LAYER_ID, 'clipboard');
+        });
+
+        test('should provide a default overlay layer for the clipboard', () => {
+            const layer = DEFAULT_OVERLAY_LAYERS.find(l => l.id === CLIPBOARD_LAYER_ID);
+            assert.ok(layer);
+            assert.strictEqual(layer.type, 'geojson');
+            assert.strictEqual(layer.visible, false);
         });
     });
 });

@@ -19,6 +19,7 @@ import { loadCustomCoordinatePatterns, registerLanguageCommands, registerCoordin
 import { getConfig, onConfigurationChanged, setViewStateWriteGuard } from './services/configService';
 import { debounce } from './services/debounce';
 import { calculateBoundingBoxFromGeoJson } from './services/coordinateParser';
+import { ClipboardLayerManager } from './services/clipboardLayerManager';
 
 let mapsViewProvider: MapViewProvider;
 let mapEditorProvider: MapEditorProvider;
@@ -175,6 +176,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
                             );
                         }
                     }
+                }
+
+                // Start/stop clipboard watching based on the layer's visibility
+                if (layer.id === 'clipboard') {
+                    clipboardLayerManager.syncWithLayerState();
                 }
             } catch (error) {
                 showOperationError('toggle layer', error);
@@ -394,6 +400,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
 
     registerLanguageCommands(context, providerManager);
     registerCoordinateSelectionCommands(context);
+
+    const clipboardLayerManager = new ClipboardLayerManager({
+        getClipboardLayer: () => layerTreeProvider.getClipboardLayer(),
+        updateClipboardLayer: (geojson) => layerTreeProvider.updateClipboardLayer(geojson),
+        fitBoundsOnly: (bbox) => providerManager.fitBoundsOnly(bbox),
+        setContextKey: (key, value) => vscode.commands.executeCommand('setContext', key, value)
+    });
+    context.subscriptions.push(clipboardLayerManager);
+    clipboardLayerManager.syncWithLayerState();
 
     context.subscriptions.push(
         vscode.commands.registerCommand('vscodeMaplibreViewer.openSettings', () => {

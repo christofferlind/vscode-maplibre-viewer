@@ -84,6 +84,16 @@ export function isOverlayLayer(item: LayerTreeItem): item is OverlayLayer {
 }
 
 /**
+ * Special layer ID for the selected file layer
+ */
+export const SELECTED_FILE_LAYER_ID = 'selected-file';
+
+/**
+ * Special layer ID for the clipboard layer
+ */
+export const CLIPBOARD_LAYER_ID = 'clipboard';
+
+/**
  * Default overlay layers
  */
 export const DEFAULT_OVERLAY_LAYERS: OverlayLayer[] = [
@@ -97,10 +107,16 @@ export const DEFAULT_OVERLAY_LAYERS: OverlayLayer[] = [
             data: { type: 'FeatureCollection', features: [] }
         },
         visible: false
+    },
+    {
+        id: CLIPBOARD_LAYER_ID,
+        name: 'Clipboard',
+        description: 'Displays coordinates parsed from the clipboard text',
+        type: 'geojson',
+        source: {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        },
+        visible: false
     }
 ];
-
-/**
- * Special layer ID for the selected file layer
- */
-export const SELECTED_FILE_LAYER_ID = 'selected-file';

@@ -144,7 +144,7 @@ suite('LayerTreeProvider', () => {
     test('should initialize with default overlay layers when none persisted', () => {
         const provider = new LayerTreeProvider(createContext());
         const layers = provider.getOverlayLayers();
-        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers.length, 2);
         assert.strictEqual(layers[0].id, 'selected-file');
         assert.strictEqual(layers[0].visible, false);
     });
@@ -153,7 +153,7 @@ suite('LayerTreeProvider', () => {
         const persisted = [createOverlayLayer({ id: 'custom', name: 'Custom' })];
         const provider = new LayerTreeProvider(createContext(persisted));
         const layers = provider.getOverlayLayers();
-        assert.strictEqual(layers.length, 2);
+        assert.strictEqual(layers.length, 3);
         assert.ok(layers.some(l => l.id === 'selected-file'));
         assert.ok(layers.some(l => l.id === 'custom'));
     });
@@ -187,7 +187,7 @@ suite('LayerTreeProvider', () => {
     test('should return overlay layers for layersRoot', async () => {
         const provider = new LayerTreeProvider(createContext());
         const children = await provider.getChildren('layersRoot');
-        assert.strictEqual(children.length, 1);
+        assert.strictEqual(children.length, 2);
         assert.strictEqual((children[0] as OverlayLayer).id, 'selected-file');
     });
 

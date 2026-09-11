@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BaseMapStyle, OverlayLayer, DEFAULT_OVERLAY_LAYERS, SELECTED_FILE_LAYER_ID } from './layerTypes';
+import { BaseMapStyle, OverlayLayer, DEFAULT_OVERLAY_LAYERS, SELECTED_FILE_LAYER_ID, CLIPBOARD_LAYER_ID } from './layerTypes';
 import { FileToGeoJsonAdapter } from '../services/api';
 import { getConfig } from '../services/configService';
 import { createRootTreeItem, createBaseMapTreeItem, createOverlayTreeItem } from './layerTreeItemFactory';
@@ -40,7 +40,7 @@ function cloneDefaultOverlayLayers(): OverlayLayer[] {
  */
 function sanitizeForPersistence(layers: OverlayLayer[]): OverlayLayer[] {
     return layers.map(layer => {
-        if (layer.id !== SELECTED_FILE_LAYER_ID) {
+        if (layer.id !== SELECTED_FILE_LAYER_ID && layer.id !== CLIPBOARD_LAYER_ID) {
             return layer;
         }
         return {
@@ -122,7 +122,11 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
 
         // Ensure the "Selected file" layer always exists and reset any
         // persisted GeoJSON data so we never render a previous session's file.
-        this._ensureSelectedFileLayer();
+        this._ensureBuiltInLayer(SELECTED_FILE_LAYER_ID);
+
+        // Ensure the "Clipboard" layer exists (older sessions may not have it
+        // persisted) and clear any stale GeoJSON data.
+        this._ensureBuiltInLayer(CLIPBOARD_LAYER_ID);
 
         // Load active base map from globalState or use first one, or 'basic' as fallback
         this._activeBaseMapId = context.globalState.get<string>('activeBaseMapId')
@@ -195,18 +199,19 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
     }
 
     /**
-     * Ensures the "Selected file" layer exists in the overlay layers
-     * and that any persisted GeoJSON data is cleared so we never render
-     * a previous session's file.
+     * Ensures a built-in overlay layer exists in the overlay layers and that
+     * any persisted GeoJSON data is cleared so we never render a previous
+     * session's content.
      */
-    private _ensureSelectedFileLayer(): void {
-        const layerIndex = this._overlayLayers.findIndex(l => l.id === SELECTED_FILE_LAYER_ID);
+    private _ensureBuiltInLayer(layerId: string): void {
         const emptyData = { type: 'FeatureCollection', features: [] };
+        const layerIndex = this._overlayLayers.findIndex(l => l.id === layerId);
         if (layerIndex === -1) {
-            this._overlayLayers.push({
-                id: SELECTED_FILE_LAYER_ID,
-                name: 'Selected file',
-                description: 'Displays the currently selected file on the map',
+            const defaults = cloneDefaultOverlayLayers();
+            const template = defaults.find(l => l.id === layerId);
+            this._overlayLayers.push(template ?? {
+                id: layerId,
+                name: layerId,
                 type: 'geojson',
                 source: {
                     type: 'geojson',
@@ -517,6 +522,50 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
      */
     getSelectedFileLayer(): OverlayLayer | undefined {
         return this._overlayLayers.find(l => l.id === SELECTED_FILE_LAYER_ID);
+    }
+
+    /**
+     * Updates the "Clipboard" layer with new GeoJSON data.
+     * The layer visibility is preserved.
+     * @param geojson The GeoJSON data to display, or null/empty to clear
+     */
+    async updateClipboardLayer(geojson: object | null): Promise<void> {
+        const layerIndex = this._overlayLayers.findIndex(l => l.id === CLIPBOARD_LAYER_ID);
+
+        if (layerIndex === -1) {
+            logInfo('Clipboard layer not found - skipping update');
+            return;
+        }
+
+        const currentVisibility = this._overlayLayers[layerIndex].visible;
+        const data = geojson && Object.keys(geojson).length > 0
+            ? geojson
+            : { type: 'FeatureCollection', features: [] };
+
+        this._overlayLayers[layerIndex] = {
+            ...this._overlayLayers[layerIndex],
+            source: {
+                ...this._overlayLayers[layerIndex].source,
+                data
+            },
+            visible: currentVisibility
+        };
+
+        await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
+
+        const layer = this._overlayLayers[layerIndex];
+        logInfo(geojson && Object.keys(geojson).length > 0
+            ? 'Updated clipboard layer with GeoJSON data'
+            : 'Cleared clipboard layer');
+        this._onDidChangeLayers.fire({ type: 'overlay', data: layer });
+        this.refresh();
+    }
+
+    /**
+     * Gets the "Clipboard" layer
+     */
+    getClipboardLayer(): OverlayLayer | undefined {
+        return this._overlayLayers.find(l => l.id === CLIPBOARD_LAYER_ID);
     }
 
     /**
