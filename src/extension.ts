@@ -10,6 +10,7 @@ import { MapViewProvider } from './map/mapViewProvider';
 import { MapEditorProvider } from './map/mapEditorProvider';
 import { MapWebviewController } from './map/mapWebviewController';
 import { ProviderManager } from './map/providerManager';
+import { MapInfoTreeProvider } from './info/mapInfoTreeProvider';
 import { showOperationError, confirmAction, getCoordinateSelectionState } from './extensionUtils';
 import { formatCoordinate } from './services/coordinateFormatter';
 import { StoredViewState, StoredPerViewState } from './map/mapWebviewTypes';
@@ -116,6 +117,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
         showCollapseAll: true
     });
     context.subscriptions.push(layersTreeView);
+
+    const mapInfoTreeProvider = new MapInfoTreeProvider(() => providerManager.getProviders());
+    context.subscriptions.push(...mapInfoTreeProvider.subscribeToProviders());
+    const mapInfoTreeView = vscode.window.createTreeView('mapInfoView', {
+        treeDataProvider: mapInfoTreeProvider
+    });
+    context.subscriptions.push(mapInfoTreeView);
 
     const sendVisibleOverlayLayers = () => {
         providerManager.updateOverlayLayers(layerTreeProvider.getVisibleOverlayLayers());

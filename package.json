@@ -44,6 +44,10 @@
         {
           "id": "bookmarksView",
           "name": "Map Bookmarks"
+        },
+        {
+          "id": "mapInfoView",
+          "name": "Map Information"
         }
       ]
     },

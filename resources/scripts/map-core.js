@@ -362,6 +362,12 @@ function initializeMap(initialViewState) {
 		if (window.MapPopup) {
 			window.MapPopup.attachPopupHandler(map, escapeHtml);
 		}
+
+		// Add a listener for click events that report feature information to
+		// the Map Information view
+		if (window.MapInfo) {
+			window.MapInfo.attachInfoHandler(map);
+		}
 	} catch (e) {
 		console.error('Error initializing map:', e);
 		showErrorOverlay('Failed to initialize map: ' + (e.message || e));

@@ -74,6 +74,30 @@ export interface GeocodingSearchMessage {
     query: string;
 }
 
+/**
+ * A single rendered feature the user clicked on the map, as reported by the
+ * webview. `source` distinguishes basemap features from overlay features
+ * (overlay sources are prefixed with 'overlay-').
+ */
+export interface ClickedFeatureInfo {
+    source: string;
+    sourceLayer?: string;
+    layerId: string;
+    layerName?: string;
+    geometryType: string;
+    /** Flattened feature properties (dotted keys for nested objects) */
+    properties: Record<string, unknown>;
+}
+
+/**
+ * Payload of a featureInfoUpdate message posted by the webview on a map click.
+ */
+export interface FeatureInfoUpdateMessage {
+    type: 'featureInfoUpdate';
+    lngLat: { lng: number; lat: number };
+    features: ClickedFeatureInfo[];
+}
+
 export interface GeocodingSearchResultsMessage {
     type: 'geocodingSearchResults';
     results: GeocodingResult[];

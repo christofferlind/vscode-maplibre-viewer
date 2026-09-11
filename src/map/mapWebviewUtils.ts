@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ViewState } from '../bookmarks/bookmarkTypes';
-import { MapConfig, StoredViewState, GeocodingResult } from './mapWebviewTypes';
+import { MapConfig, StoredViewState, GeocodingResult, ClickedFeatureInfo, FeatureInfoUpdateMessage } from './mapWebviewTypes';
 import { notifyViewStateWriteStarted } from '../services/configService';
 
 /**
@@ -126,6 +126,7 @@ interface TemplateContext {
     mapCoreJsUri: vscode.Uri;
     mapBasemapJsUri: vscode.Uri;
     mapPopupJsUri: vscode.Uri;
+    mapInfoJsUri: vscode.Uri;
     mapOverlaysJsUri: vscode.Uri;
     mapNavigationJsUri: vscode.Uri;
     mapSearchJsUri: vscode.Uri;
@@ -156,6 +157,7 @@ const HTML_PLACEHOLDERS: Record<string, PlaceholderResolver> = {
     mapCoreJsUri: (ctx) => ctx.mapCoreJsUri.toString(),
     mapBasemapJsUri: (ctx) => ctx.mapBasemapJsUri.toString(),
     mapPopupJsUri: (ctx) => ctx.mapPopupJsUri.toString(),
+    mapInfoJsUri: (ctx) => ctx.mapInfoJsUri.toString(),
     mapOverlaysJsUri: (ctx) => ctx.mapOverlaysJsUri.toString(),
     mapNavigationJsUri: (ctx) => ctx.mapNavigationJsUri.toString(),
     mapSearchJsUri: (ctx) => ctx.mapSearchJsUri.toString(),
@@ -213,6 +215,7 @@ export function generateWebviewHtml(
     const mapCoreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-core.js');
     const mapBasemapJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-basemap.js');
     const mapPopupJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-popup.js');
+    const mapInfoJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-info.js');
     const mapOverlaysJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-overlays.js');
     const mapNavigationJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-navigation.js');
     const mapSearchJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-search.js');
@@ -239,6 +242,7 @@ export function generateWebviewHtml(
         mapCoreJsUri,
         mapBasemapJsUri,
         mapPopupJsUri,
+        mapInfoJsUri,
         mapOverlaysJsUri,
         mapNavigationJsUri,
         mapSearchJsUri,
@@ -289,6 +293,102 @@ export function parseViewStateFromMessage(message: unknown): ViewState | undefin
         };
     }
     return undefined;
+}
+
+/**
+ * Parses a featureInfoUpdate message from the webview into a typed structure.
+ * Returns undefined when the message is malformed (missing lngLat, features
+ * not an array, or entries missing required string fields).
+ */
+export function parseFeatureInfoUpdate(message: unknown): FeatureInfoUpdateMessage | undefined {
+    const msg = message as Record<string, unknown>;
+    if (!msg || msg.type !== 'featureInfoUpdate') {
+        return undefined;
+    }
+
+    const lngLat = msg.lngLat as Record<string, unknown> | undefined;
+    if (!lngLat || typeof lngLat.lng !== 'number' || typeof lngLat.lat !== 'number') {
+        return undefined;
+    }
+
+    if (!Array.isArray(msg.features)) {
+        return undefined;
+    }
+
+    const features: ClickedFeatureInfo[] = [];
+    for (const raw of msg.features) {
+        const entry = raw as Record<string, unknown>;
+        if (!entry || typeof entry.source !== 'string' || typeof entry.layerId !== 'string'
+            || typeof entry.geometryType !== 'string') {
+            continue;
+        }
+
+        const properties: Record<string, unknown> = {};
+        if (entry.properties && typeof entry.properties === 'object') {
+            for (const [key, value] of Object.entries(entry.properties as Record<string, unknown>)) {
+                properties[key] = value;
+            }
+        }
+
+        features.push({
+            source: entry.source,
+            sourceLayer: typeof entry.sourceLayer === 'string' ? entry.sourceLayer : undefined,
+            layerId: entry.layerId,
+            layerName: typeof entry.layerName === 'string' ? entry.layerName : undefined,
+            geometryType: entry.geometryType,
+            properties
+        });
+    }
+
+    return {
+        type: 'featureInfoUpdate',
+        lngLat: { lng: lngLat.lng, lat: lngLat.lat },
+        features
+    };
+}
+
+/**
+ * Determines whether a clicked feature belongs to an overlay layer (source
+ * prefixed with 'overlay-') or the basemap.
+ */
+export function isOverlayFeature(feature: ClickedFeatureInfo): boolean {
+    return feature.source.startsWith('overlay-');
+}
+
+/**
+ * Converts a clicked feature into a user-facing label: overlay features use
+ * their layer name (falling back to the source name without the 'overlay-'
+ * prefix), basemap features use the layer/source identity.
+ */
+export function formatClickedFeatureLabel(feature: ClickedFeatureInfo): string {
+    if (isOverlayFeature(feature)) {
+        return feature.layerName || feature.source.replace(/^overlay-/, '');
+    }
+    const layerLabel = feature.layerName || feature.layerId;
+    return `${layerLabel} (${feature.source})`;
+}
+
+/**
+ * Formats a geometry type keyword ('Point', 'LineString', 'Polygon', ...) as a
+ * human-readable kind label used by the Map Information tree.
+ */
+export function formatGeometryType(geometryType: string): string {
+    switch (geometryType) {
+        case 'Point':
+            return 'Point';
+        case 'MultiPoint':
+            return 'Multi-Point';
+        case 'LineString':
+            return 'Line';
+        case 'MultiLineString':
+            return 'Multi-Line';
+        case 'Polygon':
+            return 'Polygon';
+        case 'MultiPolygon':
+            return 'Multi-Polygon';
+        default:
+            return geometryType;
+    }
 }
 
 /**

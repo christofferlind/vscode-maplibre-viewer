@@ -4,13 +4,14 @@ import { MapBookmark, ViewState } from '../bookmarks/bookmarkTypes';
 import { BaseMapStyle, OverlayLayer } from '../layers/layerTypes';
 import { Coordinate } from '../services/coordinateParser';
 import { performGeocodingSearch, SearchResultData } from '../services/geocodingSearch';
-import { MapConfig, StoredViewState } from './mapWebviewTypes';
+import { MapConfig, StoredViewState, FeatureInfoUpdateMessage } from './mapWebviewTypes';
 import {
     getMapConfiguration,
     saveViewStateToSettings,
     generateWebviewHtml,
     parseViewStateFromMessage,
-    buildGeocodingResults
+    buildGeocodingResults,
+    parseFeatureInfoUpdate
 } from './mapWebviewUtils';
 import { getConfig } from '../services/configService';
 import { logInfo, logError, logLine } from '../services/logger';
@@ -497,12 +498,33 @@ export abstract class MapWebviewController {
                 }
                 break;
             }
+
+            case 'featureInfoUpdate': {
+                const featureInfo = parseFeatureInfoUpdate(message);
+                if (featureInfo && this._onFeatureInfoUpdate) {
+                    this._onFeatureInfoUpdate.fire(featureInfo);
+                }
+                break;
+            }
         }
     }
 
     private _onMapReady?: () => void;
 
     private _mapErrorNotifier = new MapErrorNotifier();
+
+    private _onFeatureInfoUpdate?: vscode.EventEmitter<FeatureInfoUpdateMessage>;
+
+    /**
+     * Event fired whenever the webview reports the features under a map click.
+     * Consumers (Map Information view) subscribe via onFeatureInfoUpdate.
+     */
+    public get onFeatureInfoUpdate(): vscode.Event<FeatureInfoUpdateMessage> | undefined {
+        if (!this._onFeatureInfoUpdate) {
+            this._onFeatureInfoUpdate = new vscode.EventEmitter<FeatureInfoUpdateMessage>();
+        }
+        return this._onFeatureInfoUpdate.event;
+    }
 
     public onMapReady(callback: () => void): void {
         this._onMapReady = callback;
