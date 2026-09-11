@@ -57,5 +57,7 @@
         "npx tsc --noEmit",
         "git status"
     ],
-	"peacock.color": "#053126"
+	"peacock.color": "#053126",
+	"git-graph.dialog.addTag.pushToRemote": true,
+	"git.followTagsWhenSync": true
 }
