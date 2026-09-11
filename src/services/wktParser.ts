@@ -239,7 +239,7 @@ function parseRingList(text: string): number[][][] {
  */
 function parseCoordinateList(text: string): number[][] {
     const coords: number[][] = [];
-    for (const chunk of splitTopLevel(stripEnclosingParens(text))) {
+    for (const chunk of splitTopLevel(stripAllEnclosingParens(text))) {
         const coord = parseCoordinateTuple(chunk.trim());
         if (coord) {
             coords.push(coord);
@@ -271,6 +271,21 @@ function stripEnclosingParens(text: string): string {
         }
     }
     return trimmed.slice(1, -1);
+}
+
+/**
+ * Removes all nested matching pairs of parentheses that wrap the whole
+ * text, so "((0 0, 1 0))" becomes "0 0, 1 0". Stops at the first
+ * non-parenthesized character.
+ */
+function stripAllEnclosingParens(text: string): string {
+    let current = text;
+    let previous = '';
+    while (current !== previous) {
+        previous = current;
+        current = stripEnclosingParens(current);
+    }
+    return current;
 }
 
 /**

@@ -106,6 +106,21 @@ suite('wktParser', () => {
             assert.strictEqual(result.geometryCount, 2);
         });
 
+        test('parses a real-world MultiPolygon with two rings', () => {
+            const wkt = 'MULTIPOLYGON (((17.80 59.40, 17.82 59.40, 17.82 59.42, 17.80 59.42, 17.80 59.40)), ((17.85 59.43, 17.87 59.43, 17.87 59.45, 17.85 59.45, 17.85 59.43)))';
+            const result = parseWktToGeoJson(wkt);
+            assert.strictEqual(result.geometryCount, 1);
+            const geometry = getSingleGeometry(result) as { type: string; coordinates: number[][][][] };
+            assert.strictEqual(geometry.type, 'MultiPolygon');
+            assert.strictEqual(geometry.coordinates.length, 2);
+            assert.deepStrictEqual(geometry.coordinates[0], [
+                [[17.80, 59.40], [17.82, 59.40], [17.82, 59.42], [17.80, 59.42], [17.80, 59.40]]
+            ]);
+            assert.deepStrictEqual(geometry.coordinates[1], [
+                [[17.85, 59.43], [17.87, 59.43], [17.87, 59.45], [17.85, 59.45], [17.85, 59.43]]
+            ]);
+        });
+
         test('parses Z-dimension geometry ignoring extra values', () => {
             const result = parseWktToGeoJson('POINT Z (18.0686 59.3293 100)');
             const geometry = getSingleGeometry(result);
