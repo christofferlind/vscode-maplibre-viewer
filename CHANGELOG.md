@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.3] - 2026-09-11
+
+### Added
+
+- Well-known text (WKT) geometry selections are now rendered on the map, so picking WKT content shows the actual shapes instead of only coordinates.
+- Point search results now place a temporary marker on the map, making it easier to see exactly where a result is.
+- Coordinate lists that wrap items in extra parentheses are now handled, so more pasted coordinate formats are recognized.
+
 ## [0.6.2] - 2026-09-08
 
 ### Added
