@@ -3,7 +3,7 @@
   "displayName": "MapLibre Viewer",
   "publisher": "christofferlind",
   "description": "Offline map viewer for VS Code powered by MapLibre GL JS. Visualize local GeoJSON files, fly to coordinates, toggle overlays, and bookmark views.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "license": "MIT",
   "icon": "media/map.png",
   "repository": {
@@ -593,7 +593,7 @@
         "vscodeMaplibreViewer.alwaysShowDemoTiles": {
           "type": "boolean",
           "default": false,
-          "description": "Show the MapLibre Demo Tiles basemap even if other base maps are configured"
+          "description": "Show the OpenFreeMap.org basemap even if other base maps are configured"
         },
         "vscodeMaplibreViewer.lastViewState": {
           "type": "object",
@@ -605,7 +605,7 @@
             "zoom": 1,
             "bearing": 0,
             "pitch": 0,
-            "baseMapId": "maplibre-demotiles"
+            "baseMapId": "openfreemap-liberty"
           },
           "description": "Last saved map view state (center, zoom, bearing, pitch, baseMapId). Automatically updated when the map view changes.",
           "properties": {

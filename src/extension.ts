@@ -56,10 +56,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
     const api = createAPI(layerTreeProvider, onDidChangeActiveBasemapEmitter, fileToGeoJsonAdapters);
 
     const demoBasemap: BasemapProvider = {
-        id: 'maplibre-demotiles',
-        name: 'Demotiles',
+        id: 'openfreemap-liberty',
+        name: 'OpenFreeMap.org',
         type: 'vector',
-        styleUrl: 'https://demotiles.maplibre.org/style.json'
+        styleUrl: 'https://tiles.openfreemap.org/styles/liberty'
     };
     let demoBasemapDisposable: vscode.Disposable | undefined;
 

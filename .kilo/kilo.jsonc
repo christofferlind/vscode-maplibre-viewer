@@ -2,5 +2,8 @@
   "$schema": "https://app.kilo.ai/config.json",
   "instructions": [
     "./AGENTS.md"
-  ]
+  ],
+  "commit_message": {
+    "prompt": "Write a human friendly, descriptive, online commit message. Return ONLY the commit message "
+  }
 }
