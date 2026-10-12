@@ -12,9 +12,21 @@ A VS Code extension that provides an interactive map viewer powered by MapLibre 
 ### 🗺️ Interactive Map View
 
 - **Sidebar Panel**: Map view integrated into VS Code's activity bar for quick access
+- **Editor Panel**: Open a full-size map editor tab via the "Map: Open Map Editor" command or the toolbar
 - **MapLibre GL JS**: Full-featured vector tile rendering with smooth pan/zoom
 - **Customizable Map Style**: Configure your own style URL via settings
 - **Configurable Animation**: Adjustable fly-to animation duration
+- **3D Terrain** (optional): Terrain rendering and hillshading, controlled via settings. On by default; requires network access to fetch terrain tiles — disable the `terrain` setting if you need fully offline operation.
+- **Map Information View**: Tree view showing the details of features you click on the map — the clicked location, the source layer, and the feature properties
+- **Status Bar Coordinates**: Displays the pointer's WGS84 coordinates while you move the mouse over the map
+
+### 📂 Geospatial File Viewing
+
+- **Built-in formats**: GeoJSON (`.geojson`, `.json`) and GPX (`.gpx`) files render automatically when opened
+- **Drag-and-drop conversion**: Drag GeoJSON, KML, CSV, GPX, or Shapefile (`.shp` with its `.dbf`/`.prj`/`.shx` sidecar files) files onto the Map Layers view to convert and display them
+- **Selected File Layer**: Toggle the active file's layer on/off from the Map Layers view
+- **Clipboard Layer**: Copy GeoJSON or WKT text to the clipboard and view it as an overlay layer
+- **Auto Bounding Box Fit**: The map automatically fits to the extent of the loaded data
 
 ### 📍 Coordinate Detection
 
@@ -24,6 +36,7 @@ Automatically detects and navigates to coordinates when you select text in the e
 - **DMS Format**: `59°19'45.5"N 18°4'7.0"E`
 - **GeoJSON Arrays**: `[18.0686, 59.3293]` (note: GeoJSON uses [lng, lat] order)
 - **URL Format**: `@59.3293,18.0686` (common in mapping URLs)
+- **WKT Geometry**: `POINT (-122.4194 37.7749)` and other WKT geometries — WKT text selected in the editor is rendered as a map layer
 
 The coordinate parser intelligently handles:
 - Latitude/longitude detection based on value ranges
@@ -44,7 +57,7 @@ Support for 60+ languages for map labels:
 Quick access via:
 - **Map: Set Language to Native** - Use local place names
 - **Map: Set Language to English** - Use English labels
-- **Map: Set Language to German** - Use German labels
+- **Map: Set Language to German** (plus French, Spanish, Russian, Chinese, Japanese, Korean, Italian, Portuguese, Arabic, Hindi, and Dutch) - Use those labels
 - **Map: Set Language...** - Open language picker with all options
 
 ### 🔖 Bookmark Management
@@ -53,6 +66,8 @@ Save and manage your favorite map locations:
 
 - **Bookmark Current View**: Save current map position (center, zoom, bearing, pitch) as a named bookmark
 - **Load Bookmark**: Quick-pick dialog to navigate to saved bookmarks
+- **Rename Bookmark**: Rename an existing bookmark from the Map Bookmarks view
+- **Open in Map Editor**: Open a saved bookmark in the map editor panel
 - **Persistent Storage**: Bookmarks are saved globally and persist across sessions
 - **Duplicate Handling**: Prompts to overwrite existing bookmarks with same name
 
@@ -72,6 +87,7 @@ The map view toolbar provides quick access to:
 - **Coordinate Toggle** - Enable/disable coordinate detection
 - **Bookmark** - Save current view as bookmark
 - **Settings** - Open map settings
+- **Open Map Editor** - Open the full-size map editor panel
 
 </details>
 
@@ -108,13 +124,13 @@ The map view toolbar provides quick access to:
 2. **Load**: Use "Map: Load Bookmark..." command
 3. Bookmarks are stored globally and persist across sessions
 
-### Viewing GeoJSON Files
+### Viewing GeoJSON and GPX Files
 
-The MapLibre Viewer extension can automatically render GeoJSON files on an interactive map. Here's how to use this feature:
+The MapLibre Viewer extension can automatically render GeoJSON and GPX files on an interactive map. Here's how to use this feature:
 
 #### Step-by-Step Walkthrough
 
-1. **Create or open a GeoJSON file** in VS Code with a `.geojson` or `.json` extension
+1. **Create or open a GeoJSON or GPX file** in VS Code with a `.geojson`, `.json`, or `.gpx` extension
 2. **Select the file** in the editor or file explorer
 3. The extension will automatically detect compatible file types and render the data on the map
 4. The map viewport will automatically fit to the bounding box of all features
@@ -133,12 +149,15 @@ This means you don't need to manually pan or zoom—the map will automatically c
 
 #### Supported File Extensions
 
-The extension supports GeoJSON files through the built-in adapter for:
+The extension supports geospatial files through the built-in adapters for:
 
 - `.geojson` - Standard GeoJSON files
 - `.json` - JSON files containing GeoJSON data
+- `.gpx` - GPX files (GPS Exchange Format)
 
-Additional file formats (KML, GPX, Shapefile, etc.) can be supported by installing extensions that register custom `FileToGeoJsonAdapter` implementations.
+Additionally, KML, CSV, GPX, GeoJSON, and Shapefile (`.shp` with its `.dbf`/`.prj`/`.shx` sidecar files) can be converted and displayed by dragging the files onto the Map Layers view.
+
+Further file formats can be supported by installing extensions that register custom `FileToGeoJsonAdapter` implementations.
 
 #### Tips for Best Results
 
@@ -161,8 +180,16 @@ Customize the extension via VS Code settings:
 | `vscodeMaplibreViewer.enableSearch` | Enable search functionality | `true` |
 | `vscodeMaplibreViewer.flyToDuration` | Animation duration in ms | `500` |
 | `vscodeMaplibreViewer.singlePointZoom` | Zoom level for single coordinate points | `10` |
+| `vscodeMaplibreViewer.searchResultsTransparency` | Transparency percentage for the search results popup (0 = fully opaque, 100 = fully transparent) | `20` |
 | `vscodeMaplibreViewer.baseMaps` | Custom basemap styles | `[]` (empty) |
 | `vscodeMaplibreViewer.coordinatePatterns` | Custom coordinate detection patterns | `[]` (empty) |
+| `vscodeMaplibreViewer.alwaysShowDemoTiles` | Show the OpenFreeMap.org basemap even if other base maps are configured | `false` |
+| `vscodeMaplibreViewer.terrain` | Enable 3D terrain rendering (requires network access for terrain tiles) | `true` |
+| `vscodeMaplibreViewer.terrainUrl` | Terrain source as a TileJSON URL or raster-dem tile URL template with `{z}/{x}/{y}` placeholders | `"https://tiles.mapterhorn.com/tilejson.json"` |
+
+> **Note:** Terrain rendering is enabled by default and requires network access to fetch terrain tiles. Disable `terrain` if you need the viewer to operate fully offline.
+
+> **Note:** `vscodeMaplibreViewer.lastViewState` stores the last map view (center, zoom, bearing, pitch, base map) and is managed automatically by the extension; you normally don't edit it by hand.
 
 </details>
 
@@ -191,7 +218,7 @@ A vector basemap points at a [MapLibre style JSON](https://maplibre.org/maplibre
       "id": "osm-standard",
       "name": "OpenStreetMap",
       "type": "vector",
-      "styleUrl": "https://demotiles.maplibre.org/style.json",
+      "styleUrl": "https://tiles.openfreemap.org/styles/liberty",
       "description": "OpenStreetMap default style"
     },
     {
@@ -249,7 +276,7 @@ You can register both types side by side and switch between them from the Layers
     {
       "id": "vector-streets",
       "name": "Vector Streets",
-      "styleUrl": "https://demotiles.maplibre.org/style.json"
+      "styleUrl": "https://tiles.openfreemap.org/styles/liberty"
     },
     {
       "id": "raster-satellite",
@@ -370,21 +397,27 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 |---------|-------------|
 | `Map: Set Language to Native` | Use native/local place names |
 | `Map: Set Language to English` | Use English labels |
-| `Map: Set Language to German` | Use German labels |
+| `Map: Set Language to German`, `...to French`, `...to Spanish`, `...to Russian`, `...to Chinese (Simplified)`, `...to Japanese`, `...to Korean`, `...to Italian`, `...to Portuguese`, `...to Arabic`, `...to Hindi`, `...to Dutch` | Use that language's labels |
 | `Map: Set Language...` | Open language picker |
 | `Toggle Coordinate Selection` | Toggle coordinate detection on/off |
 | `Enable Coordinate Selection` | Enable coordinate detection |
 | `Disable Coordinate Selection` | Disable coordinate detection |
 | `Open Map Settings` | Open extension settings |
+| `Map: Open Map Editor` | Open the map editor panel |
 | `Map: Bookmark Current View` | Save current view as bookmark |
 | `Map: Load Bookmark...` | Load a saved bookmark |
 | `Go to Bookmark` | Navigate to a bookmark |
+| `Rename Bookmark` | Rename a saved bookmark |
+| `Open Bookmark in Map Editor` | Open a saved bookmark in the map editor panel |
 | `Delete Bookmark` | Delete a saved bookmark |
-| `Search On Map` | Search for selected text on the map (from editor or terminal) |
+| `Search On Map` | Search for selected text on the map (from editor, terminal, or map context menu) |
+| `Copy Coordinates` | Copy the last right-clicked map coordinate to the clipboard |
 | `Set Active Base Map` | Set the active basemap |
 | `Toggle Layer Visibility` | Toggle overlay layer visibility |
 | `Add Overlay Layer` | Add a new overlay layer |
 | `Remove Layer` | Remove an overlay layer |
+| `Change Layer Color` | Change the color of an overlay layer |
+| `Show on Map` | Fit the map to the bounds of an overlay layer |
 
 </details>
 
@@ -401,7 +434,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-For development instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
+For development instructions, see [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ### License
 

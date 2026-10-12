@@ -28,9 +28,13 @@ This extension is designed to run fully offline. End users **MUST** be able to i
 - **MUST** keep files under 600 lines. Run `wc -l <file>` after edits; refactor if exceeded.
 - **MUST** bump the `version` field in [`package.json`](package.json:6) for every change, following SemVer: patch for bug fixes, minor for backward-compatible additions, major for breaking changes. **MUST** also update the matching `version` fields in [`package-lock.json`](package-lock.json:3) (the root `version` and the `packages[""].version`) so they stay in sync with `package.json`.
 
+- **MUST** ask the user whether [`CHANGELOG.md`](CHANGELOG.md) should be updated whenever the `version` in [`package.json`](package.json:6) is bumped, before finalizing the change. Only update the changelog after the user confirms; do not bump the version and silently skip or apply the changelog update.
+
+- **MUST** keep [`README.md`](README.md) up to date with the extension's features whenever the `version` in [`package.json`](package.json:6) is bumped: new user-facing features **MUST** be documented, and removed or changed features **MUST** have their outdated documentation removed or corrected. Check the Features, Usage, Commands, and Configuration sections against the actual changes since the last version. This runs alongside the changelog question above and does not require extra confirmation.
+
 ## Changelog
 
-When asked to update the changelog, the LLM **MUST**:
+Whenever the version in [`package.json`](package.json:6) is bumped, the LLM **MUST** ask the user if the changelog should be updated before completing the change. If the user confirms, the LLM **MUST**:
 
 1. Determine the last version tag with `git describe --tags --abbrev=0` (fall back to the first commit if no tags exist).
 2. Review the changes between that tag and the current `HEAD` with `git log <last-tag>..HEAD --oneline` and `git diff <last-tag>..HEAD`.

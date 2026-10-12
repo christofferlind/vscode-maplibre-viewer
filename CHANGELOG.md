@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.4] - 2026-10-13
+
+### Added
+
+- Optional 3D terrain rendering. Enable it in settings; it is off by default because terrain tiles require network access.
+- The terrain data source is configurable, supporting both TileJSON URLs and raster-dem tile URL templates.
+- New globe and terrain controls on the map when terrain is enabled.
+
+### Changed
+
+- The built-in basemap is now the OpenFreeMap.org Liberty style, replacing the MapLibre demo tiles.
+- Upgraded the bundled MapLibre GL JS map engine to v6.
+
+### Fixed
+
+- Overlay layers you have added are now kept on the map when you switch basemaps, instead of disappearing.
+- The map no longer stalls when loading operations while a new basemap style is being applied.
+- Switching to a basemap whose style fails to load no longer silently does nothing when you pick it again.
+- Map panel loading is more reliable, with better error details surfaced in the output panel.
+
 ## [0.7.0] - 2026-09-11
 
 ### Added
