@@ -318,6 +318,11 @@ function initializeMap(initialViewState) {
 			showCompass: true
 		}));
 
+		// GlobeControl exists only in MapLibre GL JS v5+; keep working on v4
+		if (maplibregl.GlobeControl) {
+			map.addControl(new maplibregl.GlobeControl());
+		}
+
 		map.on('error', function(e) {
 			console.error('MapLibre error:', e.error);
 			// If the initial style fetch failed (e.g. offline), 'load' never
@@ -359,6 +364,35 @@ function initializeMap(initialViewState) {
 
 		map.on('load', function() {
 			console.log('[MapCore] load event fired on style');
+			// Temporary diagnostics: report why 3D buildings (fill-extrusion)
+			// may be missing from the loaded basemap style.
+			var extrusionLayers = [];
+			var pitch = '?';
+			var zoom = '?';
+			try {
+				var style = map.getStyle();
+				extrusionLayers = style && style.layers ?
+					style.layers
+						.filter(function(layer) { return layer.type === 'fill-extrusion'; })
+						.map(function(layer) {
+							return {
+								id: layer.id,
+								source: layer.source,
+								sourceLayer: layer['source-layer'] || '',
+								minzoom: layer.minzoom,
+								maxzoom: layer.maxzoom,
+								visibility: layer.layout && layer.layout.visibility ? layer.layout.visibility : 'visible'
+							};
+						}) :
+					[];
+				pitch = map.getPitch();
+				zoom = Number(map.getZoom().toFixed(2));
+			} catch (diagError) {
+				// Diagnostics only: never break map load
+			}
+			console.log('[MapCore] buildings check pitch=' + pitch +
+				' zoom=' + zoom +
+				' fill-extrusion layers: ' + JSON.stringify(extrusionLayers));
 			mapLoaded = true;
 			errorDrainAttempts = 0;
 			hideErrorOverlay();

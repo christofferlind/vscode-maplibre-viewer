@@ -13,19 +13,24 @@ interface PostedMessage {
     [key: string]: unknown;
 }
 
-interface Harness {
+export interface Harness {
     core: Record<string, (...args: unknown[]) => unknown>;
     posted: PostedMessage[];
     setStyleLoaded: (loaded: boolean) => void;
     setSymbolLayers: (layers: Array<{ id: string; type: string }>) => void;
     fireMapEvent: (event: string, data?: unknown) => void;
     getTerrainState: () => { terrainSource?: string; terrainControlSource?: string; addedSourceIds: string[]; hillshadeLayerBefore?: string | null };
+    addedControls: Array<{ source?: string; globe?: boolean }>;
     pendingCount: () => number;
     flushTimers: () => Promise<void>;
     advanceTime: (ms: number) => Promise<void>;
 }
 
-function createHarness(): Harness {
+interface HarnessOptions {
+    globeControl?: boolean;
+}
+
+function createHarness(options?: HarnessOptions): Harness {
     const sourcePath = path.join(__dirname, '..', '..', '..', 'resources', 'scripts', 'map-core.js');
     const source = fs.readFileSync(sourcePath, 'utf-8');
 
@@ -36,7 +41,7 @@ function createHarness(): Harness {
     const eventHandlers = new Map<string, Array<(e?: unknown) => void>>();
     let terrainState: { sourceId?: string } = { };
     const addedSources = new Map<string, unknown>();
-    const addedControls: Array<{ source?: string }> = [];
+    const addedControls: Array<{ source?: string; globe?: boolean }> = [];
     const addedLayers = new Map<string, unknown>();
     let styleLayerIds: Array<{ id: string; type: string }> = [];
     const sandboxTimers: Array<{ fn: () => void; id: number; cancelled: boolean }> = [];
@@ -104,6 +109,11 @@ function createHarness(): Harness {
             return { source: options ? options.source : undefined };
         }
     };
+    if (options?.globeControl) {
+        (windowObj.maplibregl as Record<string, unknown>).GlobeControl = function () {
+            return { globe: true };
+        };
+    }
 
     const context: Record<string, unknown> = {
         window: windowObj,
@@ -142,6 +152,7 @@ function createHarness(): Harness {
     return {
         core,
         posted,
+        addedControls,
         setStyleLoaded: (loaded: boolean) => {
             styleLoaded = loaded;
         },
@@ -224,6 +235,25 @@ suite('MapCore style-load gating and throttling (bug fix)', () => {
         harness.setStyleLoaded(true);
         harness.fireMapEvent('load');
         assert.strictEqual(applied, true, 'overlay update must be applied once style loads');
+    });
+
+    test('initializes with a GlobeControl when the MapLibre build provides one', () => {
+        const globeHarness = createHarness({ globeControl: true });
+        globeHarness.core.initializeMap({ center: { longitude: 0, latitude: 0 }, zoom: 1, bearing: 0, pitch: 0 });
+        assert.strictEqual(
+            globeHarness.addedControls.some((c) => c.globe === true),
+            true,
+            'GlobeControl must be added when maplibregl.GlobeControl exists'
+        );
+    });
+
+    test('skips the GlobeControl on MapLibre builds without one', () => {
+        initialize();
+        assert.strictEqual(
+            harness.addedControls.some((c) => c.globe === true),
+            false,
+            'GlobeControl must not be added when maplibregl.GlobeControl is absent'
+        );
     });
 
     test('mousemove messages are throttled', async () => {

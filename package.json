@@ -1,680 +1,680 @@
 {
-  "name": "vscode-maplibre-viewer",
-  "displayName": "MapLibre Viewer",
-  "publisher": "christofferlind",
-  "description": "Offline map viewer for VS Code powered by MapLibre GL JS. Visualize local GeoJSON files, fly to coordinates, toggle overlays, and bookmark views.",
-  "version": "0.8.0",
-  "license": "MIT",
-  "icon": "media/map.png",
-  "repository": {
-    "type": "github",
-    "url": "https://github.com/christofferlind/vscode-maplibre-viewer"
-  },
-  "changelog": "CHANGELOG.md",
-  "engines": {
-    "vscode": "^1.110.0"
-  },
-  "categories": [
-    "Visualization",
-    "Other"
-  ],
-  "activationEvents": [],
-  "main": "./out/extension.js",
-  "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "maps-container",
-          "title": "Maps",
-          "icon": "resources/map-icon.svg"
-        }
-      ]
+    "name": "vscode-maplibre-viewer",
+    "displayName": "MapLibre Viewer",
+    "publisher": "christofferlind",
+    "description": "Offline map viewer for VS Code powered by MapLibre GL JS. Visualize local GeoJSON files, fly to coordinates, toggle overlays, and bookmark views.",
+    "version": "0.9.2",
+    "license": "MIT",
+    "icon": "media/map.png",
+    "repository": {
+        "type": "github",
+        "url": "https://github.com/christofferlind/vscode-maplibre-viewer"
     },
-    "views": {
-      "maps-container": [
-        {
-          "id": "mapsView",
-          "name": "Maps",
-          "type": "webview"
-        },
-        {
-          "id": "layersView",
-          "name": "Map Layers"
-        },
-        {
-          "id": "bookmarksView",
-          "name": "Map Bookmarks"
-        },
-        {
-          "id": "mapInfoView",
-          "name": "Map Information"
-        }
-      ]
+    "changelog": "CHANGELOG.md",
+    "engines": {
+        "vscode": "^1.110.0"
     },
-    "commands": [
-      {
-        "command": "vscodeMaplibreViewer.setLanguageNative",
-        "title": "Map: Set Language to Native",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageEnglish",
-        "title": "Map: Set Language to English",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageGerman",
-        "title": "Map: Set Language to German",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageFrench",
-        "title": "Map: Set Language to French",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageSpanish",
-        "title": "Map: Set Language to Spanish",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageRussian",
-        "title": "Map: Set Language to Russian",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageChinese",
-        "title": "Map: Set Language to Chinese (Simplified)",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageJapanese",
-        "title": "Map: Set Language to Japanese",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageKorean",
-        "title": "Map: Set Language to Korean",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageItalian",
-        "title": "Map: Set Language to Italian",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguagePortuguese",
-        "title": "Map: Set Language to Portuguese",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageArabic",
-        "title": "Map: Set Language to Arabic",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageHindi",
-        "title": "Map: Set Language to Hindi",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguageDutch",
-        "title": "Map: Set Language to Dutch",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setLanguage",
-        "title": "Map: Set Language...",
-        "category": "MapLibre Viewer",
-        "icon": "$(inspect)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
-        "title": "Toggle Coordinate Selection",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.enableCoordinateSelection",
-        "title": "Enable Coordinate Selection",
-        "category": "MapLibre Viewer",
-        "icon": "$(sync)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.disableCoordinateSelection",
-        "title": "Disable Coordinate Selection",
-        "category": "MapLibre Viewer",
-        "icon": "$(sync-ignored)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.openSettings",
-        "title": "Open Map Settings",
-        "category": "MapLibre Viewer",
-        "icon": "$(gear)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.saveBookmark",
-        "title": "Map: Bookmark Current View",
-        "category": "MapLibre Viewer",
-        "icon": "$(bookmark)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.loadBookmark",
-        "title": "Map: Load Bookmark...",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.goToBookmark",
-        "title": "Go to Bookmark",
-        "category": "MapLibre Viewer",
-        "icon": "$(location)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.renameBookmark",
-        "title": "Rename Bookmark",
-        "category": "MapLibre Viewer",
-        "icon": "$(edit)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.deleteBookmark",
-        "title": "Delete Bookmark",
-        "category": "MapLibre Viewer",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.openBookmarkInEditor",
-        "title": "Open Bookmark in Map Editor",
-        "category": "MapLibre Viewer",
-        "icon": "$(open-editors)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.setBaseMap",
-        "title": "Set Active Base Map",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.toggleLayer",
-        "title": "Toggle Layer Visibility",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.addLayer",
-        "title": "Add Overlay Layer",
-        "category": "MapLibre Viewer",
-        "icon": "$(add)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.removeLayer",
-        "title": "Remove Layer",
-        "category": "MapLibre Viewer",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.changeLayerColor",
-        "title": "Change Layer Color",
-        "category": "MapLibre Viewer",
-        "icon": "$(color-mode)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.showOverlayLayersOnMap",
-        "title": "Show on Map",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.searchOnMap",
-        "title": "Search On Map",
-        "category": "MapLibre Viewer"
-      },
-      {
-        "command": "vscodeMaplibreViewer.openMapEditor",
-        "title": "Map: Open Map Editor",
-        "category": "MapLibre Viewer",
-        "icon": "$(map)"
-      },
-      {
-        "command": "vscodeMaplibreViewer.copyCoordinates",
-        "title": "Copy Coordinates",
-        "category": "MapLibre Viewer"
-      }
+    "categories": [
+        "Visualization",
+        "Other"
     ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "vscodeMaplibreViewer.setLanguage",
-          "when": "view == mapsView",
-          "group": "1_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguage",
-          "when": "view == mapEditor",
-          "group": "1_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.enableCoordinateSelection",
-          "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == false",
-          "group": "2_coordinates"
-        },
-        {
-          "command": "vscodeMaplibreViewer.enableCoordinateSelection",
-          "when": "view == mapEditor && maplibreView.coordinateSelectionEnabled == false",
-          "group": "2_coordinates"
-        },
-        {
-          "command": "vscodeMaplibreViewer.disableCoordinateSelection",
-          "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == true",
-          "group": "2_coordinates"
-        },
-        {
-          "command": "vscodeMaplibreViewer.disableCoordinateSelection",
-          "when": "view == mapEditor && maplibreView.coordinateSelectionEnabled == true",
-          "group": "2_coordinates"
-        },
-        {
-          "command": "vscodeMaplibreViewer.saveBookmark",
-          "when": "view == mapsView",
-          "group": "navigation@1"
-        },
-        {
-          "command": "vscodeMaplibreViewer.saveBookmark",
-          "when": "view == mapEditor",
-          "group": "navigation@1"
-        },
-        {
-          "command": "vscodeMaplibreViewer.openSettings",
-          "when": "view == mapsView",
-          "group": "navigation@2"
-        },
-        {
-          "command": "vscodeMaplibreViewer.openMapEditor",
-          "when": "view == mapsView",
-          "group": "navigation@3"
-        },
-        {
-          "command": "vscodeMaplibreViewer.openSettings",
-          "when": "view == mapEditor",
-          "group": "navigation@2"
-        },
-        {
-          "command": "vscodeMaplibreViewer.addLayer",
-          "when": "view == layersView",
-          "group": "navigation@1"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "vscodeMaplibreViewer.renameBookmark",
-          "when": "view == bookmarksView && viewItem == bookmark",
-          "group": "bookmarkActions@1"
-        },
-        {
-          "command": "vscodeMaplibreViewer.deleteBookmark",
-          "when": "view == bookmarksView && viewItem == bookmark",
-          "group": "bookmarkActions@2"
-        },
-        {
-          "command": "vscodeMaplibreViewer.openBookmarkInEditor",
-          "when": "view == bookmarksView && viewItem == bookmark",
-          "group": "bookmarkActions@3"
-        },
-        {
-          "command": "vscodeMaplibreViewer.changeLayerColor",
-          "when": "view == layersView && viewItem == visibleOverlayLayer",
-          "group": "layerActions"
-        },
-        {
-          "command": "vscodeMaplibreViewer.changeLayerColor",
-          "when": "view == layersView && viewItem == overlayLayer",
-          "group": "layerActions"
-        },
-        {
-          "command": "vscodeMaplibreViewer.removeLayer",
-          "when": "view == layersView && viewItem == visibleOverlayLayer",
-          "group": "layerActions@2"
-        },
-        {
-          "command": "vscodeMaplibreViewer.removeLayer",
-          "when": "view == layersView && viewItem == overlayLayer",
-          "group": "layerActions@2"
-        },
-        {
-          "command": "vscodeMaplibreViewer.showOverlayLayersOnMap",
-          "when": "view == layersView && viewItem == visibleOverlayLayer",
-          "group": "layerActions@1"
-        }
-      ],
-      "editor/context": [
-        {
-          "submenu": "editor/context/maplibreViewer",
-          "group": "1_modification"
-        }
-      ],
-      "editor/context/maplibreViewer": [
-        {
-          "command": "vscodeMaplibreViewer.searchOnMap",
-          "when": "editorHasSelection",
-          "group": "1_modification"
-        }
-      ],
-      "terminal/context": [
-        {
-          "submenu": "terminal/context/maplibreViewer",
-          "when": "terminalTextSelected",
-          "group": "1_modification"
-        }
-      ],
-      "terminal/context/maplibreViewer": [
-        {
-          "command": "vscodeMaplibreViewer.searchOnMap",
-          "when": "terminalTextSelected",
-          "group": "1_modification"
-        }
-      ],
-      "webview/context": [
-        {
-          "command": "vscodeMaplibreViewer.searchOnMap",
-          "when": "true",
-          "group": "1_search"
-        },
-        {
-          "command": "vscodeMaplibreViewer.saveBookmark",
-          "when": "true",
-          "group": "2_bookmarks@1"
-        },
-        {
-          "command": "vscodeMaplibreViewer.loadBookmark",
-          "when": "true",
-          "group": "2_bookmarks@2"
-        },
-        {
-          "submenu": "webview/context/setMapLanguage",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.openSettings",
-          "when": "true",
-          "group": "4_settings"
-        },
-        {
-          "command": "vscodeMaplibreViewer.copyCoordinates",
-          "when": "maplibre:hasClickedLngLat",
-          "group": "5_copy"
-        }
-      ],
-      "webview/context/setMapLanguage": [
-        {
-          "command": "vscodeMaplibreViewer.setLanguage",
-          "when": "true",
-          "group": "1_select"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageNative",
-          "when": "true",
-          "group": "2_select"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageEnglish",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageSpanish",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageFrench",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageRussian",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageHindi",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageArabic",
-          "when": "true",
-          "group": "3_languages"
-        },
-        {
-          "command": "vscodeMaplibreViewer.setLanguageChinese",
-          "when": "true",
-          "group": "3_languages"
-        }
-      ]
-    },
-    "submenus": [
-      {
-        "id": "webview/context/setMapLanguage",
-        "label": "Set Map Language",
-        "icon": "$(globe)"
-      },
-      {
-        "id": "editor/context/maplibreViewer",
-        "label": "MapLibre Viewer",
-        "icon": "$(map)"
-      },
-      {
-        "id": "terminal/context/maplibreViewer",
-        "label": "MapLibre Viewer",
-        "icon": "$(map)"
-      }
-    ],
-    "configuration": {
-      "title": "MapLibre Viewer",
-      "properties": {
-        "vscodeMaplibreViewer.geocodingApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "API key for geocoding service (MapTiler)"
-        },
-        "vscodeMaplibreViewer.photonSearchUrl": {
-          "type": "string",
-          "default": "https://photon.komoot.io/api/",
-          "description": "URL for Photon geocoding search service (used when MapTiler API key is not configured)"
-        },
-        "vscodeMaplibreViewer.enableSearch": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable search functionality in the map view"
-        },
-        "vscodeMaplibreViewer.searchResultsTransparency": {
-          "type": "number",
-          "default": 20,
-          "minimum": 0,
-          "maximum": 100,
-          "description": "Transparency percentage for the search results popup (0 = fully opaque, 100 = fully transparent)"
-        },
-        "vscodeMaplibreViewer.flyToDuration": {
-          "type": "number",
-          "default": 500,
-          "description": "Duration in milliseconds for flyTo animations when navigating to coordinates"
-        },
-        "vscodeMaplibreViewer.singlePointZoom": {
-          "type": "number",
-          "default": 10,
-          "description": "Zoom level to use when flying to a single coordinate point"
-        },
-        "vscodeMaplibreViewer.terrain": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable 3D terrain rendering on the map. Requires network access to fetch terrain tiles (disabled by default to keep the viewer fully offline)."
-        },
-        "vscodeMaplibreViewer.terrainUrl": {
-          "type": "string",
-          "default": "https://tiles.mapterhorn.com/tilejson.json",
-          "description": "URL from which terrain source is fetched. Either a TileJSON URL (e.g. 'https://tiles.mapterhorn.com/tilejson.json') or a raster-dem tile URL template with {z}/{x}/{y} placeholders."
-        },
-        "vscodeMaplibreViewer.baseMaps": {
-          "type": "array",
-          "default": [],
-          "description": "Custom basemap styles available in the layer selector. Each basemap requires an id, name, and either styleUrl (for vector styles) or tileUrl (for raster tiles).",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Unique identifier for the basemap"
-              },
-              "name": {
-                "type": "string",
-                "description": "Display name shown in the layer selector"
-              },
-              "type": {
-                "type": "string",
-                "enum": [
-                  "vector",
-                  "raster"
-                ],
-                "description": "Type of basemap: 'vector' for style JSON, 'raster' for raster tiles. Defaults to 'vector' if styleUrl is provided."
-              },
-              "styleUrl": {
-                "type": "string",
-                "description": "URL to the MapLibre style JSON (for vector basemaps)"
-              },
-              "tileUrl": {
-                "type": "string",
-                "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')"
-              },
-              "tileSize": {
-                "type": "number",
-                "default": 256,
-                "description": "Tile size for raster sources (default: 256)"
-              },
-              "attribution": {
-                "type": "string",
-                "description": "Attribution text for the tiles"
-              },
-              "minzoom": {
-                "type": "number",
-                "description": "Minimum zoom level for raster tiles"
-              },
-              "maxzoom": {
-                "type": "number",
-                "description": "Maximum zoom level for raster tiles"
-              },
-              "description": {
-                "type": "string",
-                "description": "Optional description of the basemap"
-              },
-              "thumbnail": {
-                "type": "string",
-                "description": "Optional thumbnail image URL for the basemap"
-              }
-            },
-            "required": [
-              "id",
-              "name"
-            ]
-          }
-        },
-        "vscodeMaplibreViewer.coordinatePatterns": {
-          "type": "array",
-          "default": [],
-          "description": "Custom regex patterns for coordinate detection. Each pattern must have named groups 'lat' and 'lng' for direct coordinate extraction, or DMS component groups (latDegrees, latMinutes, latSeconds, latDirection, lngDegrees, lngMinutes, lngSeconds, lngDirection).",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "A descriptive name for the pattern (e.g., 'Swedish Grid')"
-              },
-              "pattern": {
-                "type": "string",
-                "description": "The regex pattern string. Must include named groups 'lat' and 'lng'. Example: 'X:\\s*(?<lng>\\d+)\\s*,\\s*Y:\\s*(?<lat>\\d+)'"
-              },
-              "flags": {
-                "type": "string",
-                "default": "g",
-                "description": "Regex flags (e.g., 'g' for global, 'i' for case-insensitive). Default is 'g'."
-              }
-            },
-            "required": [
-              "name",
-              "pattern"
-            ]
-          }
-        },
-        "vscodeMaplibreViewer.alwaysShowDemoTiles": {
-          "type": "boolean",
-          "default": false,
-          "description": "Show the OpenFreeMap.org basemap even if other base maps are configured"
-        },
-        "vscodeMaplibreViewer.lastViewState": {
-          "type": "object",
-          "default": {
-            "center": {
-              "lat": 0,
-              "lng": 0
-            },
-            "zoom": 1,
-            "bearing": 0,
-            "pitch": 0,
-            "baseMapId": "openfreemap-liberty"
-          },
-          "description": "Last saved map view state (center, zoom, bearing, pitch, baseMapId). Automatically updated when the map view changes.",
-          "properties": {
-            "center": {
-              "type": "object",
-              "properties": {
-                "lat": {
-                  "type": "number"
-                },
-                "lng": {
-                  "type": "number"
+    "activationEvents": [],
+    "main": "./out/extension.js",
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "maps-container",
+                    "title": "Maps",
+                    "icon": "resources/map-icon.svg"
                 }
-              }
+            ]
+        },
+        "views": {
+            "maps-container": [
+                {
+                    "id": "mapsView",
+                    "name": "Maps",
+                    "type": "webview"
+                },
+                {
+                    "id": "layersView",
+                    "name": "Map Layers"
+                },
+                {
+                    "id": "bookmarksView",
+                    "name": "Map Bookmarks"
+                },
+                {
+                    "id": "mapInfoView",
+                    "name": "Map Information"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "vscodeMaplibreViewer.setLanguageNative",
+                "title": "Map: Set Language to Native",
+                "category": "MapLibre Viewer"
             },
-            "zoom": {
-              "type": "number"
+            {
+                "command": "vscodeMaplibreViewer.setLanguageEnglish",
+                "title": "Map: Set Language to English",
+                "category": "MapLibre Viewer"
             },
-            "bearing": {
-              "type": "number"
+            {
+                "command": "vscodeMaplibreViewer.setLanguageGerman",
+                "title": "Map: Set Language to German",
+                "category": "MapLibre Viewer"
             },
-            "pitch": {
-              "type": "number"
+            {
+                "command": "vscodeMaplibreViewer.setLanguageFrench",
+                "title": "Map: Set Language to French",
+                "category": "MapLibre Viewer"
             },
-            "baseMapId": {
-              "type": "string",
-              "description": "ID of the last selected base map"
+            {
+                "command": "vscodeMaplibreViewer.setLanguageSpanish",
+                "title": "Map: Set Language to Spanish",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguageRussian",
+                "title": "Map: Set Language to Russian",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguageChinese",
+                "title": "Map: Set Language to Chinese (Simplified)",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguageJapanese",
+                "title": "Map: Set Language to Japanese",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguageKorean",
+                "title": "Map: Set Language to Korean",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguageItalian",
+                "title": "Map: Set Language to Italian",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguagePortuguese",
+                "title": "Map: Set Language to Portuguese",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguageArabic",
+                "title": "Map: Set Language to Arabic",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguageHindi",
+                "title": "Map: Set Language to Hindi",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguageDutch",
+                "title": "Map: Set Language to Dutch",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setLanguage",
+                "title": "Map: Set Language...",
+                "category": "MapLibre Viewer",
+                "icon": "$(inspect)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.toggleCoordinateSelection",
+                "title": "Toggle Coordinate Selection",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.enableCoordinateSelection",
+                "title": "Enable Coordinate Selection",
+                "category": "MapLibre Viewer",
+                "icon": "$(sync)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.disableCoordinateSelection",
+                "title": "Disable Coordinate Selection",
+                "category": "MapLibre Viewer",
+                "icon": "$(sync-ignored)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.openSettings",
+                "title": "Open Map Settings",
+                "category": "MapLibre Viewer",
+                "icon": "$(gear)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.saveBookmark",
+                "title": "Map: Bookmark Current View",
+                "category": "MapLibre Viewer",
+                "icon": "$(bookmark)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.loadBookmark",
+                "title": "Map: Load Bookmark...",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.goToBookmark",
+                "title": "Go to Bookmark",
+                "category": "MapLibre Viewer",
+                "icon": "$(location)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.renameBookmark",
+                "title": "Rename Bookmark",
+                "category": "MapLibre Viewer",
+                "icon": "$(edit)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.deleteBookmark",
+                "title": "Delete Bookmark",
+                "category": "MapLibre Viewer",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.openBookmarkInEditor",
+                "title": "Open Bookmark in Map Editor",
+                "category": "MapLibre Viewer",
+                "icon": "$(open-editors)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.setBaseMap",
+                "title": "Set Active Base Map",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.toggleLayer",
+                "title": "Toggle Layer Visibility",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.addLayer",
+                "title": "Add Overlay Layer",
+                "category": "MapLibre Viewer",
+                "icon": "$(add)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.removeLayer",
+                "title": "Remove Layer",
+                "category": "MapLibre Viewer",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.changeLayerColor",
+                "title": "Change Layer Color",
+                "category": "MapLibre Viewer",
+                "icon": "$(color-mode)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.showOverlayLayersOnMap",
+                "title": "Show on Map",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.searchOnMap",
+                "title": "Search On Map",
+                "category": "MapLibre Viewer"
+            },
+            {
+                "command": "vscodeMaplibreViewer.openMapEditor",
+                "title": "Map: Open Map Editor",
+                "category": "MapLibre Viewer",
+                "icon": "$(map)"
+            },
+            {
+                "command": "vscodeMaplibreViewer.copyCoordinates",
+                "title": "Copy Coordinates",
+                "category": "MapLibre Viewer"
             }
-          }
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "vscodeMaplibreViewer.setLanguage",
+                    "when": "view == mapsView",
+                    "group": "1_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguage",
+                    "when": "view == mapEditor",
+                    "group": "1_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.enableCoordinateSelection",
+                    "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == false",
+                    "group": "2_coordinates"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.enableCoordinateSelection",
+                    "when": "view == mapEditor && maplibreView.coordinateSelectionEnabled == false",
+                    "group": "2_coordinates"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.disableCoordinateSelection",
+                    "when": "view == mapsView && maplibreView.coordinateSelectionEnabled == true",
+                    "group": "2_coordinates"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.disableCoordinateSelection",
+                    "when": "view == mapEditor && maplibreView.coordinateSelectionEnabled == true",
+                    "group": "2_coordinates"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.saveBookmark",
+                    "when": "view == mapsView",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.saveBookmark",
+                    "when": "view == mapEditor",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.openSettings",
+                    "when": "view == mapsView",
+                    "group": "navigation@2"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.openMapEditor",
+                    "when": "view == mapsView",
+                    "group": "navigation@3"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.openSettings",
+                    "when": "view == mapEditor",
+                    "group": "navigation@2"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.addLayer",
+                    "when": "view == layersView",
+                    "group": "navigation@1"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "vscodeMaplibreViewer.renameBookmark",
+                    "when": "view == bookmarksView && viewItem == bookmark",
+                    "group": "bookmarkActions@1"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.deleteBookmark",
+                    "when": "view == bookmarksView && viewItem == bookmark",
+                    "group": "bookmarkActions@2"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.openBookmarkInEditor",
+                    "when": "view == bookmarksView && viewItem == bookmark",
+                    "group": "bookmarkActions@3"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.changeLayerColor",
+                    "when": "view == layersView && viewItem == visibleOverlayLayer",
+                    "group": "layerActions"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.changeLayerColor",
+                    "when": "view == layersView && viewItem == overlayLayer",
+                    "group": "layerActions"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.removeLayer",
+                    "when": "view == layersView && viewItem == visibleOverlayLayer",
+                    "group": "layerActions@2"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.removeLayer",
+                    "when": "view == layersView && viewItem == overlayLayer",
+                    "group": "layerActions@2"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.showOverlayLayersOnMap",
+                    "when": "view == layersView && viewItem == visibleOverlayLayer",
+                    "group": "layerActions@1"
+                }
+            ],
+            "editor/context": [
+                {
+                    "submenu": "editor/context/maplibreViewer",
+                    "group": "1_modification"
+                }
+            ],
+            "editor/context/maplibreViewer": [
+                {
+                    "command": "vscodeMaplibreViewer.searchOnMap",
+                    "when": "editorHasSelection",
+                    "group": "1_modification"
+                }
+            ],
+            "terminal/context": [
+                {
+                    "submenu": "terminal/context/maplibreViewer",
+                    "when": "terminalTextSelected",
+                    "group": "1_modification"
+                }
+            ],
+            "terminal/context/maplibreViewer": [
+                {
+                    "command": "vscodeMaplibreViewer.searchOnMap",
+                    "when": "terminalTextSelected",
+                    "group": "1_modification"
+                }
+            ],
+            "webview/context": [
+                {
+                    "command": "vscodeMaplibreViewer.searchOnMap",
+                    "when": "true",
+                    "group": "1_search"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.saveBookmark",
+                    "when": "true",
+                    "group": "2_bookmarks@1"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.loadBookmark",
+                    "when": "true",
+                    "group": "2_bookmarks@2"
+                },
+                {
+                    "submenu": "webview/context/setMapLanguage",
+                    "when": "true",
+                    "group": "3_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.openSettings",
+                    "when": "true",
+                    "group": "4_settings"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.copyCoordinates",
+                    "when": "maplibre:hasClickedLngLat",
+                    "group": "5_copy"
+                }
+            ],
+            "webview/context/setMapLanguage": [
+                {
+                    "command": "vscodeMaplibreViewer.setLanguage",
+                    "when": "true",
+                    "group": "1_select"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguageNative",
+                    "when": "true",
+                    "group": "2_select"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguageEnglish",
+                    "when": "true",
+                    "group": "3_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguageSpanish",
+                    "when": "true",
+                    "group": "3_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguageFrench",
+                    "when": "true",
+                    "group": "3_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguageRussian",
+                    "when": "true",
+                    "group": "3_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguageHindi",
+                    "when": "true",
+                    "group": "3_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguageArabic",
+                    "when": "true",
+                    "group": "3_languages"
+                },
+                {
+                    "command": "vscodeMaplibreViewer.setLanguageChinese",
+                    "when": "true",
+                    "group": "3_languages"
+                }
+            ]
+        },
+        "submenus": [
+            {
+                "id": "webview/context/setMapLanguage",
+                "label": "Set Map Language",
+                "icon": "$(globe)"
+            },
+            {
+                "id": "editor/context/maplibreViewer",
+                "label": "MapLibre Viewer",
+                "icon": "$(map)"
+            },
+            {
+                "id": "terminal/context/maplibreViewer",
+                "label": "MapLibre Viewer",
+                "icon": "$(map)"
+            }
+        ],
+        "configuration": {
+            "title": "MapLibre Viewer",
+            "properties": {
+                "vscodeMaplibreViewer.geocodingApiKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "API key for geocoding service (MapTiler)"
+                },
+                "vscodeMaplibreViewer.photonSearchUrl": {
+                    "type": "string",
+                    "default": "https://photon.komoot.io/api/",
+                    "description": "URL for Photon geocoding search service (used when MapTiler API key is not configured)"
+                },
+                "vscodeMaplibreViewer.enableSearch": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable search functionality in the map view"
+                },
+                "vscodeMaplibreViewer.searchResultsTransparency": {
+                    "type": "number",
+                    "default": 20,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Transparency percentage for the search results popup (0 = fully opaque, 100 = fully transparent)"
+                },
+                "vscodeMaplibreViewer.flyToDuration": {
+                    "type": "number",
+                    "default": 500,
+                    "description": "Duration in milliseconds for flyTo animations when navigating to coordinates"
+                },
+                "vscodeMaplibreViewer.singlePointZoom": {
+                    "type": "number",
+                    "default": 10,
+                    "description": "Zoom level to use when flying to a single coordinate point"
+                },
+                "vscodeMaplibreViewer.terrain": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable 3D terrain rendering on the map. Requires network access to fetch terrain tiles (disabled by default to keep the viewer fully offline)."
+                },
+                "vscodeMaplibreViewer.terrainUrl": {
+                    "type": "string",
+                    "default": "https://tiles.mapterhorn.com/tilejson.json",
+                    "description": "URL from which terrain source is fetched. Either a TileJSON URL (e.g. 'https://tiles.mapterhorn.com/tilejson.json') or a raster-dem tile URL template with {z}/{x}/{y} placeholders."
+                },
+                "vscodeMaplibreViewer.baseMaps": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Custom basemap styles available in the layer selector. Each basemap requires an id, name, and either styleUrl (for vector styles) or tileUrl (for raster tiles).",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Unique identifier for the basemap"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Display name shown in the layer selector"
+                            },
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "vector",
+                                    "raster"
+                                ],
+                                "description": "Type of basemap: 'vector' for style JSON, 'raster' for raster tiles. Defaults to 'vector' if styleUrl is provided."
+                            },
+                            "styleUrl": {
+                                "type": "string",
+                                "description": "URL to the MapLibre style JSON (for vector basemaps)"
+                            },
+                            "tileUrl": {
+                                "type": "string",
+                                "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')"
+                            },
+                            "tileSize": {
+                                "type": "number",
+                                "default": 256,
+                                "description": "Tile size for raster sources (default: 256)"
+                            },
+                            "attribution": {
+                                "type": "string",
+                                "description": "Attribution text for the tiles"
+                            },
+                            "minzoom": {
+                                "type": "number",
+                                "description": "Minimum zoom level for raster tiles"
+                            },
+                            "maxzoom": {
+                                "type": "number",
+                                "description": "Maximum zoom level for raster tiles"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Optional description of the basemap"
+                            },
+                            "thumbnail": {
+                                "type": "string",
+                                "description": "Optional thumbnail image URL for the basemap"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "name"
+                        ]
+                    }
+                },
+                "vscodeMaplibreViewer.coordinatePatterns": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Custom regex patterns for coordinate detection. Each pattern must have named groups 'lat' and 'lng' for direct coordinate extraction, or DMS component groups (latDegrees, latMinutes, latSeconds, latDirection, lngDegrees, lngMinutes, lngSeconds, lngDirection).",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "A descriptive name for the pattern (e.g., 'Swedish Grid')"
+                            },
+                            "pattern": {
+                                "type": "string",
+                                "description": "The regex pattern string. Must include named groups 'lat' and 'lng'. Example: 'X:\\s*(?<lng>\\d+)\\s*,\\s*Y:\\s*(?<lat>\\d+)'"
+                            },
+                            "flags": {
+                                "type": "string",
+                                "default": "g",
+                                "description": "Regex flags (e.g., 'g' for global, 'i' for case-insensitive). Default is 'g'."
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "pattern"
+                        ]
+                    }
+                },
+                "vscodeMaplibreViewer.alwaysShowDemoTiles": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Show the OpenFreeMap.org basemap even if other base maps are configured"
+                },
+                "vscodeMaplibreViewer.lastViewState": {
+                    "type": "object",
+                    "default": {
+                        "center": {
+                            "lat": 0,
+                            "lng": 0
+                        },
+                        "zoom": 1,
+                        "bearing": 0,
+                        "pitch": 0,
+                        "baseMapId": "openfreemap-liberty"
+                    },
+                    "description": "Last saved map view state (center, zoom, bearing, pitch, baseMapId). Automatically updated when the map view changes.",
+                    "properties": {
+                        "center": {
+                            "type": "object",
+                            "properties": {
+                                "lat": {
+                                    "type": "number"
+                                },
+                                "lng": {
+                                    "type": "number"
+                                }
+                            }
+                        },
+                        "zoom": {
+                            "type": "number"
+                        },
+                        "bearing": {
+                            "type": "number"
+                        },
+                        "pitch": {
+                            "type": "number"
+                        },
+                        "baseMapId": {
+                            "type": "string",
+                            "description": "ID of the last selected base map"
+                        }
+                    }
+                }
+            }
         }
-      }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile && npm run copy-assets",
+        "clean:test": "rm -rf ./out/ && npm run compile && npm run test",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "lint": "eslint src",
+        "test": "npm run compile && mocha --ui tdd out/test/unit/**/*.test.js",
+        "test:coverage": "npm run compile && c8 mocha --ui tdd out/test/unit/**/*.test.js && node scripts/generate-coverage-report.js",
+        "test:vscode": "npm run compile && npm run lint && rm -rf /tmp/vscode-mlv-test && npx @vscode/test-cli",
+        "copy-assets": "node scripts/copy-maplibre-assets.js",
+        "package": "vsce package",
+        "publish:ovsx": "ovsx publish --pat $OVSX_PAT"
+    },
+    "dependencies": {
+        "maplibre-gl": "^6.14.0"
+    },
+    "devDependencies": {
+        "@types/mocha": "^10.0.10",
+        "@types/node": "22.x",
+        "@types/vscode": "^1.110.0",
+        "@vscode/test-cli": "^0.0.12",
+        "@vscode/test-electron": "^3.1.0",
+        "@vscode/vsce": "^3.0.0",
+        "c8": "^10.1.3",
+        "eslint": "^9.39.3",
+        "mocha": "^11.7.5",
+        "typescript": "^6.0.2",
+        "typescript-eslint": "^8.56.1"
     }
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run compile && npm run copy-assets",
-    "clean:test": "rm -rf ./out/ && npm run compile && npm run test",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "lint": "eslint src",
-    "test": "npm run compile && mocha --ui tdd out/test/unit/**/*.test.js",
-    "test:coverage": "npm run compile && c8 mocha --ui tdd out/test/unit/**/*.test.js && node scripts/generate-coverage-report.js",
-    "test:vscode": "npm run compile && npm run lint && rm -rf /tmp/vscode-mlv-test && npx @vscode/test-cli",
-    "copy-assets": "node scripts/copy-maplibre-assets.js",
-    "package": "vsce package",
-    "publish:ovsx": "ovsx publish --pat $OVSX_PAT"
-  },
-  "dependencies": {
-    "maplibre-gl": "^4.7.1"
-  },
-  "devDependencies": {
-    "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "@types/vscode": "^1.110.0",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^3.1.0",
-    "@vscode/vsce": "^3.0.0",
-    "c8": "^10.1.3",
-    "eslint": "^9.39.3",
-    "mocha": "^11.7.5",
-    "typescript": "^6.0.2",
-    "typescript-eslint": "^8.56.1"
-  }
 }

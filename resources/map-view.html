@@ -104,11 +104,41 @@
 	<script nonce="${nonce}" src="${mapSearchJsUri}"></script>
 	<script nonce="${nonce}" src="${mainJsUri}"></script>
 	<script nonce="${nonce}">
+		// Temporary diagnostics: log raw worker errors that MapLibre otherwise
+		// swallows behind its generic "Worker failed to load" message.
+		(function() {
+			if (typeof Worker === 'undefined') {
+				return;
+			}
+			var OriginalWorker = Worker;
+			window.Worker = function(url, options) {
+				var w = new OriginalWorker(url, options);
+				w.addEventListener('error', function(e) {
+					console.error('[worker-debug] worker url:', String(url).slice(0, 100),
+						'message:', e.message, 'file:', e.filename, 'line:', e.lineno, 'col:', e.colno);
+				});
+				w.addEventListener('messageerror', function() {
+					console.error('[worker-debug] messageerror for', String(url).slice(0, 100));
+				});
+				return w;
+			};
+			window.Worker.prototype = OriginalWorker.prototype;
+		})();
+	</script>
+	<script nonce="${nonce}">
 		// Configure MapLibre to use inline worker (Blob URL) to avoid cross-origin issues in VS Code webview
 		(function() {
 			var workerBase64 = '${maplibreWorkerBase64}';
-			var workerCode = atob(workerBase64);
-			var workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+			// atob returns a binary string (one char per byte). Handing that
+			// string directly to Blob would re-encode it as UTF-8, corrupting
+			// any non-ASCII characters in the worker source (minified maplibre
+			// uses non-ASCII identifiers). Decode to raw bytes instead.
+			var workerBinary = atob(workerBase64);
+			var workerBytes = new Uint8Array(workerBinary.length);
+			for (var i = 0; i < workerBinary.length; i++) {
+				workerBytes[i] = workerBinary.charCodeAt(i);
+			}
+			var workerBlob = new Blob([workerBytes], { type: 'application/javascript' });
 			var workerUrl = URL.createObjectURL(workerBlob);
 			maplibregl.setWorkerUrl(workerUrl);
 		})();

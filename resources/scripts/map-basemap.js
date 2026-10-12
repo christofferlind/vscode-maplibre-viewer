@@ -12,9 +12,12 @@
  * addSource/addLayer calls throw "Style is not done loading" and silently
  * drop overlays. Poll via 'styledata'/'load' one-shots until
  * isStyleLoaded() is true, and post 'mapReady' exactly once per call.
+ * The optional onStyleApplied callback runs only when the style has actually
+ * been applied by the map and it is invoked before 'mapReady' is posted.
  * @param {Object} map - MapLibre map instance
+ * @param {Function} [onStyleApplied] - Called once the style is confirmed applied
  */
-function notifyMapReadyWhenStyleLoaded(map) {
+function notifyMapReadyWhenStyleLoaded(map, onStyleApplied) {
 	var done = false;
 	// Right after setStyle() the old style still reports isStyleLoaded() as
 	// true, so a synchronous check would post mapReady against the stale
@@ -53,6 +56,9 @@ function notifyMapReadyWhenStyleLoaded(map) {
 		// (or remove it) according to the current terrain settings.
 		if (window.MapCore && window.MapCore.applyTerrain) {
 			window.MapCore.applyTerrain();
+		}
+		if (onStyleApplied) {
+			onStyleApplied();
 		}
 		console.log('[MapBasemap] Style loaded; posting mapReady');
 		vscode.postMessage({
@@ -101,6 +107,15 @@ function notifyMapReadyWhenStyleLoaded(map) {
 	retry();
 }
 
+// The latest setStyle request issued by this module. A style that reports
+// loaded may only update the tracked current style URL while its own request
+// is still the latest one; otherwise a superseded switch could commit a style
+// the map has already moved away from. Committing early (or unconditionally
+// on any styledata event) desynchronizes the tracker from what the map
+// actually renders when a style load fails, which turns a later re-selection
+// of that basemap into a silent no-op.
+var latestStyleRequest = null;
+
 /**
  * Update map style dynamically.
  * If the previous map instance never finished loading (its initial style
@@ -117,14 +132,13 @@ function updateMapStyle(newStyleUrl) {
 	}
 
 	if (!window.MapUtils.withMap(function(map) {
-		if (newStyleUrl === window.MapCore.getCurrentStyleUrl()) {
-			console.log('Style URL unchanged, skipping update');
-			return;
-		}
-
 		console.log('Updating map style to:', newStyleUrl);
 		hideErrorOverlay();
-		window.MapCore.setCurrentStyleUrl(newStyleUrl);
+		// The tracked style URL is committed only when the map confirms the
+		// new style is actually applied, and only while this request is the
+		// latest one (see latestStyleRequest above).
+		var styleRequest = { url: newStyleUrl };
+		latestStyleRequest = styleRequest;
 
 		// Store current view state
 		var currentCenter = map.getCenter();
@@ -138,7 +152,11 @@ function updateMapStyle(newStyleUrl) {
 			}
 		});
 
-		notifyMapReadyWhenStyleLoaded(map);
+		notifyMapReadyWhenStyleLoaded(map, function() {
+			if (latestStyleRequest === styleRequest) {
+				window.MapCore.setCurrentStyleUrl(newStyleUrl);
+			}
+		});
 
 		map.jumpTo({
 			center: currentCenter,
@@ -226,6 +244,9 @@ function updateBasemap(basemap) {
 
 			var rasterStyle = createRasterStyle(basemap);
 			window.MapCore.setCurrentStyleUrl(null);
+			// Invalidate any in-flight vector style commit: the setStyle below
+			// replaces it and its load callback must not commit a stale URL.
+			latestStyleRequest = null;
 
 			map.setStyle(rasterStyle, {
 				transformStyle: function(previousStyle, nextStyle) {
@@ -320,6 +341,10 @@ function recreateMapWithStyle(style) {
 			console.warn('Error removing previous map instance:', e);
 		}
 	}
+
+	// The previous map instance is gone; its pending style commit can no
+	// longer fire and must not leak into the new instance.
+	latestStyleRequest = null;
 
 	window.MapCore.setCurrentStyleUrl(style);
 

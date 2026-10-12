@@ -169,6 +169,13 @@ resources/
 - Test utilities in `src/test/testUtils/`: `MockWebview`, `TestableMapWebviewController`, factories.
 - Import paths in tests: relative `../../services/...`.
 
+### Output channel monitoring (REQUIRED for `npm run test:vscode`)
+
+- **ALWAYS** run `npm run test:vscode` in a mode where the extension-host output is captured while the tests run (not just the final pass/fail summary), and **ALWAYS** monitor the MapLibre output channel (and console output) during the run.
+- If any errors, warnings, or stack traces related to the MapLibre extension appear in the output channel while tests run — even when all tests pass — **MUST** record them and **MUST** fix their root cause in the source before declaring the task complete. A passing test suite with errors in the output channel is still a failure condition.
+- To capture output during the run, execute the tests as a background/monitored process (e.g., a background process monitor) and inspect the streamed output, or grep the full captured log for `Error`, `WARN`, and stack traces referencing this extension.
+- Note: webview (MapLibre GL, browser-side) console messages do **not** appear in the terminal output of headless test runs. When webview-side errors must be verified, route them to the extension host (e.g., via a postMessage forward or `__testQuery`) so they show up in the output channel.
+
 ### Test structure
 
 ```typescript

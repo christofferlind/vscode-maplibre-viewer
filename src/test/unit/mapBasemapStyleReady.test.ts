@@ -52,6 +52,7 @@ interface TestHarness {
     map: FakeMap;
     posted: PostedMessage[];
     setCurrentStyleUrlCalls: unknown[];
+    trackedStyleUrl: () => unknown;
     setStyleCalls: Array<{ style: string | FakeStyle; opts?: StyleOptions }>;
     jumpToCalls: Array<Record<string, unknown>>;
     fireOnce: (event: string) => void;
@@ -77,6 +78,7 @@ function loadMapBasemap(initialStyleLoaded: boolean): TestHarness {
     const setStyleCalls: Array<{ style: string | FakeStyle; opts?: StyleOptions }> = [];
     const jumpToCalls: Array<Record<string, unknown>> = [];
     const setCurrentStyleUrlCalls: unknown[] = [];
+    let trackedStyleUrl: unknown = null;
 
     const map: FakeMap = {
         getStyle: () => style,
@@ -117,9 +119,10 @@ function loadMapBasemap(initialStyleLoaded: boolean): TestHarness {
         MapCore: {
             isMapReady: () => true,
             isMapLoaded: () => true,
-            getCurrentStyleUrl: () => null,
+            getCurrentStyleUrl: () => trackedStyleUrl,
             setCurrentStyleUrl: (styleUrl: unknown) => {
                 setCurrentStyleUrlCalls.push(styleUrl);
+                trackedStyleUrl = styleUrl;
             },
             getMap: () => map
         },
@@ -160,6 +163,7 @@ function loadMapBasemap(initialStyleLoaded: boolean): TestHarness {
         map,
         posted,
         setCurrentStyleUrlCalls,
+        trackedStyleUrl: () => trackedStyleUrl,
         setStyleCalls,
         jumpToCalls,
         fireOnce: (event: string) => {
@@ -284,14 +288,80 @@ suite('MapBasemap mapReady style loading', () => {
             assert.strictEqual(harness.posted.length, 1, 'Exactly one mapReady after the style finally loads');
         });
 
-        test('stores the new style URL via setCurrentStyleUrl before posting mapReady', () => {
+        test('isStyleLoaded() reporting true before a style event does not commit the tracked URL', () => {
+            const harness = loadMapBasemap(true);
+
+            // The style may still report loaded from the previous style right
+            // after setStyle; the tracked URL must only advance on an actual
+            // post-setStyle style event.
+            harness.basemap.updateMapStyle('https://example.com/style.json');
+
+            assert.strictEqual(harness.setCurrentStyleUrlCalls.length, 0, 'No commit before a style event');
+
+            harness.setStyleLoaded(true);
+            harness.fireOnce('styledata');
+
+            assert.strictEqual(harness.setCurrentStyleUrlCalls.length, 1, 'Commit once the style is applied');
+        });
+
+        test('stores the new style URL when the new style is applied (deferred commit)', () => {
             const harness = loadMapBasemap(true);
 
             harness.basemap.updateMapStyle('https://example.com/style.json');
+            assert.strictEqual(harness.trackedStyleUrl(), null, 'Tracked URL is not committed synchronously');
+
             harness.setStyleLoaded(true);
             harness.fireOnce('styledata');
 
             assert.deepStrictEqual(harness.setCurrentStyleUrlCalls, ['https://example.com/style.json']);
+            assert.strictEqual(harness.trackedStyleUrl(), 'https://example.com/style.json');
+        });
+
+        test('failed style load does not commit the tracked URL and a retry re-issues setStyle', () => {
+            const harness = loadMapBasemap(true);
+
+            // First switch: style fetch fails, the style never applies
+            harness.basemap.updateMapStyle('https://example.com/failed.json');
+            assert.strictEqual(harness.setCurrentStyleUrlCalls.length, 0);
+
+            // Re-selecting the failed basemap re-issues setStyle (tracker was
+            // never committed and still points at the rendered style)
+            harness.basemap.updateMapStyle('https://example.com/failed.json');
+
+            assert.strictEqual(harness.setStyleCalls.length, 2, 'Re-selection after a failed load must not be skipped');
+        });
+
+        test('re-selecting an already applied style while a newer load is in flight is not skipped', () => {
+            const harness = loadMapBasemap(true);
+
+            harness.basemap.updateMapStyle('https://example.com/b.json');
+            harness.setStyleLoaded(true);
+            harness.fireOnce('styledata');
+
+            // A switch to C that never completes (e.g. fetch failure)
+            harness.setStyleLoaded(false);
+            harness.basemap.updateMapStyle('https://example.com/c.json');
+
+            // While C is still loading, re-selecting C must not be turned
+            // into a no-op by the tracker state of B
+            harness.basemap.updateMapStyle('https://example.com/c.json');
+
+            assert.strictEqual(harness.setStyleCalls.length, 3, 'The in-flight reload must re-issue setStyle');
+        });
+
+        test('a superseded style load does not commit a stale tracked URL', () => {
+            const harness = loadMapBasemap(true);
+
+            harness.basemap.updateMapStyle('https://example.com/b.json');
+            harness.setStyleLoaded(false);
+            harness.basemap.updateMapStyle('https://example.com/c.json');
+
+            // B's setStyle completed first; C has superseded it
+            harness.setStyleLoaded(true);
+            harness.fireOnce('styledata');
+
+            assert.strictEqual(harness.trackedStyleUrl(), 'https://example.com/c.json',
+                'Only the latest request commits the tracked URL');
         });
 
         test('passes the new style URL and transformStyle options to setStyle', () => {

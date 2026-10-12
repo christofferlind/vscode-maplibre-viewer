@@ -194,4 +194,76 @@ suite('Map webview bootstrap', () => {
         assert.strictEqual(harness.errors.length, 0, `bootstrap threw: ${harness.errors.join('; ')}`);
         assert.strictEqual(harness.initializeCalls, 1, 'map must bootstrap without a second acquireVsCodeApi call');
     });
+
+    test('worker bootstrap decodes base64 to raw bytes and passes bytes to Blob', () => {
+        const htmlPath = path.join(__dirname, '..', '..', '..', 'resources', 'map-view.html');
+        const html = fs.readFileSync(htmlPath, 'utf-8');
+
+        const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/g;
+        const workerScripts: string[] = [];
+        let match: RegExpExecArray | null;
+        while ((match = scriptRe.exec(html)) !== null) {
+            if (match[1].includes('${maplibreWorkerBase64}')) {
+                workerScripts.push(match[1]);
+            }
+        }
+        assert.strictEqual(workerScripts.length, 1, 'map-view.html must contain exactly one worker bootstrap script');
+
+        // maplibre-gl-worker.js contains non-ASCII (Arabic) minified identifiers,
+        // which previously got corrupted when the atob() binary string was handed
+        // to Blob directly (double UTF-8 encoding -> SyntaxError in the worker).
+        const workerJs = fs.readFileSync(
+            path.join(__dirname, '..', '..', '..', 'resources', 'maplibre-gl', 'maplibre-gl-worker.js'),
+            'utf-8'
+        );
+        const base64 = Buffer.from(workerJs, 'utf8').toString('base64');
+        // The same <script> block also contains the config bootstrap, which the
+        // extension renders with JSON.stringify'ed placeholders. Substitute all
+        // of them the way generateWebviewHtml does before executing.
+        const script = workerScripts[0]
+            .replace('${maplibreWorkerBase64}', base64)
+            .replace('${mapStyleUrl}', JSON.stringify('https://example.com/style.json'))
+            .replace('${geocodingApiKey}', JSON.stringify(''))
+            .replace('${photonSearchUrl}', JSON.stringify('https://photon.example/api'))
+            .replace('${enableSearch}', 'false')
+            .replace('${searchResultsTransparency}', '20')
+            .replace('${flyToDuration}', '500')
+            .replace('${terrain}', 'false')
+            .replace('${terrainUrl}', JSON.stringify(''));
+
+        let blobArgs: unknown[] | undefined;
+        let mainInitialized = false;
+        const context: Record<string, unknown> = {
+            window: {},
+            Main: { initialize: () => { mainInitialized = true; } },
+            maplibregl: { setWorkerUrl: (url: string) => { context.workerUrl = url; } },
+            atob: (s: string) => {
+                // Real atob returns a binary string: one Latin-1 char per byte.
+                return Buffer.from(s, 'base64').toString('binary');
+            },
+            Uint8Array,
+            Blob: function Blob(...args: unknown[]) {
+                blobArgs = args;
+            },
+            URL: { createObjectURL: () => 'blob:mock-url' }
+        };
+        context.window = context;
+
+        vm.runInNewContext(script, context, { filename: 'map-view.html' });
+
+        assert.ok(blobArgs, 'Blob constructor must receive the worker payload');
+        const bytes = (blobArgs![0] as unknown[])[0] as Uint8Array;
+        assert.ok(bytes instanceof Uint8Array, 'Blob must receive a Uint8Array, not a string');
+        const expected = Buffer.from(workerJs, 'utf8');
+        assert.strictEqual(bytes.length, expected.length);
+        for (let i = 0; i < expected.length; i++) {
+            if (bytes[i] !== expected[i]) {
+                assert.fail(`Blob byte mismatch at ${i}: ${bytes[i]} !== ${expected[i]}`);
+            }
+        }
+        assert.strictEqual(context.workerUrl, 'blob:mock-url');
+        // Blob type must remain JavaScript so the browser parses it as UTF-8 source
+        assert.ok(blobArgs![1] && typeof blobArgs![1] === 'object');
+        assert.strictEqual(mainInitialized, true, 'config block in the same script must still initialize the app');
+    });
 });
