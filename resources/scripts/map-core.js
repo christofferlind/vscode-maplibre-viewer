@@ -220,7 +220,10 @@ function queueOperation(operation) {
  */
 function processPendingOperations() {
 	console.log('Processing pending operations, count:', pendingOperations.length);
-	while (pendingOperations.length > 0) {
+	// A drained op's style mutation can make isStyleLoaded() report false
+	// synchronously, so a gated op queued behind it would requeue and spin
+	// forever here; stop and let styledata/load events resume the drain.
+	while (pendingOperations.length > 0 && isMapStyleLoaded()) {
 		var operation = pendingOperations.shift();
 		try {
 			operation();
@@ -414,6 +417,15 @@ function initializeMap(initialViewState) {
 
 		map.on('styledata', function() {
 			console.log('[MapCore] Event styledata');
+		});
+
+		// The map-level 'load' event fires only for the initial style in
+		// MapLibre v6, so retry queued style mutations whenever an event
+		// reports the style ready again.
+		map.on('styledata', function() {
+			if (pendingOperations.length > 0 && isMapStyleLoaded()) {
+				processPendingOperations();
+			}
 		});
 
 		// Listen for map move events and save view state

@@ -62,7 +62,11 @@ function loadMapOverlays() {
                 circle: { id: sourceId + '-circles', type: 'circle', source: sourceId },
                 line: { id: sourceId + '-lines', type: 'line', source: sourceId },
                 fill: { id: sourceId + '-fills', type: 'fill', source: sourceId }
-            })
+            }),
+            isOverlaySourceId: (sourceId: unknown) =>
+                typeof sourceId === 'string' && sourceId.indexOf('overlay-') === 0,
+            isOverlayLayer: (layer: { source?: unknown } | null | undefined) =>
+                !!layer && typeof layer.source === 'string' && layer.source.indexOf('overlay-') === 0
         }
     };
     const context: Record<string, unknown> = {

@@ -75,6 +75,26 @@ function getConfig(key, defaultValue) {
 }
 
 /**
+ * Check if a source id follows the overlay source naming convention
+ * ('overlay-' prefix). Shared by overlay sync and the basemap-switch
+ * transformStyle merge so both act on the same overlay set.
+ * @param {string} sourceId - Source id or layer source value to test
+ * @returns {boolean} True when the id is an overlay source id
+ */
+function isOverlaySourceId(sourceId) {
+	return typeof sourceId === 'string' && sourceId.indexOf('overlay-') === 0;
+}
+
+/**
+ * Check if a style layer targets an overlay source.
+ * @param {Object} layer - Style layer definition
+ * @returns {boolean} True when the layer references an overlay source
+ */
+function isOverlayLayer(layer) {
+	return !!layer && isOverlaySourceId(layer.source);
+}
+
+/**
  * Creates GeoJSON layer definitions for circle, line, and fill layers.
  * @param {string} sourceId - The source ID for the layers
  * @param {object} options - Optional paint property overrides
@@ -154,5 +174,7 @@ window.MapUtils = {
 	withMap: withMap,
 	getConfig: getConfig,
 	createGeoJsonLayerDefinitions: createGeoJsonLayerDefinitions,
-	fitBoundsWithDefaults: fitBoundsWithDefaults
+	fitBoundsWithDefaults: fitBoundsWithDefaults,
+	isOverlaySourceId: isOverlaySourceId,
+	isOverlayLayer: isOverlayLayer
 };

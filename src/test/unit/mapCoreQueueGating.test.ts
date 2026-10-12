@@ -237,6 +237,71 @@ suite('MapCore style-load gating and throttling (bug fix)', () => {
         assert.strictEqual(applied, true, 'overlay update must be applied once style loads');
     });
 
+    test('queued operations drain on styledata once the style reports loaded', () => {
+        initialize();
+        // MapLibre v6 fires the map-level 'load' event only for the initial
+        // style; operations queued while a basemap style swap is in progress
+        // must drain when any later style event reports the style ready.
+        let applied = false;
+        harness.core.queueOperation(() => {
+            applied = true;
+        });
+
+        harness.setStyleLoaded(true);
+        harness.fireMapEvent('styledata');
+        assert.strictEqual(applied, true, 'queued operation must run on styledata once style is loaded');
+    });
+
+    test('queued operations do not drain on styledata while the style is still loading', () => {
+        initialize();
+        let applied = false;
+        harness.core.queueOperation(() => {
+            applied = true;
+        });
+
+        harness.setStyleLoaded(false);
+        harness.fireMapEvent('styledata');
+        assert.strictEqual(applied, false, 'queued operation must stay deferred while style is loading');
+
+        harness.setStyleLoaded(true);
+        harness.fireMapEvent('styledata');
+        assert.strictEqual(applied, true, 'queued operation must run on styledata once style is loaded');
+    });
+
+    test('drain stops instead of spinning when a drained op makes the style report not loaded', () => {
+        initialize();
+        // In MapLibre v6, Style.addLayer synchronously populates _updatedSources,
+        // which makes isStyleLoaded() report false mid-drain. A gated operation
+        // queued behind it (like updateOverlayLayers) requeues itself whenever
+        // isMapStyleLoaded() is false; without a loop guard the synchronous
+        // drain pops what it just pushed forever (webview freeze).
+        let firstRuns = 0;
+        let secondCompleted = false;
+        harness.core.queueOperation(() => {
+            firstRuns++;
+            // Simulate the first op's addLayer side effect
+            harness.setStyleLoaded(false);
+        });
+        harness.core.queueOperation(function gatedOp(): void {
+            if (!harness.core.isMapStyleLoaded()) {
+                harness.core.queueOperation(gatedOp);
+                return;
+            }
+            secondCompleted = true;
+        });
+
+        harness.setStyleLoaded(true);
+        harness.fireMapEvent('styledata');
+        assert.strictEqual(firstRuns, 1, 'first operation must run exactly once');
+        assert.strictEqual(secondCompleted, false,
+            'second gated operation must stay queued when the style flipped to loading mid-drain');
+
+        harness.setStyleLoaded(true);
+        harness.fireMapEvent('styledata');
+        assert.strictEqual(secondCompleted, true,
+            'second gated operation must complete on the next styledata once the style is loaded again');
+    });
+
     test('initializes with a GlobeControl when the MapLibre build provides one', () => {
         const globeHarness = createHarness({ globeControl: true });
         globeHarness.core.initializeMap({ center: { longitude: 0, latitude: 0 }, zoom: 1, bearing: 0, pitch: 0 });

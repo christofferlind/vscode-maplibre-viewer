@@ -66,7 +66,7 @@ function syncAllOverlays(layers) {
 			var overlayLayerIds = [];
 			for (var i = 0; i < style.layers.length; i++) {
 				var layer = style.layers[i];
-				if (layer.source && layer.source.indexOf('overlay-') === 0) {
+				if (window.MapUtils.isOverlayLayer(layer)) {
 					overlayLayerIds.push(layer.id);
 				}
 			}
@@ -84,9 +84,8 @@ function syncAllOverlays(layers) {
 			
 			var referencedSources = [];
 			for (var k = 0; k < style.layers.length; k++) {
-				var layer = style.layers[k];
-				if (layer.source && layer.source.indexOf('overlay-') === 0 && referencedSources.indexOf(layer.source) === -1) {
-					referencedSources.push(layer.source);
+				if (window.MapUtils.isOverlayLayer(style.layers[k]) && referencedSources.indexOf(style.layers[k].source) === -1) {
+					referencedSources.push(style.layers[k].source);
 				}
 			}
 
@@ -96,7 +95,7 @@ function syncAllOverlays(layers) {
 			var allSources = map.getStyle() && map.getStyle().sources ? Object.keys(map.getStyle().sources) : [];
 			var overlaySourceIds = [];
 			for (var s = 0; s < allSources.length; s++) {
-				if (allSources[s].indexOf('overlay-') === 0) {
+				if (window.MapUtils.isOverlaySourceId(allSources[s])) {
 					overlaySourceIds.push(allSources[s]);
 				}
 			}

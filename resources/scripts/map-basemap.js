@@ -117,6 +117,61 @@ function notifyMapReadyWhenStyleLoaded(map, onStyleApplied) {
 var latestStyleRequest = null;
 
 /**
+ * setStyle transformStyle handler that carries the overlay sources and layers
+ * (the 'overlay-' prefix family) from the currently applied style into the
+ * incoming style. MapLibre v6 computes a style diff between the previous and
+ * the next style, so a bare nextStyle strips every overlay layer the moment
+ * the new basemap commits; carrying them forward keeps overlays rendered
+ * during and after the switch, independent of the later mapReady resync.
+ * @param {Object} previousStyle - Serialized style currently applied to the map
+ * @param {Object} nextStyle - Incoming style about to be applied
+ * @returns {Object} The next style, with overlay sources and layers merged in
+ */
+function mergeOverlayStyleIntoNext(previousStyle, nextStyle) {
+	if (!previousStyle || !nextStyle) {
+		return nextStyle;
+	}
+
+	var previousLayers = previousStyle.layers || [];
+	var overlayLayers = [];
+	for (var i = 0; i < previousLayers.length; i++) {
+		if (window.MapUtils.isOverlayLayer(previousLayers[i])) {
+			overlayLayers.push(previousLayers[i]);
+		}
+	}
+
+	if (overlayLayers.length === 0) {
+		return nextStyle;
+	}
+
+	var merged = {};
+	var key;
+	for (key in nextStyle) {
+		if (Object.prototype.hasOwnProperty.call(nextStyle, key)) {
+			merged[key] = nextStyle[key];
+		}
+	}
+
+	var mergedSources = {};
+	var nextSources = nextStyle.sources || {};
+	var previousSources = previousStyle.sources || {};
+	for (key in nextSources) {
+		if (Object.prototype.hasOwnProperty.call(nextSources, key)) {
+			mergedSources[key] = nextSources[key];
+		}
+	}
+	for (key in previousSources) {
+		if (Object.prototype.hasOwnProperty.call(previousSources, key) &&
+			window.MapUtils.isOverlaySourceId(key) && mergedSources[key] === undefined) {
+			mergedSources[key] = previousSources[key];
+		}
+	}
+	merged.sources = mergedSources;
+	merged.layers = (nextStyle.layers || []).concat(overlayLayers);
+	return merged;
+}
+
+/**
  * Update map style dynamically.
  * If the previous map instance never finished loading (its initial style
  * fetch failed, e.g. while offline), setStyle does not reliably render, so
@@ -147,9 +202,7 @@ function updateMapStyle(newStyleUrl) {
 		var currentPitch = map.getPitch();
 
 		map.setStyle(newStyleUrl, {
-			transformStyle: function(previousStyle, nextStyle) {
-				return nextStyle;
-			}
+			transformStyle: mergeOverlayStyleIntoNext
 		});
 
 		notifyMapReadyWhenStyleLoaded(map, function() {
@@ -249,9 +302,7 @@ function updateBasemap(basemap) {
 			latestStyleRequest = null;
 
 			map.setStyle(rasterStyle, {
-				transformStyle: function(previousStyle, nextStyle) {
-					return nextStyle;
-				}
+				transformStyle: mergeOverlayStyleIntoNext
 			});
 
 			notifyMapReadyWhenStyleLoaded(map);
@@ -368,5 +419,6 @@ window.MapBasemap = {
 	createRasterStyle: createRasterStyle,
 	updateBasemap: updateBasemap,
 	changeMapLanguage: changeMapLanguage,
-	recreateMapWithStyle: recreateMapWithStyle
+	recreateMapWithStyle: recreateMapWithStyle,
+	mergeOverlayStyleIntoNext: mergeOverlayStyleIntoNext
 };
