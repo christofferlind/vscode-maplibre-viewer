@@ -34,7 +34,9 @@ function baseConfig(): MapConfig {
         photonSearchUrl: 'https://photon.example/',
         enableSearch: true,
         searchResultsTransparency: 20,
-        flyToDuration: 500
+        flyToDuration: 500,
+        terrain: false,
+        terrainUrl: 'https://tiles.mapterhorn.com/tilejson.json'
     };
 }
 
@@ -88,7 +90,25 @@ suite('MapWebviewUtils real module', () => {
         assert.strictEqual(config.enableSearch, true);
         assert.strictEqual(config.searchResultsTransparency, 20);
         assert.strictEqual(config.flyToDuration, 500);
+        assert.strictEqual(config.terrain, false, '3D terrain must be opt-in for offline users');
+        assert.strictEqual(config.terrainUrl, 'https://tiles.mapterhorn.com/tilejson.json');
         assert.strictEqual(config.initialViewState, undefined);
+    });
+
+    test('getMapConfiguration reads terrain settings from configuration', () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        loaded.vscodeState.setGetValues((key: string) => {
+            if (key === 'terrain') {
+                return true;
+            }
+            if (key === 'terrainUrl') {
+                return 'https://example.com/terrain/{z}/{x}/{y}.png';
+            }
+            return undefined;
+        });
+        const config = loaded.module.getMapConfiguration();
+        assert.strictEqual(config.terrain, true);
+        assert.strictEqual(config.terrainUrl, 'https://example.com/terrain/{z}/{x}/{y}.png');
     });
 
     test('getMapConfiguration maps a stored lastViewState into initialViewState', () => {

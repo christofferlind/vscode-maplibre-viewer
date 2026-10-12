@@ -49,6 +49,11 @@ function notifyMapReadyWhenStyleLoaded(map) {
 		}
 		pendingTimers = [];
 		detach();
+		// A style swap drops the previous style's terrain, so re-apply it
+		// (or remove it) according to the current terrain settings.
+		if (window.MapCore && window.MapCore.applyTerrain) {
+			window.MapCore.applyTerrain();
+		}
 		console.log('[MapBasemap] Style loaded; posting mapReady');
 		vscode.postMessage({
 			type: 'mapReady'

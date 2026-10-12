@@ -57,6 +57,8 @@ export function getMapConfiguration(viewType?: string): MapConfig {
         enableSearch: config.get<boolean>('enableSearch') ?? true,
         searchResultsTransparency: config.get<number>('searchResultsTransparency') ?? 20,
         flyToDuration: config.get<number>('flyToDuration') ?? 500,
+        terrain: config.get<boolean>('terrain') ?? false,
+        terrainUrl: config.get<string>('terrainUrl') || 'https://tiles.mapterhorn.com/tilejson.json',
         initialViewState: lastViewState ? {
             center: {
                 latitude: lastViewState.center.lat,
@@ -150,6 +152,8 @@ const HTML_PLACEHOLDERS: Record<string, PlaceholderResolver> = {
     enableSearch: (ctx) => String(ctx.config.enableSearch),
     searchResultsTransparency: (ctx) => String(ctx.config.searchResultsTransparency),
     flyToDuration: (ctx) => String(ctx.config.flyToDuration),
+    terrain: (ctx) => String(ctx.config.terrain),
+    terrainUrl: (ctx) => JSON.stringify(ctx.config.terrainUrl),
     maplibreJsUri: (ctx) => ctx.maplibreJsUri.toString(),
     maplibreCssUri: (ctx) => ctx.maplibreCssUri.toString(),
     maplibreWorkerBase64: (ctx) => ctx.workerBase64,

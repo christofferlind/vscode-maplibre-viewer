@@ -3,7 +3,7 @@
   "displayName": "MapLibre Viewer",
   "publisher": "christofferlind",
   "description": "Offline map viewer for VS Code powered by MapLibre GL JS. Visualize local GeoJSON files, fly to coordinates, toggle overlays, and bookmark views.",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "license": "MIT",
   "icon": "media/map.png",
   "repository": {
@@ -499,6 +499,16 @@
           "type": "number",
           "default": 10,
           "description": "Zoom level to use when flying to a single coordinate point"
+        },
+        "vscodeMaplibreViewer.terrain": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable 3D terrain rendering on the map. Requires network access to fetch terrain tiles (disabled by default to keep the viewer fully offline)."
+        },
+        "vscodeMaplibreViewer.terrainUrl": {
+          "type": "string",
+          "default": "https://tiles.mapterhorn.com/tilejson.json",
+          "description": "URL from which terrain source is fetched. Either a TileJSON URL (e.g. 'https://tiles.mapterhorn.com/tilejson.json') or a raster-dem tile URL template with {z}/{x}/{y} placeholders."
         },
         "vscodeMaplibreViewer.baseMaps": {
           "type": "array",

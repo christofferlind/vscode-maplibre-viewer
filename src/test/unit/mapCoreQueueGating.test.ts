@@ -17,7 +17,9 @@ interface Harness {
     core: Record<string, (...args: unknown[]) => unknown>;
     posted: PostedMessage[];
     setStyleLoaded: (loaded: boolean) => void;
+    setSymbolLayers: (layers: Array<{ id: string; type: string }>) => void;
     fireMapEvent: (event: string, data?: unknown) => void;
+    getTerrainState: () => { terrainSource?: string; terrainControlSource?: string; addedSourceIds: string[]; hillshadeLayerBefore?: string | null };
     pendingCount: () => number;
     flushTimers: () => Promise<void>;
     advanceTime: (ms: number) => Promise<void>;
@@ -32,19 +34,56 @@ function createHarness(): Harness {
     let styleLoaded = false;
     let mapInstance: Record<string, unknown> | null = null;
     const eventHandlers = new Map<string, Array<(e?: unknown) => void>>();
+    let terrainState: { sourceId?: string } = { };
+    const addedSources = new Map<string, unknown>();
+    const addedControls: Array<{ source?: string }> = [];
+    const addedLayers = new Map<string, unknown>();
+    let styleLayerIds: Array<{ id: string; type: string }> = [];
     const sandboxTimers: Array<{ fn: () => void; id: number; cancelled: boolean }> = [];
     let timerId = 0;
 
     function createMap(): Record<string, unknown> {
         const handlers = eventHandlers;
         return {
-            addControl: () => undefined,
+            addControl: (control: { source?: string }) => {
+                addedControls.push(control);
+            },
+            removeControl: (control: { source?: string }) => {
+                const index = addedControls.indexOf(control);
+                if (index !== -1) {
+                    addedControls.splice(index, 1);
+                }
+            },
             on: (event: string, handler: (e?: unknown) => void) => {
                 const list = handlers.get(event) ?? [];
                 list.push(handler);
                 handlers.set(event, list);
             },
+            once: (event: string, handler: (e?: unknown) => void) => {
+                const list = handlers.get(event) ?? [];
+                list.push(handler);
+                handlers.set(event, list);
+            },
             isStyleLoaded: () => styleLoaded,
+            getTerrain: () => (terrainState.sourceId !== undefined ? { source: terrainState.sourceId } : null),
+            setTerrain: (terrain: { source: string } | null) => {
+                terrainState = terrain ? { sourceId: terrain.source } : { };
+            },
+            getSource: (id: string) => addedSources.get(id),
+            addSource: (id: string, spec: unknown) => {
+                addedSources.set(id, spec);
+            },
+            getLayer: (id: string) => addedLayers.get(id),
+            addLayer: (layer: { id: string }, before?: string) => {
+                addedLayers.set(layer.id, { before: before ?? null });
+            },
+            removeLayer: (id: string) => {
+                addedLayers.delete(id);
+            },
+            removeSource: (id: string) => {
+                addedSources.delete(id);
+            },
+            getStyle: () => ({ layers: styleLayerIds }),
             getCanvas: () => ({ setAttribute: () => undefined })
         };
     }
@@ -60,6 +99,9 @@ function createHarness(): Harness {
         },
         NavigationControl: function () {
             return {};
+        },
+        TerrainControl: function (options: { source?: string }) {
+            return { source: options ? options.source : undefined };
         }
     };
 
@@ -103,9 +145,20 @@ function createHarness(): Harness {
         setStyleLoaded: (loaded: boolean) => {
             styleLoaded = loaded;
         },
+        setSymbolLayers: (layers: Array<{ id: string; type: string }>) => {
+            styleLayerIds = layers;
+        },
         fireMapEvent: (event: string, data?: unknown) => {
             (eventHandlers.get(event) ?? []).forEach((handler) => handler(data));
         },
+        getTerrainState: () => ({
+            terrainSource: terrainState.sourceId,
+            terrainControlSource: addedControls.map((c) => c.source).find((s) => s !== undefined),
+            addedSourceIds: Array.from(addedSources.keys()),
+            hillshadeLayerBefore: addedLayers.has('hillshade-3d')
+                ? ((addedLayers.get('hillshade-3d') as { before?: string | null }).before ?? undefined)
+                : undefined
+        }),
         pendingCount: () => {
             // Pending operations are internal; infer via a fresh queueOperation probe
             return 0;
@@ -189,5 +242,83 @@ suite('MapCore style-load gating and throttling (bug fix)', () => {
             JSON.stringify((mouseMoves[0] as unknown as { lngLat: unknown }).lngLat),
             JSON.stringify({ lng: 1, lat: 2 })
         );
+    });
+
+    test('applyTerrain adds terrain source, setTerrain and TerrainControl when enabled', () => {
+        initialize();
+        harness.core.setConfig({
+            terrain: true,
+            terrainUrl: 'https://demotiles.maplibre.org/terrain-tiles/tiles.json'
+        });
+        harness.setStyleLoaded(true);
+        harness.core.applyTerrain();
+        harness.core.applyTerrain();
+
+        const state = harness.getTerrainState();
+        assert.strictEqual(state.terrainSource, 'terrain-3d', 'terrain must be set from the configured source');
+        assert.strictEqual(state.terrainControlSource, 'terrain-3d', 'TerrainControl must be added once');
+        assert.strictEqual(state.addedSourceIds.length, 2, 'terrain and hillshade sources must not be duplicated on re-apply');
+    });
+
+    test('applyTerrain adds a separate hillshade layer and source', () => {
+        initialize();
+        harness.setStyleLoaded(true);
+        harness.core.setConfig({ terrain: true, terrainUrl: 'https://example.com/tiles.json' });
+        harness.core.applyTerrain();
+
+        const state = harness.getTerrainState();
+        assert.ok(state.addedSourceIds.includes('hillshade-3d'), 'hillshade raster-dem source must be added separately');
+        assert.strictEqual(state.hillshadeLayerBefore, undefined, 'hillshade layers on top of a style without symbol layers may sit above all layers');
+    });
+
+    test('applyTerrain supports tile URL templates with {z}/{x}/{y}', () => {
+        initialize();
+        harness.core.setConfig({
+            terrain: true,
+            terrainUrl: 'https://example.com/terrain/{z}/{x}/{y}.png'
+        });
+        harness.setStyleLoaded(true);
+        harness.core.applyTerrain();
+
+        const state = harness.getTerrainState();
+        assert.strictEqual(state.terrainSource, 'terrain-3d');
+    });
+
+    test('applyTerrain removes terrain and TerrainControl when disabled', () => {
+        initialize();
+        harness.core.setConfig({ terrain: true, terrainUrl: 'https://example.com/tiles.json' });
+        harness.setStyleLoaded(true);
+        harness.core.applyTerrain();
+        harness.core.setConfig({ terrain: false, terrainUrl: 'https://example.com/tiles.json' });
+        harness.core.applyTerrain();
+
+        const state = harness.getTerrainState();
+        assert.strictEqual(state.terrainSource, undefined, 'terrain must be removed when disabled');
+        assert.strictEqual(state.terrainControlSource, undefined, 'TerrainControl must be removed when disabled');
+    });
+
+    test('hillshade layer is inserted below the first symbol layer and removed when disabled', () => {
+        initialize();
+        harness.setStyleLoaded(true);
+        harness.setSymbolLayers([{ id: 'background', type: 'background' }, { id: 'labels', type: 'symbol' }]);
+        harness.core.setConfig({ terrain: true, terrainUrl: 'https://example.com/tiles.json' });
+        harness.core.applyTerrain();
+        assert.strictEqual(harness.getTerrainState().hillshadeLayerBefore, 'labels', 'hillshade must render below labels');
+        harness.core.setConfig({ terrain: false, terrainUrl: 'https://example.com/tiles.json' });
+        harness.core.applyTerrain();
+        assert.strictEqual(harness.getTerrainState().hillshadeLayerBefore, undefined, 'hillshade source/layer must be removed when disabled');
+        assert.strictEqual(harness.getTerrainState().addedSourceIds.length, 0, 'both terrain and hillshade sources must be removed when disabled');
+    });
+
+    test('applyTerrain defers until the style reports loaded', () => {
+        initialize();
+        harness.core.setConfig({ terrain: true, terrainUrl: 'https://example.com/tiles.json' });
+        harness.setStyleLoaded(false);
+        harness.core.applyTerrain();
+        assert.strictEqual(harness.getTerrainState().terrainSource, undefined, 'must not touch the style before it is loaded');
+
+        harness.setStyleLoaded(true);
+        harness.fireMapEvent('styledata');
+        assert.strictEqual(harness.getTerrainState().terrainSource, 'terrain-3d');
     });
 });

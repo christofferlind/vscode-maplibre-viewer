@@ -7,6 +7,8 @@ export interface MapConfig {
     enableSearch: boolean;
     searchResultsTransparency: number;
     flyToDuration: number;
+    terrain: boolean;
+    terrainUrl: string;
     initialViewState?: ViewState;
 }
 

@@ -52,6 +52,19 @@ function setupMessageHandler() {
 				if (message.config.photonSearchUrl !== undefined) {
 					window.MapConfig.photonSearchUrl = message.config.photonSearchUrl;
 				}
+				if (message.config.terrain !== undefined) {
+					window.MapConfig.terrain = message.config.terrain;
+				}
+				if (message.config.terrainUrl !== undefined) {
+					window.MapConfig.terrainUrl = message.config.terrainUrl;
+				}
+
+				// Re-apply (or remove) 3D terrain when terrain settings change;
+				// MapCore reads its own copy, so it must receive the new config
+				if ((message.config.terrain !== undefined || message.config.terrainUrl !== undefined) && window.MapCore) {
+					window.MapCore.setConfig(window.MapConfig);
+					window.MapCore.applyTerrain();
+				}
 
 				// Apply updated transparency to search results
 				if (window.MapSearch && window.MapSearch.applyTransparency && message.config.searchResultsTransparency !== undefined) {
@@ -213,16 +226,18 @@ function setupMessageHandler() {
  * Initialize the application
  * @param {Object} config - Configuration from the extension
  */
-function initialize(config) {
-	// Store configuration globally, honoring explicit 0 values
-	window.MapConfig = {
-		geocodingApiKey: config.geocodingApiKey !== undefined ? config.geocodingApiKey : '',
-		photonSearchUrl: config.photonSearchUrl !== undefined ? config.photonSearchUrl : 'https://photon.komoot.io/api',
-		enableSearch: config.enableSearch !== undefined ? config.enableSearch : false,
-		searchResultsTransparency: config.searchResultsTransparency !== undefined ? config.searchResultsTransparency : 20,
-		flyToDuration: config.flyToDuration !== undefined ? config.flyToDuration : 500,
-		mapStyleUrl: config.mapStyleUrl !== undefined ? config.mapStyleUrl : ''
-	};
+	function initialize(config) {
+		// Store configuration globally, honoring explicit 0 values
+		window.MapConfig = {
+			geocodingApiKey: config.geocodingApiKey !== undefined ? config.geocodingApiKey : '',
+			photonSearchUrl: config.photonSearchUrl !== undefined ? config.photonSearchUrl : 'https://photon.komoot.io/api',
+			enableSearch: config.enableSearch !== undefined ? config.enableSearch : false,
+			searchResultsTransparency: config.searchResultsTransparency !== undefined ? config.searchResultsTransparency : 20,
+			flyToDuration: config.flyToDuration !== undefined ? config.flyToDuration : 500,
+			terrain: config.terrain !== undefined ? config.terrain : false,
+			terrainUrl: config.terrainUrl !== undefined ? config.terrainUrl : 'https://tiles.mapterhorn.com/tilejson.json',
+			mapStyleUrl: config.mapStyleUrl !== undefined ? config.mapStyleUrl : ''
+		};
 
 	// Set configuration in core module
 	window.MapCore.setConfig(window.MapConfig);
