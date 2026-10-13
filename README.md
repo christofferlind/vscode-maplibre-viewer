@@ -18,6 +18,7 @@ A VS Code extension that provides an interactive map viewer powered by MapLibre 
 - **Configurable Animation**: Adjustable fly-to animation duration
 - **3D Terrain** (optional): Terrain rendering and hillshading, controlled via settings. On by default; requires network access to fetch terrain tiles — disable the `terrain` setting if you need fully offline operation.
 - **Globe Projection**: Toggle between the flat mercator view and a 3D globe with the globe button on the map; your choice is persisted in settings and restored whenever the map is shown.
+- **Scale Bar**: A scale control is shown at the bottom left of the map. Choose metric, imperial or nautical units via the `scaleUnits` setting (metric is the default), or set it to `off` to hide the scale bar.
 - **Map Information View**: Tree view showing the details of features you click on the map — the clicked location, the source layer, and the feature properties
 - **Status Bar Coordinates**: Displays the pointer's WGS84 coordinates while you move the mouse over the map
 
@@ -188,6 +189,7 @@ Customize the extension via VS Code settings:
 | `vscodeMaplibreViewer.globe` | Render the map with the globe projection instead of the flat mercator view. Toggled with the globe button on the map; the choice is saved automatically | `false` |
 | `vscodeMaplibreViewer.terrain` | Enable 3D terrain rendering (requires network access for terrain tiles) | `true` |
 | `vscodeMaplibreViewer.terrainUrl` | Terrain source as a TileJSON URL or raster-dem tile URL template with `{z}/{x}/{y}` placeholders | `"https://tiles.mapterhorn.com/tilejson.json"` |
+| `vscodeMaplibreViewer.scaleUnits` | Unit system used by the map scale control (`metric`, `imperial`, `nautical`, or `off` to hide it) | `metric` |
 
 > **Note:** Terrain rendering is enabled by default and requires network access to fetch terrain tiles. Disable `terrain` if you need the viewer to operate fully offline.
 

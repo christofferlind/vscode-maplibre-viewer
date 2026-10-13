@@ -37,7 +37,8 @@ function baseConfig(): MapConfig {
         flyToDuration: 500,
         terrain: false,
         terrainUrl: 'https://tiles.mapterhorn.com/tilejson.json',
-        globe: false
+        globe: false,
+        scaleUnits: 'metric'
     };
 }
 
@@ -94,7 +95,36 @@ suite('MapWebviewUtils real module', () => {
         assert.strictEqual(config.terrain, false, '3D terrain must be opt-in for offline users');
         assert.strictEqual(config.terrainUrl, 'https://tiles.mapterhorn.com/tilejson.json');
         assert.strictEqual(config.globe, false, 'globe projection must default to flat mercator');
+        assert.strictEqual(config.scaleUnits, 'metric', 'scale control must default to metric units');
         assert.strictEqual(config.initialViewState, undefined);
+    });
+
+    test('getMapConfiguration reads scaleUnits setting from configuration', () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        loaded.vscodeState.setGetValues((key: string) => (key === 'scaleUnits' ? 'imperial' : undefined));
+        const config = loaded.module.getMapConfiguration();
+        assert.strictEqual(config.scaleUnits, 'imperial');
+    });
+
+    test('getMapConfiguration accepts the off scaleUnits value', () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        loaded.vscodeState.setGetValues((key: string) => (key === 'scaleUnits' ? 'off' : undefined));
+        const config = loaded.module.getMapConfiguration();
+        assert.strictEqual(config.scaleUnits, 'off');
+    });
+
+    test('getMapConfiguration accepts the nautical scaleUnits value', () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        loaded.vscodeState.setGetValues((key: string) => (key === 'scaleUnits' ? 'nautical' : undefined));
+        const config = loaded.module.getMapConfiguration();
+        assert.strictEqual(config.scaleUnits, 'nautical');
+    });
+
+    test('getMapConfiguration maps invalid scaleUnits values back to metric', () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        loaded.vscodeState.setGetValues((key: string) => (key === 'scaleUnits' ? 'bananas' : undefined));
+        const config = loaded.module.getMapConfiguration();
+        assert.strictEqual(config.scaleUnits, 'metric');
     });
 
     test('getMapConfiguration reads globe setting from configuration', () => {

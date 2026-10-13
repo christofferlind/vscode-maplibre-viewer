@@ -1,4 +1,11 @@
+import type { Unit } from 'maplibre-gl' with { 'resolution-mode': 'import' };
 import { ViewState } from '../bookmarks/bookmarkTypes';
+
+/**
+ * Unit system for the scale control: a MapLibre Unit ('imperial' | 'metric' |
+ * 'nautical') or 'off' to hide the control.
+ */
+export type ScaleUnitsSetting = 'off' | Unit;
 
 // Interface for configuration messages sent to the webview
 export interface MapConfig {
@@ -10,6 +17,7 @@ export interface MapConfig {
     terrain: boolean;
     terrainUrl: string;
     globe: boolean;
+    scaleUnits: ScaleUnitsSetting;
     initialViewState?: ViewState;
 }
 

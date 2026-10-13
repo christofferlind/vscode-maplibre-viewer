@@ -58,6 +58,12 @@ function setupMessageHandler() {
 				if (message.config.terrainUrl !== undefined) {
 					window.MapConfig.terrainUrl = message.config.terrainUrl;
 				}
+				if (message.config.scaleUnits !== undefined) {
+					window.MapConfig.scaleUnits = message.config.scaleUnits;
+					if (window.MapScale) {
+						window.MapScale.setUnits(message.config.scaleUnits);
+					}
+				}
 
 			if (message.config.globe !== undefined) {
 				window.MapConfig.globe = message.config.globe;
@@ -247,6 +253,7 @@ function setupMessageHandler() {
 			terrain: config.terrain !== undefined ? config.terrain : false,
 			terrainUrl: config.terrainUrl !== undefined ? config.terrainUrl : 'https://tiles.mapterhorn.com/tilejson.json',
 			globe: config.globe !== undefined ? config.globe : false,
+			scaleUnits: config.scaleUnits !== undefined ? config.scaleUnits : 'metric',
 			mapStyleUrl: config.mapStyleUrl !== undefined ? config.mapStyleUrl : ''
 		};
 
@@ -261,6 +268,11 @@ function setupMessageHandler() {
 
 	// Initialize the map
 	window.MapCore.initializeMap(initialViewState);
+
+	// Apply the configured scale unit system (metric default) to the map
+	if (window.MapScale) {
+		window.MapScale.setUnits(window.MapConfig.scaleUnits);
+	}
 
 	// Apply the persisted globe preference once the map exists; MapGlobe
 	// defers projection changes until the style reports loaded.

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.5] - 2026-10-13
+
+### Added
+
+- A scale bar is now shown at the bottom left of the map.
+- The scale bar can be switched between metric, imperial and nautical units via the new `scaleUnits` setting (metric remains the default), or hidden entirely by setting it to `off`.
+- A globe button on the map toggles between the flat map view and a 3D globe; your choice is remembered across sessions.
+
 ## [0.9.4] - 2026-10-13
 
 ### Added

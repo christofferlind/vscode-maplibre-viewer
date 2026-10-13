@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ViewState } from '../bookmarks/bookmarkTypes';
-import { MapConfig, StoredViewState, GeocodingResult, ClickedFeatureInfo, FeatureInfoUpdateMessage } from './mapWebviewTypes';
+import { MapConfig, StoredViewState, GeocodingResult, ClickedFeatureInfo, FeatureInfoUpdateMessage, ScaleUnitsSetting } from './mapWebviewTypes';
 import { notifyViewStateWriteStarted } from '../services/configService';
 
 /**
@@ -34,6 +34,29 @@ function viewStateKey(viewType?: string): ViewStateKey {
 }
 
 /**
+ * Unit systems accepted by the MapLibre ScaleControl, excluding the extension
+ * 'off' value. Checked against the Unit values for sanitizing so that a valid
+ * future MapLibre unit added to the array is accepted automatically.
+ */
+const SCALE_UNITS: Exclude<ScaleUnitsSetting, 'off'>[] = ['metric', 'imperial', 'nautical'];
+
+/**
+ * Normalizes a scaleUnits setting value: only 'off' and the MapLibre Unit
+ * values are accepted; anything else falls back to 'metric'.
+ */
+function getSanitizedScaleUnits(value?: ScaleUnitsSetting): ScaleUnitsSetting {
+    if (value === 'off') {
+        return 'off';
+    }
+    for (const unit of SCALE_UNITS) {
+        if (value === unit) {
+            return unit;
+        }
+    }
+    return 'metric';
+}
+
+/**
  * Gets the current configuration from VS Code settings
  */
 export function getMapConfiguration(viewType?: string): MapConfig {
@@ -60,6 +83,7 @@ export function getMapConfiguration(viewType?: string): MapConfig {
         terrain: config.get<boolean>('terrain') ?? false,
         terrainUrl: config.get<string>('terrainUrl') || 'https://tiles.mapterhorn.com/tilejson.json',
         globe: config.get<boolean>('globe') ?? false,
+        scaleUnits: getSanitizedScaleUnits(config.get<'off' | 'metric' | 'imperial' | 'nautical'>('scaleUnits')),
         initialViewState: lastViewState ? {
             center: {
                 latitude: lastViewState.center.lat,
@@ -135,6 +159,7 @@ interface TemplateContext {
     maplibreCssUri: vscode.Uri;
     workerBase64: string;
     mapUtilsJsUri: vscode.Uri;
+    mapScaleJsUri: vscode.Uri;
     mapTerrainJsUri: vscode.Uri;
     mapGlobeJsUri: vscode.Uri;
     mapCoreJsUri: vscode.Uri;
@@ -167,10 +192,12 @@ const HTML_PLACEHOLDERS: Record<string, PlaceholderResolver> = {
     terrain: (ctx) => String(ctx.config.terrain),
     terrainUrl: (ctx) => JSON.stringify(ctx.config.terrainUrl),
     globe: (ctx) => String(ctx.config.globe),
+    scaleUnits: (ctx) => ctx.config.scaleUnits,
     maplibreJsUri: (ctx) => ctx.maplibreJsUri.toString(),
     maplibreCssUri: (ctx) => ctx.maplibreCssUri.toString(),
     maplibreWorkerBase64: (ctx) => ctx.workerBase64,
     mapUtilsJsUri: (ctx) => ctx.mapUtilsJsUri.toString(),
+    mapScaleJsUri: (ctx) => ctx.mapScaleJsUri.toString(),
     mapTerrainJsUri: (ctx) => ctx.mapTerrainJsUri.toString(),
     mapGlobeJsUri: (ctx) => ctx.mapGlobeJsUri.toString(),
     mapCoreJsUri: (ctx) => ctx.mapCoreJsUri.toString(),
@@ -231,6 +258,7 @@ export function generateWebviewHtml(
     const maplibreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.js');
     const maplibreCssUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
     const mapUtilsJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-utils.js');
+    const mapScaleJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-scale.js');
     const mapTerrainJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-terrain.js');
     const mapGlobeJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-globe.js');
     const mapCoreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-core.js');
@@ -260,6 +288,7 @@ export function generateWebviewHtml(
         maplibreCssUri,
         workerBase64,
         mapUtilsJsUri,
+        mapScaleJsUri,
         mapTerrainJsUri,
         mapGlobeJsUri,
         mapCoreJsUri,

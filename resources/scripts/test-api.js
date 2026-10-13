@@ -141,6 +141,16 @@ window.__test = {
     },
 
     /**
+     * Get the scale control state: the configured unit preference and whether
+     * the scale control exists on the current map.
+     * @returns {Object} { configured, onMap }
+     */
+    getScaleUnitsState: function() {
+        return window.MapScale ? window.MapScale.getScaleControlState() :
+            { configured: 'metric', onMap: false };
+    },
+
+    /**
      * Check if the test API is available
      * @returns {boolean} Always true
      */

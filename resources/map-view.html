@@ -97,6 +97,7 @@
 	<script nonce="${nonce}" src="${mapTerrainJsUri}"></script>
 	<script nonce="${nonce}" src="${mapGlobeJsUri}"></script>
 	<script nonce="${nonce}" src="${mapCoreJsUri}"></script>
+	<script nonce="${nonce}" src="${mapScaleJsUri}"></script>
 	<script nonce="${nonce}" src="${mapBasemapJsUri}"></script>
 	<script nonce="${nonce}" src="${mapPopupJsUri}"></script>
 	<script nonce="${nonce}" src="${mapInfoJsUri}"></script>
@@ -156,9 +157,10 @@
 			terrain: "${terrain}" === "true",
 			terrainUrl: ${terrainUrl},
 			globe: "${globe}" === "true",
+			scaleUnits: "${scaleUnits}",
 			initialViewState: null
 		};
-		
+
 		// Initialize the application
 		window.Main.initialize(config);
 	</script>
