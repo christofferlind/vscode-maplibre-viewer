@@ -119,6 +119,28 @@ window.__test = {
     },
 
     /**
+     * Get the current globe projection state: the configured preference and
+     * the projection type actually active on the map.
+     * @returns {Object} { globe, projection }
+     */
+    getGlobeState: function() {
+        var map = window.MapCore && window.MapCore.getMap();
+        var projection = null;
+        if (map && map.getProjection) {
+            try {
+                var p = map.getProjection();
+                projection = p && p.type ? p.type : null;
+            } catch (e) {
+                projection = null;
+            }
+        }
+        return {
+            globe: window.MapConfig ? window.MapConfig.globe === true : false,
+            projection: projection
+        };
+    },
+
+    /**
      * Check if the test API is available
      * @returns {boolean} Always true
      */

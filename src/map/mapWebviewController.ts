@@ -7,6 +7,7 @@ import { MapConfig, StoredViewState, FeatureInfoUpdateMessage } from './mapWebvi
 import {
     getMapConfiguration,
     saveViewStateToSettings,
+    saveGlobeSetting,
     generateWebviewHtml,
     parseViewStateFromMessage,
     parseFeatureInfoUpdate
@@ -450,6 +451,15 @@ export abstract class MapWebviewController {
                 const args = message.args as string | undefined;
                 const prefix = level ? `[${level.toUpperCase()}]` : '[LOG]';
                 logLine(prefix, args ?? '');
+                break;
+            }
+
+            case 'globeStateChanged': {
+                if (typeof message.enabled !== 'boolean') {
+                    break;
+                }
+                this.logInfo(`${this.getViewType()} globe preference changed to ${message.enabled}`);
+                await saveGlobeSetting(message.enabled);
                 break;
             }
 

@@ -17,6 +17,7 @@ A VS Code extension that provides an interactive map viewer powered by MapLibre 
 - **Customizable Map Style**: Configure your own style URL via settings
 - **Configurable Animation**: Adjustable fly-to animation duration
 - **3D Terrain** (optional): Terrain rendering and hillshading, controlled via settings. On by default; requires network access to fetch terrain tiles — disable the `terrain` setting if you need fully offline operation.
+- **Globe Projection**: Toggle between the flat mercator view and a 3D globe with the globe button on the map; your choice is persisted in settings and restored whenever the map is shown.
 - **Map Information View**: Tree view showing the details of features you click on the map — the clicked location, the source layer, and the feature properties
 - **Status Bar Coordinates**: Displays the pointer's WGS84 coordinates while you move the mouse over the map
 
@@ -184,6 +185,7 @@ Customize the extension via VS Code settings:
 | `vscodeMaplibreViewer.baseMaps` | Custom basemap styles | `[]` (empty) |
 | `vscodeMaplibreViewer.coordinatePatterns` | Custom coordinate detection patterns | `[]` (empty) |
 | `vscodeMaplibreViewer.alwaysShowDemoTiles` | Show the OpenFreeMap.org basemap even if other base maps are configured | `false` |
+| `vscodeMaplibreViewer.globe` | Render the map with the globe projection instead of the flat mercator view. Toggled with the globe button on the map; the choice is saved automatically | `false` |
 | `vscodeMaplibreViewer.terrain` | Enable 3D terrain rendering (requires network access for terrain tiles) | `true` |
 | `vscodeMaplibreViewer.terrainUrl` | Terrain source as a TileJSON URL or raster-dem tile URL template with `{z}/{x}/{y}` placeholders | `"https://tiles.mapterhorn.com/tilejson.json"` |
 

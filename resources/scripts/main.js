@@ -59,12 +59,22 @@ function setupMessageHandler() {
 					window.MapConfig.terrainUrl = message.config.terrainUrl;
 				}
 
-				// Re-apply (or remove) 3D terrain when terrain settings change;
-				// MapCore reads its own copy, so it must receive the new config
-				if ((message.config.terrain !== undefined || message.config.terrainUrl !== undefined) && window.MapCore) {
-					window.MapCore.setConfig(window.MapConfig);
-					window.MapCore.applyTerrain();
-				}
+			if (message.config.globe !== undefined) {
+				window.MapConfig.globe = message.config.globe;
+			}
+
+			// Re-apply (or remove) 3D terrain when terrain settings change;
+			// MapCore reads its own copy, so it must receive the new config
+			if ((message.config.terrain !== undefined || message.config.terrainUrl !== undefined) && window.MapCore) {
+				window.MapCore.setConfig(window.MapConfig);
+				window.MapCore.applyTerrain();
+			}
+
+			// Re-apply the configured projection when the globe setting changes
+			if (message.config.globe !== undefined && window.MapCore && window.MapGlobe) {
+				window.MapGlobe.setConfig(window.MapConfig);
+				window.MapGlobe.applyGlobe();
+			}
 
 				// Apply updated transparency to search results
 				if (window.MapSearch && window.MapSearch.applyTransparency && message.config.searchResultsTransparency !== undefined) {
@@ -236,6 +246,7 @@ function setupMessageHandler() {
 			flyToDuration: config.flyToDuration !== undefined ? config.flyToDuration : 500,
 			terrain: config.terrain !== undefined ? config.terrain : false,
 			terrainUrl: config.terrainUrl !== undefined ? config.terrainUrl : 'https://tiles.mapterhorn.com/tilejson.json',
+			globe: config.globe !== undefined ? config.globe : false,
 			mapStyleUrl: config.mapStyleUrl !== undefined ? config.mapStyleUrl : ''
 		};
 
@@ -250,6 +261,13 @@ function setupMessageHandler() {
 
 	// Initialize the map
 	window.MapCore.initializeMap(initialViewState);
+
+	// Apply the persisted globe preference once the map exists; MapGlobe
+	// defers projection changes until the style reports loaded.
+	if (window.MapGlobe) {
+		window.MapGlobe.setConfig(window.MapConfig);
+		window.MapGlobe.applyGlobe();
+	}
 
 	// Initialize search after map loads
 	document.addEventListener('DOMContentLoaded', function() {

@@ -321,9 +321,9 @@ function initializeMap(initialViewState) {
 			showCompass: true
 		}));
 
-		// GlobeControl exists only in MapLibre GL JS v5+; keep working on v4
-		if (maplibregl.GlobeControl) {
-			map.addControl(new maplibregl.GlobeControl());
+		// The globe toggle and its persisted preference are owned by MapGlobe
+		if (window.MapGlobe) {
+			window.MapGlobe.attach(map);
 		}
 
 		map.on('error', function(e) {

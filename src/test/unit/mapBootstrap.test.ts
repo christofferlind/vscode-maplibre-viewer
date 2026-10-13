@@ -114,6 +114,11 @@ function loadBootstrap(): BootstrapHarness {
         handleGeocodingSearchResults: () => undefined,
         handleGeocodingSearchError: () => undefined
     };
+    windowObj.MapGlobe = {
+        setConfig: () => undefined,
+        applyGlobe: () => undefined,
+        isGlobeEnabled: () => false
+    };
     windowObj.MapConfig = {};
 
     const context: Record<string, unknown> = {

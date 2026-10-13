@@ -36,7 +36,8 @@ function baseConfig(): MapConfig {
         searchResultsTransparency: 20,
         flyToDuration: 500,
         terrain: false,
-        terrainUrl: 'https://tiles.mapterhorn.com/tilejson.json'
+        terrainUrl: 'https://tiles.mapterhorn.com/tilejson.json',
+        globe: false
     };
 }
 
@@ -92,7 +93,28 @@ suite('MapWebviewUtils real module', () => {
         assert.strictEqual(config.flyToDuration, 500);
         assert.strictEqual(config.terrain, false, '3D terrain must be opt-in for offline users');
         assert.strictEqual(config.terrainUrl, 'https://tiles.mapterhorn.com/tilejson.json');
+        assert.strictEqual(config.globe, false, 'globe projection must default to flat mercator');
         assert.strictEqual(config.initialViewState, undefined);
+    });
+
+    test('getMapConfiguration reads globe setting from configuration', () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        loaded.vscodeState.setGetValues((key: string) => (key === 'globe' ? true : undefined));
+        const config = loaded.module.getMapConfiguration();
+        assert.strictEqual(config.globe, true);
+    });
+
+    test('saveGlobeSetting persists the globe preference', async () => {
+        const loaded = loadWithStubbedVscode<typeof import('../../map/mapWebviewUtils')>('../../map/mapWebviewUtils');
+        await loaded.module.saveGlobeSetting(true);
+        assert.strictEqual(loaded.vscodeState.updateCalls.length, 1);
+        const call = loaded.vscodeState.updateCalls[0];
+        assert.strictEqual(call.section, 'globe');
+        assert.strictEqual(call.value, true);
+        assert.strictEqual(call.target, 1, 'globe preference is saved globally');
+
+        await loaded.module.saveGlobeSetting(false);
+        assert.strictEqual(loaded.vscodeState.updateCalls[1].value, false);
     });
 
     test('getMapConfiguration reads terrain settings from configuration', () => {
@@ -549,6 +571,31 @@ suite('MapWebviewController real module - message handling', () => {
         assert.ok(channel!!.lines.some((l) => l.includes('[INFO] Setting basemap to "OpenStreetMap" (osm)')));
         assert.ok(channel!!.lines.some((l) => l.includes('[INFO] Updating 1 overlay layer(s)')));
         assert.ok(channel!!.lines.some((l) => l.includes('[INFO] Flying to location (59.3, 18.1) at zoom 12')));
+    });
+
+    test('globeStateChanged persists the enabled preference', async () => {
+        const before = controllerLoaded.vscodeState.updateCalls.length;
+        await controller.handleWebviewMessage({ type: 'globeStateChanged', enabled: true });
+        assert.strictEqual(controllerLoaded.vscodeState.updateCalls.length, before + 1);
+        const call = controllerLoaded.vscodeState.updateCalls[controllerLoaded.vscodeState.updateCalls.length - 1];
+        assert.strictEqual(call.section, 'globe');
+        assert.strictEqual(call.value, true);
+    });
+
+    test('globeStateChanged persists the disabled preference', async () => {
+        const before = controllerLoaded.vscodeState.updateCalls.length;
+        await controller.handleWebviewMessage({ type: 'globeStateChanged', enabled: false });
+        assert.strictEqual(controllerLoaded.vscodeState.updateCalls.length, before + 1);
+        const call = controllerLoaded.vscodeState.updateCalls[controllerLoaded.vscodeState.updateCalls.length - 1];
+        assert.strictEqual(call.section, 'globe');
+        assert.strictEqual(call.value, false);
+    });
+
+    test('globeStateChanged with a non-boolean enabled flag is ignored', async () => {
+        const before = controllerLoaded.vscodeState.updateCalls.length;
+        await controller.handleWebviewMessage({ type: 'globeStateChanged', enabled: 'yes' });
+        await controller.handleWebviewMessage({ type: 'globeStateChanged' });
+        assert.strictEqual(controllerLoaded.vscodeState.updateCalls.length, before);
     });
 
     test('mapCenterResponse resolves a pending getMapCenter', async () => {

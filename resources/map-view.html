@@ -95,6 +95,7 @@
 	<script nonce="${nonce}" src="${maplibreJsUri}"></script>
 	<script nonce="${nonce}" src="${mapUtilsJsUri}"></script>
 	<script nonce="${nonce}" src="${mapTerrainJsUri}"></script>
+	<script nonce="${nonce}" src="${mapGlobeJsUri}"></script>
 	<script nonce="${nonce}" src="${mapCoreJsUri}"></script>
 	<script nonce="${nonce}" src="${mapBasemapJsUri}"></script>
 	<script nonce="${nonce}" src="${mapPopupJsUri}"></script>
@@ -154,6 +155,7 @@
 			flyToDuration: parseInt("${flyToDuration}", 10),
 			terrain: "${terrain}" === "true",
 			terrainUrl: ${terrainUrl},
+			globe: "${globe}" === "true",
 			initialViewState: null
 		};
 		

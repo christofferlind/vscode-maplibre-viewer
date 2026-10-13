@@ -59,6 +59,7 @@ export function getMapConfiguration(viewType?: string): MapConfig {
         flyToDuration: config.get<number>('flyToDuration') ?? 500,
         terrain: config.get<boolean>('terrain') ?? false,
         terrainUrl: config.get<string>('terrainUrl') || 'https://tiles.mapterhorn.com/tilejson.json',
+        globe: config.get<boolean>('globe') ?? false,
         initialViewState: lastViewState ? {
             center: {
                 latitude: lastViewState.center.lat,
@@ -108,6 +109,15 @@ export async function saveViewStateToSettings(
 }
 
 /**
+ * Saves the globe projection preference to VS Code settings so the choice
+ * survives across sessions and views.
+ */
+export async function saveGlobeSetting(enabled: boolean): Promise<void> {
+    const config = vscode.workspace.getConfiguration('vscodeMaplibreViewer');
+    await config.update('globe', enabled, vscode.ConfigurationTarget.Global);
+}
+
+/**
  * Gets the webview URI for a local resource file
  */
 export function getWebviewUri(extensionUri: vscode.Uri, webview: vscode.Webview, ...pathSegments: string[]): vscode.Uri {
@@ -126,6 +136,7 @@ interface TemplateContext {
     workerBase64: string;
     mapUtilsJsUri: vscode.Uri;
     mapTerrainJsUri: vscode.Uri;
+    mapGlobeJsUri: vscode.Uri;
     mapCoreJsUri: vscode.Uri;
     mapBasemapJsUri: vscode.Uri;
     mapPopupJsUri: vscode.Uri;
@@ -155,11 +166,13 @@ const HTML_PLACEHOLDERS: Record<string, PlaceholderResolver> = {
     flyToDuration: (ctx) => String(ctx.config.flyToDuration),
     terrain: (ctx) => String(ctx.config.terrain),
     terrainUrl: (ctx) => JSON.stringify(ctx.config.terrainUrl),
+    globe: (ctx) => String(ctx.config.globe),
     maplibreJsUri: (ctx) => ctx.maplibreJsUri.toString(),
     maplibreCssUri: (ctx) => ctx.maplibreCssUri.toString(),
     maplibreWorkerBase64: (ctx) => ctx.workerBase64,
     mapUtilsJsUri: (ctx) => ctx.mapUtilsJsUri.toString(),
     mapTerrainJsUri: (ctx) => ctx.mapTerrainJsUri.toString(),
+    mapGlobeJsUri: (ctx) => ctx.mapGlobeJsUri.toString(),
     mapCoreJsUri: (ctx) => ctx.mapCoreJsUri.toString(),
     mapBasemapJsUri: (ctx) => ctx.mapBasemapJsUri.toString(),
     mapPopupJsUri: (ctx) => ctx.mapPopupJsUri.toString(),
@@ -219,6 +232,7 @@ export function generateWebviewHtml(
     const maplibreCssUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
     const mapUtilsJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-utils.js');
     const mapTerrainJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-terrain.js');
+    const mapGlobeJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-globe.js');
     const mapCoreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-core.js');
     const mapBasemapJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-basemap.js');
     const mapPopupJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-popup.js');
@@ -247,6 +261,7 @@ export function generateWebviewHtml(
         workerBase64,
         mapUtilsJsUri,
         mapTerrainJsUri,
+        mapGlobeJsUri,
         mapCoreJsUri,
         mapBasemapJsUri,
         mapPopupJsUri,

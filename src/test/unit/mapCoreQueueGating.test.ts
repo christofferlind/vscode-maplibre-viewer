@@ -20,6 +20,7 @@ export interface Harness {
     setSymbolLayers: (layers: Array<{ id: string; type: string }>) => void;
     fireMapEvent: (event: string, data?: unknown) => void;
     getTerrainState: () => { terrainSource?: string; terrainControlSource?: string; addedSourceIds: string[]; hillshadeLayerBefore?: string | null };
+    mapGlobeAttachments: unknown[];
     addedControls: Array<{ source?: string; globe?: boolean }>;
     pendingCount: () => number;
     flushTimers: () => Promise<void>;
@@ -97,6 +98,15 @@ function createHarness(options?: HarnessOptions): Harness {
     const windowObj: Record<string, unknown> = {
         addEventListener: () => undefined
     };
+    const mapGlobeAttachments: unknown[] = [];
+    windowObj.MapGlobe = {
+        setConfig: () => undefined,
+        applyGlobe: () => undefined,
+        isGlobeEnabled: () => false,
+        attach: (mapInstance: unknown) => {
+            mapGlobeAttachments.push(mapInstance);
+        }
+    };
     windowObj.window = windowObj;
     windowObj.maplibregl = {
         Map: function () {
@@ -159,6 +169,7 @@ function createHarness(options?: HarnessOptions): Harness {
         core,
         posted,
         addedControls,
+        mapGlobeAttachments,
         setStyleLoaded: (loaded: boolean) => {
             styleLoaded = loaded;
         },
@@ -308,22 +319,21 @@ suite('MapCore style-load gating and throttling (bug fix)', () => {
             'second gated operation must complete on the next styledata once the style is loaded again');
     });
 
-    test('initializes with a GlobeControl when the MapLibre build provides one', () => {
-        const globeHarness = createHarness({ globeControl: true });
-        globeHarness.core.initializeMap({ center: { longitude: 0, latitude: 0 }, zoom: 1, bearing: 0, pitch: 0 });
+    test('attaches MapGlobe to the created map instance', () => {
+        initialize();
         assert.strictEqual(
-            globeHarness.addedControls.some((c) => c.globe === true),
-            true,
-            'GlobeControl must be added when maplibregl.GlobeControl exists'
+            harness.mapGlobeAttachments.length,
+            1,
+            'globe ownership must be handed to MapGlobe for each created map'
         );
     });
 
-    test('skips the GlobeControl on MapLibre builds without one', () => {
+    test('does not add a raw GlobeControl from map-core', () => {
         initialize();
         assert.strictEqual(
             harness.addedControls.some((c) => c.globe === true),
             false,
-            'GlobeControl must not be added when maplibregl.GlobeControl is absent'
+            'the globe toggle belongs to MapGlobe, not to map-core'
         );
     });
 

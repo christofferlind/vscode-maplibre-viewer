@@ -9,6 +9,7 @@ export interface MapConfig {
     flyToDuration: number;
     terrain: boolean;
     terrainUrl: string;
+    globe: boolean;
     initialViewState?: ViewState;
 }
 

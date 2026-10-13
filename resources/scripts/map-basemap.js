@@ -57,6 +57,11 @@ function notifyMapReadyWhenStyleLoaded(map, onStyleApplied) {
 		if (window.MapCore && window.MapCore.applyTerrain) {
 			window.MapCore.applyTerrain();
 		}
+		// The same style swap resets the stylesheet projection; re-apply the
+		// globe preference according to the current globe state.
+		if (window.MapGlobe && window.MapGlobe.applyGlobe) {
+			window.MapGlobe.applyGlobe();
+		}
 		if (onStyleApplied) {
 			onStyleApplied();
 		}
