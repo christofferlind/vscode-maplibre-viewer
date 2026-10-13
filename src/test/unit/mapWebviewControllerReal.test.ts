@@ -474,6 +474,21 @@ suite('MapWebviewController real module - message handling', () => {
         assert.strictEqual(MapWebviewController.lastActiveViewType, 'test-view');
     });
 
+    test('requestOverlaySync triggers the overlay sync callback', async () => {
+        let fired = false;
+        controller.onOverlaySyncRequest(() => {
+            fired = true;
+        });
+        await controller.handleWebviewMessage({ type: 'requestOverlaySync' });
+        assert.strictEqual(fired, true, 'webview overlay pull must reach the sync handler');
+        assert.strictEqual(MapWebviewController.lastActiveViewType, 'test-view');
+    });
+
+    test('requestOverlaySync without a callback is ignored', async () => {
+        await controller.handleWebviewMessage({ type: 'requestOverlaySync' });
+        assert.strictEqual(mock.postedMessages.length, 0, 'no reply may be attempted without a handler');
+    });
+
     test('mapError shows a VS Code error notification', async () => {
         const before = controllerLoaded.vscodeState.errorMessages.length;
         await controller.handleWebviewMessage({

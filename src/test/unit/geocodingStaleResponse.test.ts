@@ -78,6 +78,7 @@ const { TestableMapWebviewController } = ((): {
         for (const cached of [
             nodeRequire.resolve('../testUtils/testableController'),
             nodeRequire.resolve('../../map/mapWebviewController'),
+            nodeRequire.resolve('../../map/mapGeocodingHandler'),
             nodeRequire.resolve('../../map/mapWebviewUtils'),
             nodeRequire.resolve('../../services/geocodingSearch'),
             nodeRequire.resolve('../../services/configService')

@@ -17,18 +17,6 @@ var mapLoaded = false;
 var geocodingApiKey = '';
 var photonSearchUrl = '';
 var enableSearch = false;
-var terrain = true;
-var terrainUrl = 'https://tiles.mapterhorn.com/tilejson.json';
-
-// Terrain source added to the map when 3D terrain is enabled
-var terrainSourceId = 'terrain-3d';
-
-// Separate raster-dem source and hillshade layer for render quality
-var hillshadeSourceId = 'hillshade-3d';
-var hillshadeLayerId = 'hillshade-3d';
-
-// TerrainControl instance shown while 3D terrain is available
-var terrainControl = null;
 
 // Queue for pending operations that need to run after map is loaded
 var pendingOperations = [];
@@ -58,91 +46,6 @@ function setConfig(config) {
 	}
 	if (config.mapStyleUrl !== undefined) {
 		currentStyleUrl = config.mapStyleUrl;
-	}
-}
-
-/**
- * Apply or remove 3D terrain based on the current configuration. Terrain is
- * opt-in through settings because it requires network access to fetch tiles.
- * After a style swap MapLibre drops the terrain source, so callers re-run
- * this whenever the style reports loaded.
- */
-function applyTerrain() {
-	if (!map) {
-		return;
-	}
-	if (!isMapStyleLoaded()) {
-		// addSource/setTerrain require a loaded style; retry once it reports data
-		map.once('styledata', function() {
-			applyTerrain();
-		});
-		return;
-	}
-	if (!terrain || !terrainUrl) {
-		if (map.getTerrain()) {
-			map.setTerrain(null);
-		}
-		if (terrainControl) {
-			map.removeControl(terrainControl);
-			terrainControl = null;
-		}
-		if (map.getLayer(hillshadeLayerId)) {
-			map.removeLayer(hillshadeLayerId);
-		}
-		if (map.getSource(hillshadeSourceId)) {
-			map.removeSource(hillshadeSourceId);
-		}
-		if (map.getSource(terrainSourceId)) {
-			map.removeSource(terrainSourceId);
-		}
-		return;
-	}
-
-	// Insert the hillshade below the first symbol layer so labels stay readable;
-	// fall back to the top of the stack when the style has no symbol layers.
-	function firstSymbolLayerId() {
-		var style = map.getStyle();
-		if (!style || !style.layers) {
-			return undefined;
-		}
-		for (var i = 0; i < style.layers.length; i++) {
-			if (style.layers[i].type === 'symbol') {
-				return style.layers[i].id;
-			}
-		}
-		return undefined;
-	}
-
-	var sourceSpec = terrainUrl.indexOf('{z}') !== -1 ?
-		{ type: 'raster-dem', tiles: [terrainUrl], tileSize: 256 } :
-		{ type: 'raster-dem', url: terrainUrl };
-
-	if (!map.getSource(terrainSourceId)) {
-		map.addSource(terrainSourceId, sourceSpec);
-	}
-	if (!map.getTerrain()) {
-		map.setTerrain({ source: terrainSourceId });
-	}
-
-	// Hillshading uses a separate raster-dem source so the DEM decoder does not
-	// trade terrain mesh quality for shading quality (per MapLibre guidance)
-	if (!map.getSource(hillshadeSourceId)) {
-		map.addSource(hillshadeSourceId, sourceSpec);
-	}
-	if (!map.getLayer(hillshadeLayerId)) {
-		map.addLayer({
-			id: hillshadeLayerId,
-			type: 'hillshade',
-			source: hillshadeSourceId,
-			layout: { visibility: 'visible' },
-			paint: { 'hillshade-exaggeration': 0.2 }
-		}, firstSymbolLayerId());
-	}
-
-	// Show the pitch/terrain toggle control while the terrain source works
-	if (!terrainControl && maplibregl.TerrainControl) {
-		terrainControl = new maplibregl.TerrainControl({ source: terrainSourceId });
-		map.addControl(terrainControl);
 	}
 }
 
@@ -212,6 +115,7 @@ function queueOperation(operation) {
 	} else {
 		// Queue for later execution
 		pendingOperations.push(operation);
+		scheduleQueueDrain();
 	}
 }
 
@@ -237,6 +141,43 @@ function processPendingOperations() {
 var errorDrainAttempts = 0;
 var errorDrainTimer = null;
 var MAX_ERROR_DRAIN_ATTEMPTS = 20;
+
+// Bounded timer-driven retry for queued operations. styledata/load events can
+// stop firing right around a style commit (MapLibre v6), so an overlay sync
+// queued while isStyleLoaded() reports false would otherwise strand until the
+// user toggled a layer; a slow timer retry drains it regardless of events.
+var queueDrainAttempts = 0;
+var queueDrainTimer = null;
+var MAX_QUEUE_DRAIN_ATTEMPTS = 120;
+var QUEUE_DRAIN_INTERVAL_MS = 250;
+
+/**
+ * Retry draining the pending-operation queue on a timer until it is empty.
+ * Attempts reset once the queue drains; a cap stops a permanently broken map
+ * from retrying forever. A drained op can requeue gated work, which schedules
+ * a fresh bounded run through queueOperation.
+ */
+function scheduleQueueDrain() {
+	if (queueDrainTimer !== null || pendingOperations.length === 0 || map === null) {
+		return;
+	}
+	if (queueDrainAttempts >= MAX_QUEUE_DRAIN_ATTEMPTS) {
+		console.warn('[MapCore] Giving up on queued operations after', queueDrainAttempts, 'timer retries');
+		return;
+	}
+	queueDrainAttempts++;
+	queueDrainTimer = setTimeout(function() {
+		queueDrainTimer = null;
+		if (pendingOperations.length > 0 && map !== null) {
+			processPendingOperations();
+		}
+		if (pendingOperations.length === 0) {
+			queueDrainAttempts = 0;
+		} else {
+			scheduleQueueDrain();
+		}
+	}, QUEUE_DRAIN_INTERVAL_MS);
+}
 
 /**
  * Detect recoverable per-tile fetch failures. MapLibre surfaces a failed tile
@@ -285,6 +226,54 @@ function attemptErrorRecoveryDrain() {
 	}, 250);
 }
 
+// Bounded retry bookkeeping for posting mapReady once the style commit is
+// confirmed. The 'load' event can fire while the style is still committing
+// (MapLibre v6); overlays are pushed immediately after mapReady, and style
+// mutations against an uncommitted style throw "Style is not done loading",
+// which would silently drop entire overlay layers.
+var mapReadyAttempts = 0;
+var mapReadyTimer = null;
+var MAX_MAP_READY_ATTEMPTS = 50;
+var MAP_READY_INTERVAL_MS = 100;
+
+/**
+ * Post 'mapReady' plus an explicit overlay-sync request once the style
+ * reports loaded. The pull request complements the extension-side push
+ * triggered by mapReady: a message silently dropped in either direction no
+ * longer leaves saved overlay layers missing until the user toggles them.
+ * If the style never reports loaded (e.g. a slow commit), mapReady is posted
+ * anyway after a bounded retry so map recovery flows depending on it are not
+ * lost; any overlay updates it triggers stay queued until the style is ready.
+ */
+function postMapReadyWhenStyleLoaded() {
+	if (!map) {
+		return;
+	}
+	if (isMapStyleLoaded() || mapReadyAttempts >= MAX_MAP_READY_ATTEMPTS) {
+		if (mapReadyTimer !== null) {
+			clearTimeout(mapReadyTimer);
+			mapReadyTimer = null;
+		}
+		mapReadyAttempts = 0;
+		console.log('[MapCore] Posting mapReady to extension');
+		vscode.postMessage({
+			type: 'mapReady'
+		});
+		vscode.postMessage({
+			type: 'requestOverlaySync'
+		});
+		return;
+	}
+	if (mapReadyTimer !== null) {
+		return;
+	}
+	mapReadyAttempts++;
+	mapReadyTimer = setTimeout(function() {
+		mapReadyTimer = null;
+		postMapReadyWhenStyleLoaded();
+	}, MAP_READY_INTERVAL_MS);
+}
+
 /**
  * Initialize the map
  * @param {Object} initialViewState - Initial view state (center, zoom, bearing, pitch)
@@ -294,6 +283,17 @@ function initializeMap(initialViewState) {
 	hideErrorOverlay();
 	mapLoaded = false;
 	terrainControl = null;
+
+	// A previous map instance's timers must not fire against the new one
+	if (mapReadyTimer !== null) {
+		clearTimeout(mapReadyTimer);
+		mapReadyTimer = null;
+	}
+	mapReadyAttempts = 0;
+	if (queueDrainTimer !== null) {
+		clearTimeout(queueDrainTimer);
+		queueDrainTimer = null;
+	}
 
 	try {
 		// Use initial view state if available, otherwise use defaults
@@ -405,10 +405,10 @@ function initializeMap(initialViewState) {
 			// Notify the extension that the map is ready. The extension will
 			// respond with a fresh updateOverlayLayers message which performs
 			// a complete reconstruction of overlays from the tree provider state.
-			console.log('[MapCore] Sending mapReady to extension');
-			vscode.postMessage({
-				type: 'mapReady'
-			});
+			// Posting is deferred until the style actually reports loaded; the
+			// 'load' event can fire ahead of the style commit and a style
+			// mutation right after would throw and drop overlays.
+			postMapReadyWhenStyleLoaded();
 		});
 
 		map.on('mapReady', function() {

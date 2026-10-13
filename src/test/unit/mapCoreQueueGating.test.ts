@@ -31,8 +31,9 @@ interface HarnessOptions {
 }
 
 function createHarness(options?: HarnessOptions): Harness {
-    const sourcePath = path.join(__dirname, '..', '..', '..', 'resources', 'scripts', 'map-core.js');
-    const source = fs.readFileSync(sourcePath, 'utf-8');
+    const scriptsDir = path.join(__dirname, '..', '..', '..', 'resources', 'scripts');
+    const terrainSource = fs.readFileSync(path.join(scriptsDir, 'map-terrain.js'), 'utf-8');
+    const source = fs.readFileSync(path.join(scriptsDir, 'map-core.js'), 'utf-8');
 
     const posted: PostedMessage[] = [];
     const styleLayers: Array<{ id: string; source?: string }> = [];
@@ -145,7 +146,12 @@ function createHarness(options?: HarnessOptions): Harness {
         }
     };
 
-    vm.runInNewContext(source, context);
+    vm.createContext(context);
+    // map-terrain.js must run before map-core.js: it declares the terrain
+    // globals and the applyTerrain function that MapCore exports, mirroring
+    // the script order in map-view.html.
+    vm.runInContext(terrainSource, context);
+    vm.runInContext(source, context, { filename: 'map-core.js' });
 
     const core = windowObj.MapCore as Record<string, (...args: unknown[]) => unknown>;
 

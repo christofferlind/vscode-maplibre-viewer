@@ -125,6 +125,7 @@ interface TemplateContext {
     maplibreCssUri: vscode.Uri;
     workerBase64: string;
     mapUtilsJsUri: vscode.Uri;
+    mapTerrainJsUri: vscode.Uri;
     mapCoreJsUri: vscode.Uri;
     mapBasemapJsUri: vscode.Uri;
     mapPopupJsUri: vscode.Uri;
@@ -158,6 +159,7 @@ const HTML_PLACEHOLDERS: Record<string, PlaceholderResolver> = {
     maplibreCssUri: (ctx) => ctx.maplibreCssUri.toString(),
     maplibreWorkerBase64: (ctx) => ctx.workerBase64,
     mapUtilsJsUri: (ctx) => ctx.mapUtilsJsUri.toString(),
+    mapTerrainJsUri: (ctx) => ctx.mapTerrainJsUri.toString(),
     mapCoreJsUri: (ctx) => ctx.mapCoreJsUri.toString(),
     mapBasemapJsUri: (ctx) => ctx.mapBasemapJsUri.toString(),
     mapPopupJsUri: (ctx) => ctx.mapPopupJsUri.toString(),
@@ -216,6 +218,7 @@ export function generateWebviewHtml(
     const maplibreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.js');
     const maplibreCssUri = getWebviewUri(extensionUri, webview, 'resources', 'maplibre-gl', 'maplibre-gl.css');
     const mapUtilsJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-utils.js');
+    const mapTerrainJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-terrain.js');
     const mapCoreJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-core.js');
     const mapBasemapJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-basemap.js');
     const mapPopupJsUri = getWebviewUri(extensionUri, webview, 'resources', 'scripts', 'map-popup.js');
@@ -243,6 +246,7 @@ export function generateWebviewHtml(
         maplibreCssUri,
         workerBase64,
         mapUtilsJsUri,
+        mapTerrainJsUri,
         mapCoreJsUri,
         mapBasemapJsUri,
         mapPopupJsUri,

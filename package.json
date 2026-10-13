@@ -3,7 +3,7 @@
     "displayName": "MapLibre Viewer",
     "publisher": "christofferlind",
     "description": "Offline map viewer for VS Code powered by MapLibre GL JS. Visualize local GeoJSON files, fly to coordinates, toggle overlays, and bookmark views.",
-    "version": "0.9.4",
+    "version": "0.9.5",
     "license": "MIT",
     "icon": "media/map.png",
     "repository": {
@@ -465,188 +465,200 @@
                 "icon": "$(map)"
             }
         ],
-        "configuration": {
-            "title": "MapLibre Viewer",
-            "properties": {
-                "vscodeMaplibreViewer.geocodingApiKey": {
-                    "type": "string",
-                    "default": "",
-                    "description": "API key for geocoding service (MapTiler)"
-                },
-                "vscodeMaplibreViewer.photonSearchUrl": {
-                    "type": "string",
-                    "default": "https://photon.komoot.io/api/",
-                    "description": "URL for Photon geocoding search service (used when MapTiler API key is not configured)"
-                },
-                "vscodeMaplibreViewer.enableSearch": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Enable search functionality in the map view"
-                },
-                "vscodeMaplibreViewer.searchResultsTransparency": {
-                    "type": "number",
-                    "default": 20,
-                    "minimum": 0,
-                    "maximum": 100,
-                    "description": "Transparency percentage for the search results popup (0 = fully opaque, 100 = fully transparent)"
-                },
-                "vscodeMaplibreViewer.flyToDuration": {
-                    "type": "number",
-                    "default": 500,
-                    "description": "Duration in milliseconds for flyTo animations when navigating to coordinates"
-                },
-                "vscodeMaplibreViewer.singlePointZoom": {
-                    "type": "number",
-                    "default": 10,
-                    "description": "Zoom level to use when flying to a single coordinate point"
-                },
-                "vscodeMaplibreViewer.terrain": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Enable 3D terrain rendering on the map. Requires network access to fetch terrain tiles (disabled by default to keep the viewer fully offline)."
-                },
-                "vscodeMaplibreViewer.terrainUrl": {
-                    "type": "string",
-                    "default": "https://tiles.mapterhorn.com/tilejson.json",
-                    "description": "URL from which terrain source is fetched. Either a TileJSON URL (e.g. 'https://tiles.mapterhorn.com/tilejson.json') or a raster-dem tile URL template with {z}/{x}/{y} placeholders."
-                },
-                "vscodeMaplibreViewer.baseMaps": {
-                    "type": "array",
-                    "default": [],
-                    "description": "Custom basemap styles available in the layer selector. Each basemap requires an id, name, and either styleUrl (for vector styles) or tileUrl (for raster tiles).",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {
-                                "type": "string",
-                                "description": "Unique identifier for the basemap"
-                            },
-                            "name": {
-                                "type": "string",
-                                "description": "Display name shown in the layer selector"
-                            },
-                            "type": {
-                                "type": "string",
-                                "enum": [
-                                    "vector",
-                                    "raster"
-                                ],
-                                "description": "Type of basemap: 'vector' for style JSON, 'raster' for raster tiles. Defaults to 'vector' if styleUrl is provided."
-                            },
-                            "styleUrl": {
-                                "type": "string",
-                                "description": "URL to the MapLibre style JSON (for vector basemaps)"
-                            },
-                            "tileUrl": {
-                                "type": "string",
-                                "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')"
-                            },
-                            "tileSize": {
-                                "type": "number",
-                                "default": 256,
-                                "description": "Tile size for raster sources (default: 256)"
-                            },
-                            "attribution": {
-                                "type": "string",
-                                "description": "Attribution text for the tiles"
-                            },
-                            "minzoom": {
-                                "type": "number",
-                                "description": "Minimum zoom level for raster tiles"
-                            },
-                            "maxzoom": {
-                                "type": "number",
-                                "description": "Maximum zoom level for raster tiles"
-                            },
-                            "description": {
-                                "type": "string",
-                                "description": "Optional description of the basemap"
-                            },
-                            "thumbnail": {
-                                "type": "string",
-                                "description": "Optional thumbnail image URL for the basemap"
-                            }
-                        },
-                        "required": [
-                            "id",
-                            "name"
-                        ]
-                    }
-                },
-                "vscodeMaplibreViewer.coordinatePatterns": {
-                    "type": "array",
-                    "default": [],
-                    "description": "Custom regex patterns for coordinate detection. Each pattern must have named groups 'lat' and 'lng' for direct coordinate extraction, or DMS component groups (latDegrees, latMinutes, latSeconds, latDirection, lngDegrees, lngMinutes, lngSeconds, lngDirection).",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "A descriptive name for the pattern (e.g., 'Swedish Grid')"
-                            },
-                            "pattern": {
-                                "type": "string",
-                                "description": "The regex pattern string. Must include named groups 'lat' and 'lng'. Example: 'X:\\s*(?<lng>\\d+)\\s*,\\s*Y:\\s*(?<lat>\\d+)'"
-                            },
-                            "flags": {
-                                "type": "string",
-                                "default": "g",
-                                "description": "Regex flags (e.g., 'g' for global, 'i' for case-insensitive). Default is 'g'."
-                            }
-                        },
-                        "required": [
-                            "name",
-                            "pattern"
-                        ]
-                    }
-                },
-                "vscodeMaplibreViewer.alwaysShowDemoTiles": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Show the OpenFreeMap.org basemap even if other base maps are configured"
-                },
-                "vscodeMaplibreViewer.lastViewState": {
-                    "type": "object",
-                    "default": {
-                        "center": {
-                            "lat": 0,
-                            "lng": 0
-                        },
-                        "zoom": 1,
-                        "bearing": 0,
-                        "pitch": 0,
-                        "baseMapId": "openfreemap-liberty"
+        "configuration": [
+            {
+                "title": "MapLibre Viewer",
+                "properties": {
+                    "vscodeMaplibreViewer.flyToDuration": {
+                        "type": "number",
+                        "default": 500,
+                        "description": "Duration in milliseconds for flyTo animations when navigating to coordinates"
                     },
-                    "description": "Last saved map view state (center, zoom, bearing, pitch, baseMapId). Automatically updated when the map view changes.",
-                    "properties": {
-                        "center": {
+                    "vscodeMaplibreViewer.singlePointZoom": {
+                        "type": "number",
+                        "default": 10,
+                        "description": "Zoom level to use when flying to a single coordinate point"
+                    },
+                    "vscodeMaplibreViewer.baseMaps": {
+                        "type": "array",
+                        "default": [],
+                        "description": "Custom basemap styles available in the layer selector. Each basemap requires an id, name, and either styleUrl (for vector styles) or tileUrl (for raster tiles).",
+                        "items": {
                             "type": "object",
                             "properties": {
-                                "lat": {
-                                    "type": "number"
+                                "id": {
+                                    "type": "string",
+                                    "description": "Unique identifier for the basemap"
                                 },
-                                "lng": {
-                                    "type": "number"
+                                "name": {
+                                    "type": "string",
+                                    "description": "Display name shown in the layer selector"
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "vector",
+                                        "raster"
+                                    ],
+                                    "description": "Type of basemap: 'vector' for style JSON, 'raster' for raster tiles. Defaults to 'vector' if styleUrl is provided."
+                                },
+                                "styleUrl": {
+                                    "type": "string",
+                                    "description": "URL to the MapLibre style JSON (for vector basemaps)"
+                                },
+                                "tileUrl": {
+                                    "type": "string",
+                                    "description": "Raster tile URL template with {z}/{x}/{y} placeholders (e.g., 'https://tile.example.com/{z}/{x}/{y}.png')"
+                                },
+                                "tileSize": {
+                                    "type": "number",
+                                    "default": 256,
+                                    "description": "Tile size for raster sources (default: 256)"
+                                },
+                                "attribution": {
+                                    "type": "string",
+                                    "description": "Attribution text for the tiles"
+                                },
+                                "minzoom": {
+                                    "type": "number",
+                                    "description": "Minimum zoom level for raster tiles"
+                                },
+                                "maxzoom": {
+                                    "type": "number",
+                                    "description": "Maximum zoom level for raster tiles"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "Optional description of the basemap"
+                                },
+                                "thumbnail": {
+                                    "type": "string",
+                                    "description": "Optional thumbnail image URL for the basemap"
                                 }
+                            },
+                            "required": [
+                                "id",
+                                "name"
+                            ]
+                        }
+                    },
+                    "vscodeMaplibreViewer.coordinatePatterns": {
+                        "type": "array",
+                        "default": [],
+                        "description": "Custom regex patterns for coordinate detection. Each pattern must have named groups 'lat' and 'lng' for direct coordinate extraction, or DMS component groups (latDegrees, latMinutes, latSeconds, latDirection, lngDegrees, lngMinutes, lngSeconds, lngDirection).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "A descriptive name for the pattern (e.g., 'Swedish Grid')"
+                                },
+                                "pattern": {
+                                    "type": "string",
+                                    "description": "The regex pattern string. Must include named groups 'lat' and 'lng'. Example: 'X:\\s*(?<lng>\\d+)\\s*,\\s*Y:\\s*(?<lat>\\d+)'"
+                                },
+                                "flags": {
+                                    "type": "string",
+                                    "default": "g",
+                                    "description": "Regex flags (e.g., 'g' for global, 'i' for case-insensitive). Default is 'g'."
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "pattern"
+                            ]
+                        }
+                    },
+                    "vscodeMaplibreViewer.alwaysShowDemoTiles": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Show the OpenFreeMap.org basemap even if other base maps are configured"
+                    },
+                    "vscodeMaplibreViewer.lastViewState": {
+                        "type": "object",
+                        "default": {
+                            "center": {
+                                "lat": 0,
+                                "lng": 0
+                            },
+                            "zoom": 1,
+                            "bearing": 0,
+                            "pitch": 0,
+                            "baseMapId": "openfreemap-liberty"
+                        },
+                        "description": "Last saved map view state (center, zoom, bearing, pitch, baseMapId). Automatically updated when the map view changes.",
+                        "properties": {
+                            "center": {
+                                "type": "object",
+                                "properties": {
+                                    "lat": {
+                                        "type": "number"
+                                    },
+                                    "lng": {
+                                        "type": "number"
+                                    }
+                                }
+                            },
+                            "zoom": {
+                                "type": "number"
+                            },
+                            "bearing": {
+                                "type": "number"
+                            },
+                            "pitch": {
+                                "type": "number"
+                            },
+                            "baseMapId": {
+                                "type": "string",
+                                "description": "ID of the last selected base map"
                             }
-                        },
-                        "zoom": {
-                            "type": "number"
-                        },
-                        "bearing": {
-                            "type": "number"
-                        },
-                        "pitch": {
-                            "type": "number"
-                        },
-                        "baseMapId": {
-                            "type": "string",
-                            "description": "ID of the last selected base map"
                         }
                     }
                 }
+            },
+            {
+                "title": "Search",
+                "properties": {
+                    "vscodeMaplibreViewer.geocodingApiKey": {
+                        "type": "string",
+                        "default": "",
+                        "description": "API key for geocoding service (MapTiler)"
+                    },
+                    "vscodeMaplibreViewer.photonSearchUrl": {
+                        "type": "string",
+                        "default": "https://photon.komoot.io/api/",
+                        "description": "URL for Photon geocoding search service (used when MapTiler API key is not configured)"
+                    },
+                    "vscodeMaplibreViewer.enableSearch": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Enable search functionality in the map view"
+                    },
+                    "vscodeMaplibreViewer.searchResultsTransparency": {
+                        "type": "number",
+                        "default": 20,
+                        "minimum": 0,
+                        "maximum": 100,
+                        "description": "Transparency percentage for the search results popup (0 = fully opaque, 100 = fully transparent)"
+                    }
+                }
+            },
+            {
+                "title": "Terrain",
+                "properties": {
+                    "vscodeMaplibreViewer.terrain": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Enable 3D terrain rendering on the map. Requires network access to fetch terrain tiles (disabled by default to keep the viewer fully offline)."
+                    },
+                    "vscodeMaplibreViewer.terrainUrl": {
+                        "type": "string",
+                        "default": "https://tiles.mapterhorn.com/tilejson.json",
+                        "description": "URL from which terrain source is fetched. Either a TileJSON URL (e.g. 'https://tiles.mapterhorn.com/tilejson.json') or a raster-dem tile URL template with {z}/{x}/{y} placeholders."
+                    }
+                }
             }
-        }
+        ]
     },
     "scripts": {
         "vscode:prepublish": "npm run compile && npm run copy-assets",

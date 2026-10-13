@@ -3,16 +3,15 @@ import { BookmarkManager } from '../bookmarks/bookmarkManager';
 import { MapBookmark, ViewState } from '../bookmarks/bookmarkTypes';
 import { BaseMapStyle, OverlayLayer } from '../layers/layerTypes';
 import { Coordinate } from '../services/coordinateParser';
-import { performGeocodingSearch, SearchResultData } from '../services/geocodingSearch';
 import { MapConfig, StoredViewState, FeatureInfoUpdateMessage } from './mapWebviewTypes';
 import {
     getMapConfiguration,
     saveViewStateToSettings,
     generateWebviewHtml,
     parseViewStateFromMessage,
-    buildGeocodingResults,
     parseFeatureInfoUpdate
 } from './mapWebviewUtils';
+import { runGeocodingSearch } from './mapGeocodingHandler';
 import { getConfig } from '../services/configService';
 import { logInfo, logError, logLine } from '../services/logger';
 import { logMapError, MapErrorNotifier } from './mapErrorNotifier';
@@ -440,6 +439,12 @@ export abstract class MapWebviewController {
                 }
                 break;
 
+            case 'requestOverlaySync':
+                MapWebviewController.lastActiveViewType = this.getViewType();
+                this.logInfo(`${this.getViewType()} requested overlay layer sync`);
+                this._onOverlaySyncRequest?.();
+                break;
+
             case 'log': {
                 const level = message.level as string | undefined;
                 const args = message.args as string | undefined;
@@ -511,6 +516,12 @@ export abstract class MapWebviewController {
 
     private _onMapReady?: () => void;
 
+    /**
+     * Callback invoked when the webview asks for the current overlay layer
+     * set (requestOverlaySync). Consumers subscribe via onOverlaySyncRequest.
+     */
+    private _onOverlaySyncRequest?: () => void;
+
     private _mapErrorNotifier = new MapErrorNotifier();
 
     private _onFeatureInfoUpdate?: vscode.EventEmitter<FeatureInfoUpdateMessage>;
@@ -530,6 +541,10 @@ export abstract class MapWebviewController {
         this._onMapReady = callback;
     }
 
+    public onOverlaySyncRequest(callback: () => void): void {
+        this._onOverlaySyncRequest = callback;
+    }
+
     public async saveCurrentViewState(): Promise<void> {
         if (this._lastViewState) {
             await saveViewStateToSettings(this._lastViewState, this._currentBaseMapId, this.getViewType());
@@ -542,39 +557,11 @@ export abstract class MapWebviewController {
             return;
         }
 
-        const config = this.getConfiguration();
-        const searchResultsMap = new Map<string, SearchResultData>();
         const requestId = ++this._geocodingRequestId;
-        this.logInfo(`Geocoding search for "${query}"`);
-
-        try {
-            const items = await performGeocodingSearch(
-                query,
-                config.geocodingApiKey,
-                config.photonSearchUrl,
-                searchResultsMap
-            );
-
-            if (requestId !== this._geocodingRequestId) {
-                return;
-            }
-
-            const results = buildGeocodingResults(items, searchResultsMap);
-
-            webview.postMessage({
-                type: 'geocodingSearchResults',
-                results
-            });
-        } catch {
-            if (requestId !== this._geocodingRequestId) {
-                return;
-            }
-
-            webview.postMessage({
-                type: 'geocodingSearchError',
-                message: 'Search failed. Please try again.'
-            });
-        }
+        await runGeocodingSearch(webview, this.getConfiguration(), query, requestId, {
+            logInfo: (message) => this.logInfo(message),
+            isCurrentRequest: (candidateRequestId) => candidateRequestId === this._geocodingRequestId
+        });
     }
 
     protected setupMessageListener(webview: vscode.Webview): void {

@@ -41,6 +41,7 @@ export function loadWithStubbedVscode<T>(moduleId: string): LoadedModule<T> {
         for (const dep of [
             '../../map/mapWebviewUtils',
             '../../map/mapWebviewController',
+            '../../map/mapGeocodingHandler',
             '../../map/mapViewProvider',
             '../../map/mapEditorProvider',
             '../../map/providerManager',

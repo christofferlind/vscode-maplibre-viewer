@@ -132,6 +132,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
     mapsViewProvider.onMapReady(sendVisibleOverlayLayers);
     mapEditorProvider.onMapReady(sendVisibleOverlayLayers);
 
+    // The webview pulls the current overlay layers once the map reports ready,
+    // so a saved overlay set is restored even when the mapReady-triggered push
+    // is silently dropped by the webview pipeline.
+    mapsViewProvider.onOverlaySyncRequest(sendVisibleOverlayLayers);
+    mapEditorProvider.onOverlaySyncRequest(sendVisibleOverlayLayers);
+
     context.subscriptions.push(onDidChangeActiveBasemapEmitter);
 
     context.subscriptions.push(
