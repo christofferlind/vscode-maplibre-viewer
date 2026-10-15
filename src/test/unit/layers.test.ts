@@ -219,6 +219,29 @@ suite('LayerTreeProvider', () => {
         assert.strictEqual(item.contextValue, 'visibleOverlayLayer');
     });
 
+    test('getOverlayLayerIdForTreeItem should map generated overlay items back to layer ids', () => {
+        const provider = new LayerTreeProvider(createContext());
+        const layer = createOverlayLayer({ id: 'mapped-layer' });
+        const item = provider.getTreeItem(layer);
+        assert.strictEqual(provider.getOverlayLayerIdForTreeItem(item), 'mapped-layer');
+    });
+
+    test('getOverlayLayerIdForTreeItem should resolve overlay layer elements returned by getChildren', async () => {
+        const provider = new LayerTreeProvider(createContext());
+        const children = (await provider.getChildren('layersRoot')) as OverlayLayer[];
+        const layer = children.find(child => child.id === 'selected-file');
+        assert.ok(layer);
+        assert.strictEqual(provider.getOverlayLayerIdForTreeItem(layer), 'selected-file');
+    });
+
+    test('getOverlayLayerIdForTreeItem should return undefined for base map elements and unknown objects', () => {
+        const provider = new LayerTreeProvider(createContext());
+        const baseMap = createBaseMap();
+        assert.strictEqual(provider.getOverlayLayerIdForTreeItem(baseMap), undefined);
+        assert.strictEqual(provider.getOverlayLayerIdForTreeItem({}), undefined);
+        assert.strictEqual(provider.getOverlayLayerIdForTreeItem('layersRoot'), undefined);
+    });
+
     test('getTreeItem should create base map tree item for base map', () => {
         const provider = new LayerTreeProvider(createContext());
         const baseMap = createBaseMap();
@@ -289,6 +312,116 @@ suite('LayerTreeProvider', () => {
     test('updateLayerColor should throw for unknown layer', async () => {
         const provider = new LayerTreeProvider(createContext());
         await assert.rejects(() => provider.updateLayerColor('missing', '#fff'), /not found/);
+    });
+
+    test('updateLayerStyle should apply all style properties and persist', async () => {
+        const context = createContext();
+        const provider = new LayerTreeProvider(context);
+        await provider.addOverlayLayer(createOverlayLayer({ id: 'style-layer' }));
+        await provider.updateLayerStyle('style-layer', {
+            color: '#00ff00',
+            opacity: 0.5,
+            circleRadius: 10,
+            lineWidth: 5
+        });
+        const layer = provider.getOverlayLayers().find(l => l.id === 'style-layer');
+        assert.strictEqual(layer?.color, '#00ff00');
+        assert.strictEqual(layer?.opacity, 0.5);
+        assert.strictEqual(layer?.circleRadius, 10);
+        assert.strictEqual(layer?.lineWidth, 5);
+        const persisted = context.globalState.get<OverlayLayer[]>('overlayLayers');
+        assert.ok(persisted);
+        const persistedLayer = persisted.find(l => l.id === 'style-layer');
+        assert.strictEqual(persistedLayer?.color, '#00ff00');
+        assert.strictEqual(persistedLayer?.opacity, 0.5);
+        assert.strictEqual(persistedLayer?.circleRadius, 10);
+        assert.strictEqual(persistedLayer?.lineWidth, 5);
+    });
+
+    test('updateLayerStyle should merge partial style without clearing other properties', async () => {
+        const provider = new LayerTreeProvider(createContext());
+        await provider.addOverlayLayer(createOverlayLayer({
+            id: 'merge-layer',
+            color: '#123456',
+            opacity: 0.8,
+            circleRadius: 4
+        }));
+        await provider.updateLayerStyle('merge-layer', { lineWidth: 7 });
+        const layer = provider.getOverlayLayers().find(l => l.id === 'merge-layer');
+        assert.strictEqual(layer?.color, '#123456');
+        assert.strictEqual(layer?.opacity, 0.8);
+        assert.strictEqual(layer?.circleRadius, 4);
+        assert.strictEqual(layer?.lineWidth, 7);
+    });
+
+    test('updateLayerStyle should keep other layer properties (visibility, data) untouched', async () => {
+        const provider = new LayerTreeProvider(createContext());
+        await provider.addOverlayLayer(createOverlayLayer({ id: 'preserve-layer' }));
+        await provider.updateLayerStyle('preserve-layer', { color: '#abcdef' });
+        const layer = provider.getOverlayLayers().find(l => l.id === 'preserve-layer');
+        assert.strictEqual(layer?.visible, true);
+        assert.strictEqual(layer?.name, 'Test Layer');
+        assert.strictEqual(layer?.type, 'geojson');
+    });
+
+    test('updateLayerStyle should notify overlay listeners and refresh the tree', async () => {
+        const provider = new LayerTreeProvider(createContext());
+        await provider.addOverlayLayer(createOverlayLayer({ id: 'event-layer' }));
+
+        const events: Array<{ type: string; data: unknown }> = [];
+        provider.onDidChangeLayers(event => events.push(event));
+        let treeRefreshed = 0;
+        provider.onDidChangeTreeData(() => treeRefreshed++);
+
+        await provider.updateLayerStyle('event-layer', { opacity: 0.25 });
+
+        const overlayEvents = events.filter(e => e.type === 'overlay');
+        assert.strictEqual(overlayEvents.length, 1, 'onDidChangeLayers should fire once for the overlay update');
+        assert.strictEqual((overlayEvents[0].data as OverlayLayer).opacity, 0.25);
+        assert.strictEqual(treeRefreshed, 1, 'tree view should refresh after the style update');
+    });
+
+    test('updateLayerStyle should reflect the new style in getVisibleOverlayLayers', async () => {
+        const provider = new LayerTreeProvider(createContext());
+        await provider.addOverlayLayer(createOverlayLayer({ id: 'visible-style-layer', visible: true }));
+        await provider.updateLayerStyle('visible-style-layer', { color: '#0000ff', lineWidth: 9 });
+        const visible = provider.getVisibleOverlayLayers().find(l => l.id === 'visible-style-layer');
+        assert.strictEqual(visible?.color, '#0000ff');
+        assert.strictEqual(visible?.lineWidth, 9);
+    });
+
+    test('updateLayerStyle should accept reset values (all undefined)', async () => {
+        const provider = new LayerTreeProvider(createContext());
+        await provider.addOverlayLayer(createOverlayLayer({ id: 'reset-layer', color: '#fff' }));
+        await provider.updateLayerStyle('reset-layer', {
+            color: undefined,
+            opacity: undefined,
+            circleRadius: undefined,
+            lineWidth: undefined
+        });
+        const layer = provider.getOverlayLayers().find(l => l.id === 'reset-layer');
+        assert.strictEqual(layer?.color, undefined);
+        assert.strictEqual(layer?.opacity, undefined);
+    });
+
+    test('updateLayerStyle should throw for unknown layer', async () => {
+        const provider = new LayerTreeProvider(createContext());
+        await assert.rejects(() => provider.updateLayerStyle('missing', { opacity: 0.5 }), /not found/);
+    });
+
+    test('updateLayerStyle should reject invalid style values', async () => {
+        const provider = new LayerTreeProvider(createContext());
+        await provider.addOverlayLayer(createOverlayLayer({ id: 'invalid-style-layer' }));
+
+        await assert.rejects(() => provider.updateLayerStyle('invalid-style-layer', { opacity: 1.5 }), /between 0 and 1/);
+        await assert.rejects(() => provider.updateLayerStyle('invalid-style-layer', { opacity: -0.1 }), /between 0 and 1/);
+        await assert.rejects(() => provider.updateLayerStyle('invalid-style-layer', { color: 5 as unknown as string }), /must be a string/);
+        await assert.rejects(() => provider.updateLayerStyle('invalid-style-layer', { circleRadius: 0 }), /positive/);
+        await assert.rejects(() => provider.updateLayerStyle('invalid-style-layer', { circleRadius: -3 }), /positive/);
+        await assert.rejects(() => provider.updateLayerStyle('invalid-style-layer', { lineWidth: 0 }), /positive/);
+
+        const layer = provider.getOverlayLayers().find(l => l.id === 'invalid-style-layer');
+        assert.strictEqual(layer?.color, undefined, 'failed updates must not mutate the layer');
     });
 
     test('addOverlayLayer should add a new layer', async () => {
@@ -546,15 +679,61 @@ suite('layerTreeItemFactory', () => {
         assert.strictEqual(item.iconPath.id, 'image');
     });
 
-    test('createOverlayTreeItem should mark visible overlay layer', () => {
-        const layer = createOverlayLayer();
-        const item = new MockTreeItem(layer.name, MockTreeItemCollapsibleState.None);
-        item.description = layer.description;
-        item.contextValue = 'visibleOverlayLayer';
-        item.iconPath = new MockThemeIcon('eye');
-        item.command = { command: 'vscodeMaplibreViewer.toggleLayer', title: 'Toggle Layer Visibility', arguments: [layer] };
-        assert.strictEqual(item.contextValue, 'visibleOverlayLayer');
-        assert.strictEqual(item.command.command, 'vscodeMaplibreViewer.toggleLayer');
+    test('createOverlayTreeItem should use activation command and reflect visibility in checkbox', () => {
+        ModuleCtor.prototype.require = function (id: string): unknown {
+            if (id === 'vscode') {
+                return vscodeStub;
+            }
+            return originalPrototypeRequire.call(this, id);
+        };
+        try {
+            const moduleCache = (ModuleCtor as unknown as { _cache: Record<string, NodeModule | undefined> })._cache;
+            const factoryPath = nodeRequire.resolve('../../layers/layerTreeItemFactory');
+            delete moduleCache[factoryPath];
+            const { createOverlayTreeItem } = nodeRequire('../../layers/layerTreeItemFactory') as typeof import('../../layers/layerTreeItemFactory');
+            const TreeItemCheckboxState = (vscodeStub as { TreeItemCheckboxState: typeof vscode.TreeItemCheckboxState }).TreeItemCheckboxState;
+
+            const visibleLayer = createOverlayLayer({ visible: true });
+            const visibleItem = createOverlayTreeItem(visibleLayer);
+            assert.strictEqual(visibleItem.command?.command, 'vscodeMaplibreViewer.layerItemActivated');
+            assert.strictEqual(visibleItem.checkboxState, TreeItemCheckboxState.Checked);
+
+            const hiddenLayer = createOverlayLayer({ visible: false });
+            const hiddenItem = createOverlayTreeItem(hiddenLayer);
+            assert.strictEqual(hiddenItem.command?.command, 'vscodeMaplibreViewer.layerItemActivated');
+            assert.strictEqual(hiddenItem.checkboxState, TreeItemCheckboxState.Unchecked);
+        } finally {
+            ModuleCtor.prototype.require = originalPrototypeRequire;
+        }
+    });
+});
+
+suite('DoubleClickTracker', () => {
+    test('should ignore a single click and detect two clicks inside the window', () => {
+        const { DoubleClickTracker } = nodeRequire('../../layers/layerClickHandler') as typeof import('../../layers/layerClickHandler');
+        const tracker = new DoubleClickTracker(50);
+        assert.strictEqual(tracker.handleClick('layer-a'), false, 'single click should do nothing');
+        assert.strictEqual(tracker.handleClick('layer-a'), true, 'second click within window is a double click');
+        assert.strictEqual(tracker.handleClick('layer-a'), false, 'third click starts a new sequence');
+        tracker.dispose();
+    });
+
+    test('should treat clicks after the window expires as single clicks', async () => {
+        const { DoubleClickTracker } = nodeRequire('../../layers/layerClickHandler') as typeof import('../../layers/layerClickHandler');
+        const tracker = new DoubleClickTracker(20);
+        assert.strictEqual(tracker.handleClick('layer-b'), false);
+        await new Promise(resolve => setTimeout(resolve, 40));
+        assert.strictEqual(tracker.handleClick('layer-b'), false);
+        tracker.dispose();
+    });
+
+    test('should track layers independently', async () => {
+        const { DoubleClickTracker } = nodeRequire('../../layers/layerClickHandler') as typeof import('../../layers/layerClickHandler');
+        const tracker = new DoubleClickTracker(50);
+        assert.strictEqual(tracker.handleClick('layer-c'), false);
+        assert.strictEqual(tracker.handleClick('layer-d'), false);
+        assert.strictEqual(tracker.handleClick('layer-c'), true);
+        tracker.dispose();
     });
 });
 

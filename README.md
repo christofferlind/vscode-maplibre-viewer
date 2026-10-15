@@ -27,7 +27,9 @@ A VS Code extension that provides an interactive map viewer powered by MapLibre 
 - **Built-in formats**: GeoJSON (`.geojson`, `.json`) and GPX (`.gpx`) files render automatically when opened
 - **Drag-and-drop conversion**: Drag GeoJSON, KML, CSV, GPX, or Shapefile (`.shp` with its `.dbf`/`.prj`/`.shx` sidecar files) files onto the Map Layers view to convert and display them
 - **Selected File Layer**: Toggle the active file's layer on/off from the Map Layers view
+- **Overlay Layer Interaction**: Double-click an overlay layer in the Map Layers view to fit the map to its data; toggle visibility via the layer's checkbox
 - **Clipboard Layer**: Copy GeoJSON or WKT text to the clipboard and view it as an overlay layer
+- **Layer Styling**: Configure the color, opacity, circle radius, and line width of any overlay layer (including the selected file layer) via "Configure Layer Style" in the Map Layers view; custom styles persist across sessions
 - **Auto Bounding Box Fit**: The map automatically fits to the extent of the loaded data
 
 ### 📍 Coordinate Detection
@@ -421,6 +423,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 | `Add Overlay Layer` | Add a new overlay layer |
 | `Remove Layer` | Remove an overlay layer |
 | `Change Layer Color` | Change the color of an overlay layer |
+| `Configure Layer Style...` | Configure color, opacity, circle radius, or line width of an overlay layer |
 | `Show on Map` | Fit the map to the bounds of an overlay layer |
 
 </details>

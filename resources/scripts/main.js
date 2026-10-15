@@ -216,23 +216,35 @@ function setupMessageHandler() {
 			case '__testQuery':
 				var method = message.method;
 				var args = message.args || [];
-				var result = undefined;
-				var error = undefined;
+				// Async __test methods return a promise; deliver the response
+				// once it settles so integration tests can await the result.
+				function postTestResponse(response) {
+					vscode.postMessage({
+						type: '__testResponse',
+						requestId: message.requestId,
+						result: response.result,
+						error: response.error
+					});
+				}
 				try {
 					if (window.__test && typeof window.__test[method] === 'function') {
-						result = window.__test[method].apply(window.__test, args);
+						var maybePromise = window.__test[method].apply(window.__test, args);
+						if (maybePromise && typeof maybePromise.then === 'function') {
+							maybePromise.then(
+								function(value) { postTestResponse({ result: value }); },
+								function(e) { postTestResponse({ error: e.message || String(e) }); }
+							);
+						} else {
+							postTestResponse({ result: maybePromise });
+						}
 					} else {
 						error = 'Method not found: ' + method;
+						postTestResponse({ result: undefined, error: error });
 					}
 				} catch (e) {
 					error = e.message || String(e);
+					postTestResponse({ result: undefined, error: error });
 				}
-				vscode.postMessage({
-					type: '__testResponse',
-					requestId: message.requestId,
-					result: result,
-					error: error || undefined
-				});
 				break;
 		}
 	});

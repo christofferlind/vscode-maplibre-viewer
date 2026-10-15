@@ -141,6 +141,32 @@ function createGeoJsonLayerDefinitions(sourceId, options) {
 }
 
 /**
+ * Clamps a requested fit padding so the map still has positive available
+ * space. MapLibre's fitBounds silently refuses to fit (cameraForBounds
+ * returns undefined) when the padding fully consumes the smaller container
+ * dimension, which previously made 'Show on Map' a silent no-op whenever the
+ * map panel was small or collapsed.
+ * @param {number} requested - Requested padding in pixels
+ * @param {object} map - The MapLibre GL map instance
+ * @returns {number} Padding clamped to the container size
+ */
+function resolveFitPadding(requested, map) {
+	var container = map.getContainer ? map.getContainer() : null;
+	if (!container) {
+		return requested;
+	}
+	var width = container.offsetWidth || 0;
+	var height = container.offsetHeight || 0;
+	// A small margin keeps the fit animation visibly padded even in tiny
+	// panels while guaranteeing a positive available area.
+	var paddingBudget = Math.floor(Math.max(0, Math.min(width, height) - 4) / 2);
+	if (paddingBudget <= 0) {
+		return 4;
+	}
+	return Math.min(requested, paddingBudget);
+}
+
+/**
  * Fits the map to bounds with default options.
  * @param {object} map - The MapLibre GL map instance
  * @param {array} bounds - [west, south, east, north] bounds array
@@ -159,11 +185,18 @@ function fitBoundsWithDefaults(map, bounds, options) {
 	var neLng = Math.max(bounds[0][0], bounds[1][0]);
 	var swLat = Math.min(bounds[0][1], bounds[1][1]);
 	var neLat = Math.max(bounds[0][1], bounds[1][1]);
+	var container = map.getContainer ? map.getContainer() : null;
+	// Nothing sensible can be fitted while the map has no layout yet.
+	if ((!container || ((container.offsetWidth || 0) <= 0 && (container.offsetHeight || 0) <= 0))) {
+		return;
+	}
 	var normalized = [
 		[swLng, swLat],
 		[neLng, neLat]
 	];
-	map.fitBounds(normalized, Object.assign({}, defaultOptions, options));
+	var finalOptions = Object.assign({}, defaultOptions, options);
+	finalOptions.padding = resolveFitPadding(finalOptions.padding, map);
+	map.fitBounds(normalized, finalOptions);
 }
 
 // Export functions for use in other modules

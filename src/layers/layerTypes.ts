@@ -35,8 +35,24 @@ export interface OverlayLayer {
     visible: boolean;
     opacity?: number;
     color?: string;
+    /** Radius in pixels for point (circle) rendering. Default: 6 */
+    circleRadius?: number;
+    /** Width in pixels for line rendering. Default: 2 */
+    lineWidth?: number;
     minzoom?: number;
     maxzoom?: number;
+}
+
+/**
+ * Partial style configuration that can be applied to an overlay layer.
+ * Only the provided properties are changed; everything else is kept.
+ */
+export interface LayerStyle {
+    color?: string;
+    /** Opacity in the range 0-1 */
+    opacity?: number;
+    circleRadius?: number;
+    lineWidth?: number;
 }
 
 /**

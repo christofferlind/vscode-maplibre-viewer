@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
-import { BaseMapStyle, OverlayLayer, DEFAULT_OVERLAY_LAYERS, SELECTED_FILE_LAYER_ID, CLIPBOARD_LAYER_ID } from './layerTypes';
+import { BaseMapStyle, OverlayLayer, LayerStyle, LayerTreeItem, isOverlayLayer, DEFAULT_OVERLAY_LAYERS, SELECTED_FILE_LAYER_ID, CLIPBOARD_LAYER_ID } from './layerTypes';
 import { FileToGeoJsonAdapter } from '../services/api';
 import { getConfig } from '../services/configService';
 import { createRootTreeItem, createBaseMapTreeItem, createOverlayTreeItem } from './layerTreeItemFactory';
 import { processDragDropItems } from './layerDragDropHandler';
 import { logInfo } from '../services/logger';
+import { cloneDefaultOverlayLayers, sanitizeForPersistence } from './overlayLayerUtils';
+import { validateLayerStyle } from './layerStyleValidation';
 
 /**
  * Tree item types for internal use
@@ -15,43 +17,6 @@ type TreeItem = BaseMapStyle | OverlayLayer | 'baseMapsRoot' | 'layersRoot';
  * MIME types for drag-and-drop operations
  */
 const MIME_APPLICATION_JSON = 'application/json';
-
-const EMPTY_FEATURE_COLLECTION: object = { type: 'FeatureCollection', features: [] };
-
-/**
- * Returns a deep copy of the default overlay layers so callers can mutate
- * the returned array and its elements without modifying the module constant.
- */
-function cloneDefaultOverlayLayers(): OverlayLayer[] {
-    return DEFAULT_OVERLAY_LAYERS.map(layer => ({
-        ...layer,
-        source: {
-            ...layer.source
-        }
-    }));
-}
-
-/**
- * Returns a copy of the overlay layers with the "Selected file" layer's
- * GeoJSON data replaced by an empty FeatureCollection. The layer's
- * visibility, color, and other properties are preserved. This is used when
- * persisting overlay state so we never write a previous session's file data
- * to globalState.
- */
-function sanitizeForPersistence(layers: OverlayLayer[]): OverlayLayer[] {
-    return layers.map(layer => {
-        if (layer.id !== SELECTED_FILE_LAYER_ID && layer.id !== CLIPBOARD_LAYER_ID) {
-            return layer;
-        }
-        return {
-            ...layer,
-            source: {
-                ...layer.source,
-                data: EMPTY_FEATURE_COLLECTION
-            }
-        };
-    });
-}
 
 /**
  * Tree data provider for managing map layers and base maps
@@ -69,6 +34,12 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
     private _overlayLayers: OverlayLayer[];
     private _activeBaseMapId: string;
     private _extensionContext: vscode.ExtensionContext;
+
+    /**
+     * Maps generated tree items back to their overlay layer ids so checkbox
+     * changes can be attributed to a specific layer.
+     */
+    private _treeItemLayerIds: WeakMap<vscode.TreeItem, string> = new WeakMap();
 
     /**
      * File-to-GeoJSON adapters for drag-and-drop conversion
@@ -246,7 +217,9 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         }
 
         if ('visible' in element) {
-            return createOverlayTreeItem(element);
+            const item = createOverlayTreeItem(element);
+            this._treeItemLayerIds.set(item, element.id);
+            return item;
         }
 
         return createBaseMapTreeItem(element, element.id === this._activeBaseMapId);
@@ -269,6 +242,23 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         }
 
         return Promise.resolve([]);
+    }
+
+    /**
+     * Gets the overlay layer id associated with a generated tree item
+     */
+    getOverlayLayerIdForTreeItem(element: vscode.TreeItem | object | string): string | undefined {
+        if (typeof element === 'string' || element === null || element === undefined) {
+            return undefined;
+        }
+
+        // The checkbox event carries getChildren elements (OverlayLayer
+        // objects), not the rendered TreeItems this WeakMap is keyed on.
+        const candidate = element as LayerTreeItem;
+        if (isOverlayLayer(candidate) && 'source' in candidate) {
+            return candidate.id;
+        }
+        return this._treeItemLayerIds.get(element as vscode.TreeItem);
     }
 
     /**
@@ -341,6 +331,32 @@ export class LayerTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsc
         this._overlayLayers[layerIndex].color = color;
         await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
         logInfo(`Updated color of layer "${this._overlayLayers[layerIndex].name}" (${layerId}) to ${color}`);
+
+        this._onDidChangeLayers.fire({
+            type: 'overlay',
+            data: this._overlayLayers[layerIndex]
+        });
+        this.refresh();
+    }
+
+    /**
+     * Updates the configurable style (color, opacity, circle radius, line
+     * width) of an overlay layer. Only provided properties are changed.
+     */
+    async updateLayerStyle(layerId: string, style: LayerStyle): Promise<void> {
+        const layerIndex = this._overlayLayers.findIndex(l => l.id === layerId);
+        if (layerIndex === -1) {
+            throw new Error(`Layer with id '${layerId}' not found`);
+        }
+
+        validateLayerStyle(style);
+
+        this._overlayLayers[layerIndex] = {
+            ...this._overlayLayers[layerIndex],
+            ...style
+        };
+        await this._extensionContext.globalState.update('overlayLayers', sanitizeForPersistence(this._overlayLayers));
+        logInfo(`Updated style of layer "${this._overlayLayers[layerIndex].name}" (${layerId})`);
 
         this._onDidChangeLayers.fire({
             type: 'overlay',

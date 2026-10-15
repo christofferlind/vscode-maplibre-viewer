@@ -165,7 +165,7 @@ suite('GpxAdapter', () => {
 
         test('should convert the real OsmAnd track file to a line feature', async function () {
             if (!fs.existsSync(fixturePath)) {
-this.skip();
+                this.skip();
             }
             const result = await gpxAdapter.toGeoJson(fixturePath);
             const gj = result as {

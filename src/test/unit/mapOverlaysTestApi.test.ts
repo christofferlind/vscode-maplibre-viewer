@@ -12,6 +12,7 @@ interface MockStyleLayer {
     id: string;
     source: string;
     type?: string;
+    paint?: Record<string, unknown>;
 }
 
 interface MockMap {
@@ -58,10 +59,14 @@ function loadMapOverlays() {
                 callback(map);
                 return true;
             },
-            createGeoJsonLayerDefinitions: (sourceId: string) => ({
-                circle: { id: sourceId + '-circles', type: 'circle', source: sourceId },
-                line: { id: sourceId + '-lines', type: 'line', source: sourceId },
-                fill: { id: sourceId + '-fills', type: 'fill', source: sourceId }
+            createGeoJsonLayerDefinitions: (sourceId: string, options?: {
+                circlePaint?: Record<string, unknown>;
+                linePaint?: Record<string, unknown>;
+                fillPaint?: Record<string, unknown>;
+            }) => ({
+                circle: { id: sourceId + '-circles', type: 'circle', source: sourceId, paint: options?.circlePaint },
+                line: { id: sourceId + '-lines', type: 'line', source: sourceId, paint: options?.linePaint },
+                fill: { id: sourceId + '-fills', type: 'fill', source: sourceId, paint: options?.fillPaint }
             }),
             isOverlaySourceId: (sourceId: unknown) =>
                 typeof sourceId === 'string' && sourceId.indexOf('overlay-') === 0,
@@ -152,6 +157,61 @@ suite('MapOverlays Test API', () => {
 
             const overlays = windowObj.MapOverlays as { isOverlayLayerOnMap: (id: string) => boolean };
             assert.strictEqual(overlays.isOverlayLayerOnMap('any'), false);
+        });
+    });
+
+    suite('overlay style configuration', () => {
+        test('geojson overlay applies configured color and opacity', () => {
+            const { overlays, map } = loadMapOverlays();
+            const update = (overlays as { updateOverlayLayers: (l: unknown[]) => void }).updateOverlayLayers;
+            update([{ ...layer('styled'), color: '#00FF00', opacity: 0.5 }]);
+
+            const style = (map as unknown as { __style: { layers: MockStyleLayer[] } }).__style;
+            const circles = style.layers.find(l => l.id === 'overlay-styled-circles');
+            const lines = style.layers.find(l => l.id === 'overlay-styled-lines');
+            const fills = style.layers.find(l => l.id === 'overlay-styled-fills');
+            assert.ok(circles && lines && fills, 'all sub-layers should be added');
+            assert.strictEqual(circles.paint?.['circle-color'], '#00FF00');
+            assert.strictEqual(circles.paint?.['circle-opacity'], 0.5);
+            assert.strictEqual(lines.paint?.['line-color'], '#00FF00');
+            assert.strictEqual(lines.paint?.['fill-color'], undefined, 'fill paint belongs to the fill sub-layer');
+            assert.strictEqual(fills.paint?.['fill-color'], '#00FF00');
+            assert.strictEqual(fills.paint?.['fill-opacity'], 0.25, 'fill opacity is the layer opacity halved');
+        });
+
+        test('geojson overlay falls back to default paint when no style is configured', () => {
+            const { overlays, map } = loadMapOverlays();
+            const update = (overlays as { updateOverlayLayers: (l: unknown[]) => void }).updateOverlayLayers;
+            update([{ ...layer('fallback'), color: undefined, opacity: undefined }]);
+
+            const style = (map as unknown as { __style: { layers: MockStyleLayer[] } }).__style;
+            const circles = style.layers.find(l => l.id === 'overlay-fallback-circles');
+            assert.strictEqual(circles?.paint?.['circle-color'], '#FF0000', 'default color must be red');
+            assert.strictEqual(circles?.paint?.['circle-opacity'], 1, 'default opacity must be 1');
+        });
+
+        test('geojson overlay applies configured circle radius and line width', () => {
+            const { overlays, map } = loadMapOverlays();
+            const update = (overlays as { updateOverlayLayers: (l: unknown[]) => void }).updateOverlayLayers;
+            update([{ ...layer('dimensions'), circleRadius: 12, lineWidth: 7 }]);
+
+            const style = (map as unknown as { __style: { layers: MockStyleLayer[] } }).__style;
+            const circles = style.layers.find(l => l.id === 'overlay-dimensions-circles');
+            const lines = style.layers.find(l => l.id === 'overlay-dimensions-lines');
+            assert.strictEqual(circles?.paint?.['circle-radius'], 12);
+            assert.strictEqual(lines?.paint?.['line-width'], 7);
+        });
+
+        test('geojson overlay falls back to default circle radius and line width', () => {
+            const { overlays, map } = loadMapOverlays();
+            const update = (overlays as { updateOverlayLayers: (l: unknown[]) => void }).updateOverlayLayers;
+            update([layer('default-dimensions')]);
+
+            const style = (map as unknown as { __style: { layers: MockStyleLayer[] } }).__style;
+            const circles = style.layers.find(l => l.id === 'overlay-default-dimensions-circles');
+            const lines = style.layers.find(l => l.id === 'overlay-default-dimensions-lines');
+            assert.strictEqual(circles?.paint?.['circle-radius'], 6);
+            assert.strictEqual(lines?.paint?.['line-width'], 2);
         });
     });
 

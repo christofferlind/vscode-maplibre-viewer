@@ -17,6 +17,9 @@ import { StoredViewState, StoredPerViewState } from './map/mapWebviewTypes';
 import { handleSearchOnMap } from './searchHandler';
 import { handleTextSelection, handleFileSelection, resetFileSelectionState } from './selectionHandler';
 import { loadCustomCoordinatePatterns, registerLanguageCommands, registerCoordinateSelectionCommands } from './commandRegistration';
+import { configureLayerStyle, promptLayerColor } from './layers/layerStylePrompt';
+import { DoubleClickTracker } from './layers/layerClickHandler';
+import { createToggleOverlayLayerWithBackfill } from './layers/layerToggleService';
 import { getConfig, onConfigurationChanged, setViewStateWriteGuard } from './services/configService';
 import { debounce } from './services/debounce';
 import { calculateBoundingBoxFromGeoJson } from './services/coordinateParser';
@@ -24,6 +27,7 @@ import { ClipboardLayerManager } from './services/clipboardLayerManager';
 
 let mapsViewProvider: MapViewProvider;
 let mapEditorProvider: MapEditorProvider;
+let layerTreeProviderForTestAccess: LayerTreeProvider | undefined;
 
 /**
  * Activates the extension.
@@ -45,6 +49,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
     );
 
     const layerTreeProvider = new LayerTreeProvider(context);
+    layerTreeProviderForTestAccess = layerTreeProvider;
 
     const onDidChangeActiveBasemapEmitter = new vscode.EventEmitter<BaseMapStyle>();
 
@@ -169,36 +174,48 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
         })
     );
 
+    const toggleOverlayLayerWithBackfill = createToggleOverlayLayerWithBackfill({
+        layerTreeProvider,
+        providerManager,
+        fileToGeoJsonAdapters,
+        syncClipboardLayer: () => clipboardLayerManager.syncWithLayerState()
+    });
+
     context.subscriptions.push(
-        vscode.commands.registerCommand('vscodeMaplibreViewer.toggleLayer', async (layer: OverlayLayer) => {
-            try {
-                await layerTreeProvider.toggleLayerVisibility(layer.id);
+        vscode.commands.registerCommand('vscodeMaplibreViewer.toggleLayer', toggleOverlayLayerWithBackfill)
+    );
 
-                // Back-fill the "Selected file" layer when it becomes visible:
-                // while hidden, file activations were skipped, so re-process the
-                // active editor now.
-                if (layer.id === 'selected-file') {
-                    const selectedFileLayer = layerTreeProvider.getSelectedFileLayer();
-                    if (selectedFileLayer?.visible) {
-                        resetFileSelectionState();
-                        if (vscode.window.activeTextEditor) {
-                            await handleFileSelection(
-                                vscode.window.activeTextEditor,
-                                layerTreeProvider,
-                                providerManager,
-                                fileToGeoJsonAdapters
-                            );
-                        }
-                    }
+    context.subscriptions.push(
+        layersTreeView.onDidChangeCheckboxState(async (event) => {
+            for (const [item, state] of event.items) {
+                const layerId = layerTreeProvider.getOverlayLayerIdForTreeItem(item);
+                if (!layerId) {
+                    continue;
                 }
-
-                // Start/stop clipboard watching based on the layer's visibility
-                if (layer.id === 'clipboard') {
-                    clipboardLayerManager.syncWithLayerState();
+                const layer = layerTreeProvider.getOverlayLayers().find(l => l.id === layerId);
+                if (!layer) {
+                    continue;
                 }
-            } catch (error) {
-                showOperationError('toggle layer', error);
+                const shouldShow = state === vscode.TreeItemCheckboxState.Checked;
+                if (layer.visible === shouldShow) {
+                    continue;
+                }
+                await toggleOverlayLayerWithBackfill(layer);
             }
+        })
+    );
+
+    const layerActivationTracker = new DoubleClickTracker();
+    context.subscriptions.push(new vscode.Disposable(() => layerActivationTracker.dispose()));
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.layerItemActivated', async (layer: OverlayLayer) => {
+            if (!layerActivationTracker.handleClick(layer.id)) {
+                return;
+            }
+            await vscode.commands.executeCommand(
+                'vscodeMaplibreViewer.showOverlayLayersOnMap',
+                layer
+            );
         })
     );
 
@@ -260,48 +277,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
             if (!layer) {
                 return;
             }
-            const colorPickers: vscode.QuickPickItem[] = [
-                { label: '$(circle-filled) Red', detail: '#FF0000' },
-                { label: '$(circle-filled) Blue', detail: '#0000FF' },
-                { label: '$(circle-filled) Green', detail: '#00FF00' },
-                { label: '$(circle-filled) Yellow', detail: '#FFFF00' },
-                { label: '$(circle-filled) Orange', detail: '#FFA500' },
-                { label: '$(circle-filled) Purple', detail: '#800080' },
-                { label: '$(circle-filled) Cyan', detail: '#00FFFF' },
-                { label: '$(circle-filled) Magenta', detail: '#FF00FF' },
-                { label: '$(circle-filled) Black', detail: '#000000' },
-                { label: '$(circle-filled) White', detail: '#FFFFFF' },
-                { label: '$(color-mode) Custom...', detail: 'custom' }
-            ];
-
-            const selected = await vscode.window.showQuickPick(colorPickers, {
-                placeHolder: `Select color for "${layer.name}"`,
-                title: 'Layer Color'
-            });
-
-            if (!selected) {
-                return;
-            }
-
-            let color: string | undefined;
-            if (selected.detail === 'custom') {
-                color = await vscode.window.showInputBox({
-                    prompt: 'Enter color value (hex, rgb, or color name)',
-                    placeHolder: '#FF0000',
-                    value: layer.color || '#FF0000'
-                });
-            } else {
-                color = selected.detail;
-            }
-
-            if (!color) {
-                return;
-            }
-
             try {
+                const color = await promptLayerColor(layer.color);
+                if (!color) {
+                    return;
+                }
                 await layerTreeProvider.updateLayerColor(layer.id, color);
             } catch (error) {
                 showOperationError('change layer color', error);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('vscodeMaplibreViewer.changeLayerStyle', async (layer: OverlayLayer) => {
+            if (!layer) {
+                return;
+            }
+            const liveLayer = layerTreeProvider.getOverlayLayers().find(l => l.id === layer.id);
+            if (!liveLayer) {
+                return;
+            }
+            try {
+                await configureLayerStyle(liveLayer, style => layerTreeProvider.updateLayerStyle(layer.id, style));
+            } catch (error) {
+                showOperationError('configure layer style', error);
             }
         })
     );
@@ -503,6 +503,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<MapLib
     );
 
     return api;
+}
+
+/**
+ * Test-only accessor for the live extension components (the extension-host
+ * counterpart of the webview's window.__test hook). Lets integration tests
+ * query the real, visible map webviews and the live layer tree provider
+ * without exposing test paths on the public API.
+ */
+export function getMapViewerTestAccess(): {
+    mapWebviews: MapWebviewController[];
+    layerTreeProvider: LayerTreeProvider;
+} | undefined {
+    if (!mapsViewProvider || !mapEditorProvider || !layerTreeProviderForTestAccess) {
+        return undefined;
+    }
+    return {
+        mapWebviews: [mapsViewProvider, mapEditorProvider],
+        layerTreeProvider: layerTreeProviderForTestAccess
+    };
 }
 
 export async function deactivate(): Promise<void> {

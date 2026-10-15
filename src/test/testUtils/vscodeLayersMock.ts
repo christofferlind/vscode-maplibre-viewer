@@ -49,6 +49,11 @@ export enum TreeItemCollapsibleState {
     Expanded = 2
 }
 
+export enum TreeItemCheckboxState {
+    Unchecked = 0,
+    Checked = 1
+}
+
 export class TreeItem {
     public label: string;
     public collapsibleState: TreeItemCollapsibleState;
@@ -57,6 +62,7 @@ export class TreeItem {
     public resourceUri?: Uri;
     public description?: string;
     public tooltip?: string;
+    public checkboxState?: TreeItemCheckboxState;
     public command?: { command: string; title: string; arguments?: unknown[] };
 
     constructor(label: string, collapsibleState: TreeItemCollapsibleState) {
@@ -167,6 +173,7 @@ export const vscodeStub: Record<string, unknown> = {
     ThemeIcon,
     TreeItem,
     TreeItemCollapsibleState,
+    TreeItemCheckboxState,
     EventEmitter,
     Disposable,
     DataTransfer,

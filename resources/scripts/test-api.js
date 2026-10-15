@@ -49,6 +49,38 @@ window.__test = {
     },
 
     /**
+     * Get paint properties of all sub-layers for a given overlay layer ID.
+     * Keys match getLayerVisibility (circles, lines, fills); each holds the
+     * paint property values of that sub-layer.
+     * @param {string} layerId - The overlay layer ID
+     * @returns {Object} Paint properties per sub-layer type
+     */
+    getLayerPaint: function(layerId) {
+        var map = window.MapCore && window.MapCore.getMap();
+        if (!map) { return { error: 'map not initialized' }; }
+        var results = {};
+        var paintKeys = {
+            circles: ['circle-radius', 'circle-color', 'circle-opacity'],
+            lines: ['line-color', 'line-width', 'line-opacity'],
+            fills: ['fill-color', 'fill-opacity']
+        };
+        Object.keys(paintKeys).forEach(function(type) {
+            var fullId = 'overlay-' + layerId + '-' + type;
+            results[type] = {};
+            try {
+                if (map.getLayer(fullId)) {
+                    paintKeys[type].forEach(function(prop) {
+                        results[type][prop] = map.getPaintProperty(fullId, prop);
+                    });
+                }
+            } catch (e) {
+                results[type] = { error: e.message };
+            }
+        });
+        return results;
+    },
+
+    /**
      * Get the source object for a given overlay layer
      * @param {string} layerId - The overlay layer ID
      * @returns {Object} Source info with exists flag
@@ -73,6 +105,24 @@ window.__test = {
     },
 
     /**
+     * Count the features carried by an overlay layer's GeoJSON source.
+     * @param {string} layerId - The overlay layer ID
+     * @returns {Object} { exists, count } feature count of the source data
+     */
+    getOverlayFeatureCount: async function(layerId) {
+        var map = window.MapCore && window.MapCore.getMap();
+        if (!map) { return { exists: false, error: 'map not initialized' }; }
+        var source = map.getSource('overlay-' + layerId);
+        if (!source) { return { exists: false, error: 'source not found' }; }
+        try {
+            var data = await source.getData();
+            return { exists: true, count: data && data.features ? data.features.length : 0 };
+        } catch (e) {
+            return { exists: false, error: e.message || String(e) };
+        }
+    },
+
+    /**
      * Get comprehensive overlay state for all tracked overlays
      * @returns {Object} Full state dump
      */
@@ -86,6 +136,7 @@ window.__test = {
                     visible: tracked[id].visible,
                     onMap: window.__test.isOverlayLayerOnMap(id),
                     visibility: window.__test.getLayerVisibility(id),
+                    paint: window.__test.getLayerPaint(id),
                     source: window.__test.getOverlaySource(id)
                 };
             }

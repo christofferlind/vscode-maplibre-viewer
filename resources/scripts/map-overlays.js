@@ -151,16 +151,18 @@ function addOverlayLayer(layer) {
 
 				var layerOpacity = layer.opacity !== undefined ? layer.opacity : 1;
 				var layerColor = layer.color || '#FF0000';
+				var circleRadius = layer.circleRadius !== undefined ? layer.circleRadius : 6;
+				var lineWidth = layer.lineWidth !== undefined ? layer.lineWidth : 2;
 				var layerDefinitions = window.MapUtils.createGeoJsonLayerDefinitions(sourceId, {
 					prefix: '',
 					circlePaint: {
-						'circle-radius': 6,
+						'circle-radius': circleRadius,
 						'circle-color': layerColor,
 						'circle-opacity': layerOpacity
 					},
 					linePaint: {
 						'line-color': layerColor,
-						'line-width': 2,
+						'line-width': lineWidth,
 						'line-opacity': layerOpacity
 					},
 					fillPaint: {

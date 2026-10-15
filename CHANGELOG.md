@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.6] - 2026-10-15
+
+### Changed
+
+- Clicking a layer in the Map Layers view no longer switches it on or off by accident: each layer now has a checkbox, and a single click does nothing more. Double-clicking a layer shows it on the map and moves the view so the layer's content is in view.
+
+### Fixed
+
+- Supported files such as GPX track recordings are now drawn on the map automatically when you open them, without needing to switch the "Selected file" layer on first.
+- GPX track recordings are handled more reliably: files saved by apps like OsmAnd are now converted correctly, with every recorded point of the track kept and drawn in the right order.
+
 ## [0.9.5] - 2026-10-13
 
 ### Added

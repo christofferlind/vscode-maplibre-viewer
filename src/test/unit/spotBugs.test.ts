@@ -99,7 +99,9 @@ function makeCommandRegistryStubs(): {
             show: () => undefined
         }),
         registerTreeDataProvider: () => new StubDisposable(),
-        createTreeView: () => new StubDisposable(),
+        createTreeView: () => Object.assign(new StubDisposable(), {
+            onDidChangeCheckboxState: (): { dispose: () => void } => ({ dispose: () => undefined })
+        }),
         registerWebviewViewProvider: () => new StubDisposable(),
         onDidChangeTextEditorSelection: () => new StubDisposable(),
         onDidChangeActiveTextEditor: () => new StubDisposable(),
@@ -306,6 +308,25 @@ suite('Spot bug fixes', () => {
         assert.doesNotThrow(() => {
             void removeCallback!(undefined);
             void colorCallback!(undefined);
+        });
+        await Promise.resolve();
+    });
+
+    test('changeLayerStyle command is registered and does not throw with undefined', async () => {
+        const memento = new StubMemento();
+        const ctx = makeExtensionContext(memento);
+        new LayerTreeProvider(ctx as never);
+
+        const { activate } = loadExtensionModule();
+
+        await activate(ctx);
+
+        const styleCallback = registeredCommands.get('vscodeMaplibreViewer.changeLayerStyle');
+
+        assert.ok(styleCallback, 'changeLayerStyle command should be registered');
+
+        assert.doesNotThrow(() => {
+            void styleCallback!(undefined);
         });
         await Promise.resolve();
     });

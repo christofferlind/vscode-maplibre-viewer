@@ -44,7 +44,15 @@ export function createBaseMapTreeItem(
 export function createOverlayTreeItem(layer: OverlayLayer): vscode.TreeItem {
 	const item = new vscode.TreeItem(layer.name, vscode.TreeItemCollapsibleState.None);
 	item.description = layer.description;
-	item.tooltip = `${layer.name}\nType: ${layer.type}\nVisible: ${layer.visible}`;
+	item.tooltip = [
+		layer.name,
+		`Type: ${layer.type}`,
+		`Visible: ${layer.visible}`,
+		`Color: ${layer.color || 'default (#FF0000)'}`,
+		`Opacity: ${layer.opacity !== undefined ? `${Math.round(layer.opacity * 100)}%` : 'default (100%)'}`,
+		`Circle radius: ${layer.circleRadius !== undefined ? `${layer.circleRadius} px` : 'default (6 px)'}`,
+		`Line width: ${layer.lineWidth !== undefined ? `${layer.lineWidth} px` : 'default (2 px)'}`
+	].join('\n');
 
 	if (layer.id === SELECTED_FILE_LAYER_ID) {
 		item.contextValue = layer.visible ? 'visibleSelectedFileLayer' : 'selectedFileLayer';
@@ -52,13 +60,13 @@ export function createOverlayTreeItem(layer: OverlayLayer): vscode.TreeItem {
 		item.contextValue = layer.visible ? 'visibleOverlayLayer' : 'overlayLayer';
 	}
 
-	item.iconPath = layer.visible
-		? new vscode.ThemeIcon('eye')
-		: new vscode.ThemeIcon('eye-closed');
+	item.checkboxState = layer.visible
+		? vscode.TreeItemCheckboxState.Checked
+		: vscode.TreeItemCheckboxState.Unchecked;
 
 	item.command = {
-		command: 'vscodeMaplibreViewer.toggleLayer',
-		title: 'Toggle Layer Visibility',
+		command: 'vscodeMaplibreViewer.layerItemActivated',
+		title: 'Show Layer On Map',
 		arguments: [layer]
 	};
 	return item;
