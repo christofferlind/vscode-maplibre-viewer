@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import * as path from 'path';
 import type * as vscode from 'vscode';
 import { MockWebview } from '../testUtils/mockWebview';
 import { loadWithStubbedVscode, type VscodeStubState } from '../testUtils/loadWithStubbedVscode';
@@ -43,6 +44,12 @@ const bookmarkTreeLoaded = loadWithStubbedVscode<{ BookmarkTreeProvider: new (mg
 const layerTreeLoaded = loadWithStubbedVscode<{ LayerTreeProvider: new (ctx: vscode.ExtensionContext) => LayerTreeProviderType }>(
     '../../layers/layerTreeProvider'
 );
+const gpxAdapterLoaded = loadWithStubbedVscode<{ gpxAdapter: import('../../services/api').FileToGeoJsonAdapter }>(
+    '../../adapters/gpxAdapter'
+);
+
+/** Real-world GPX fixture used to prove track files draw a line end to end. */
+const GPX_FIXTURE_PATH = path.join(__dirname, '..', '..', '..', 'resources', 'test', '2015-02-12_05-02_Thu_2.gpx');
 
 const SELECTED_FILE_LAYER_ID = 'selected-file';
 
@@ -335,7 +342,8 @@ suite('High-level integration: components work together', () => {
             assert.strictEqual(changeEvent.type, 'overlay');
             assert.strictEqual(changeEvent.data.id, layer.id);
             assert.strictEqual(changeEvent.data.visible, true);
-            assert.strictEqual(harness.layerTree.getVisibleOverlayLayers().length, 1);
+            assert.strictEqual(harness.layerTree.getVisibleOverlayLayers().length, 2,
+                'the newly visible layer and the default-visible selected file layer');
         });
 
         test('updating the selected file layer reaches the webview through the controller', async () => {
@@ -352,31 +360,81 @@ suite('High-level integration: components work together', () => {
 
             await harness.layerTree.updateSelectedFileLayer(geojson);
 
-            // The wired extension behavior pushes only VISIBLE layers to the
-            // webview; the selected file layer stays hidden until shown.
+            // The wired extension behavior pushes VISIBLE layers to the
+            // webview; the selected file layer is visible by default so files
+            // render automatically when opened.
             const layer = harness.layerTree.getSelectedFileLayer();
             assert.ok(layer, 'selected file layer exists');
+            assert.strictEqual(layer.visible, true, 'selected file layer is visible by default');
             assert.strictEqual(
                 (layer.source.data as { features: unknown[] }).features.length,
                 1,
                 'provider holds the new geojson data'
             );
-            assert.strictEqual(harness.layerTree.getVisibleOverlayLayers().length, 0);
+            assert.strictEqual(harness.layerTree.getVisibleOverlayLayers().length, 1);
             for (const webview of harness.webviews) {
                 const messages = webview.getMessagesOfType('updateOverlayLayers');
-                assert.strictEqual(messages.length, 1, 'layer change triggers a broadcast even when nothing is visible');
+                assert.strictEqual(messages.length, 1, 'layer change triggers a broadcast');
                 const layers = (messages[0] as { layers: OverlayLayer[] }).layers;
-                assert.strictEqual(layers.length, 0, 'no visible layers are sent');
+                assert.strictEqual(layers.length, 1, 'the visible selected file layer is sent');
+                assert.strictEqual(layers[0].id, SELECTED_FILE_LAYER_ID);
             }
         });
 
-        test('showing the selected file layer broadcasts the visible layer list', async () => {
+        test('toggling the selected file layer broadcasts its visibility change', async () => {
             await harness.layerTree.toggleLayerVisibility(SELECTED_FILE_LAYER_ID);
             for (const webview of harness.webviews) {
                 const messages = webview.getMessagesOfType('updateOverlayLayers');
-                assert.strictEqual(messages.length, 1, 'visible layer change is broadcast');
+                assert.strictEqual(messages.length, 1, 'hidden layer change is broadcast');
                 const layers = (messages[0] as { layers: OverlayLayer[] }).layers;
+                assert.strictEqual(layers.length, 0, 'hidden selected file layer is not sent');
+            }
+
+            await harness.layerTree.toggleLayerVisibility(SELECTED_FILE_LAYER_ID);
+            for (const webview of harness.webviews) {
+                const messages = webview.getMessagesOfType('updateOverlayLayers');
+                assert.strictEqual(messages.length, 2, 'visible layer change is broadcast');
+                const layers = (messages[1] as { layers: OverlayLayer[] }).layers;
                 assert.ok(layers.some((l) => l.id === SELECTED_FILE_LAYER_ID && l.visible));
+            }
+        });
+
+        test('a real GPX track file flows to the webviews as a drawable line', async () => {
+            const geojson = await gpxAdapterLoaded.module.gpxAdapter.toGeoJson(GPX_FIXTURE_PATH);
+
+            await harness.layerTree.updateSelectedFileLayer(geojson);
+
+            const layer = harness.layerTree.getSelectedFileLayer();
+            assert.ok(layer, 'selected file layer exists');
+            assert.strictEqual(layer.visible, true, 'selected file layer is visible by default');
+            const storedFeatures = (layer.source.data as {
+                features: Array<{ geometry: { type: string; coordinates: unknown[] } }>;
+            }).features;
+            assert.strictEqual(storedFeatures.length, 1, 'the track yields one feature');
+            assert.strictEqual(storedFeatures[0].geometry.type, 'LineString', 'a track becomes a line');
+            assert.strictEqual(
+                storedFeatures[0].geometry.coordinates.length,
+                1511,
+                'the whole track line is kept'
+            );
+
+            for (const webview of harness.webviews) {
+                const messages = webview.getMessagesOfType('updateOverlayLayers');
+                assert.strictEqual(messages.length, 1, 'layer change is broadcast to every webview');
+                const layers = (messages[0] as { layers: OverlayLayer[] }).layers;
+                const sent = layers.find((l) => l.id === SELECTED_FILE_LAYER_ID);
+                assert.ok(sent, 'the selected file layer is broadcast');
+                assert.strictEqual(sent.visible, true);
+                const sentFeatures = (sent.source.data as {
+                    features: Array<{ geometry: { type: string; coordinates: unknown[] } }>;
+                }).features;
+                assert.strictEqual(sentFeatures.length, 1);
+                assert.strictEqual(sentFeatures[0].geometry.type, 'LineString', 'the webview receives a line to draw');
+                assert.strictEqual(
+                    sentFeatures[0].geometry.coordinates.length,
+                    1511,
+                    'the webview receives the full track line'
+                );
             }
         });
 

@@ -106,7 +106,7 @@ export const DEFAULT_OVERLAY_LAYERS: OverlayLayer[] = [
             type: 'geojson',
             data: { type: 'FeatureCollection', features: [] }
         },
-        visible: false
+        visible: true
     },
     {
         id: CLIPBOARD_LAYER_ID,

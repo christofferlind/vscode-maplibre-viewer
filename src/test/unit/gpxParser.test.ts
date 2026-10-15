@@ -6,7 +6,7 @@ import { parseGpxFile } from '../../services/gpxParser';
 
 interface TestFeature {
     type: string;
-    geometry: { type: string; coordinates: number[] };
+    geometry: { type: string; coordinates: number[] | number[][] };
     properties: Record<string, unknown>;
 }
 
@@ -135,6 +135,52 @@ suite('GpxParser Test Suite', () => {
 
         assert.strictEqual(features.length, 1);
         assert.deepStrictEqual(features[0].geometry.coordinates, [-122.3, 47.6]);
+    });
+
+    suite('real-world tracks', () => {
+        const fixturePath = path.join(__dirname, '..', '..', '..', 'resources', 'test', '2015-02-12_05-02_Thu_2.gpx');
+
+        interface TrackFeature {
+            type: string;
+            geometry: { type: string; coordinates: number[][] };
+            properties: Record<string, unknown>;
+        }
+
+        function parseFixture(): TrackFeature[] {
+            const result = parseGpxFile(fixturePath) as { features: unknown[] };
+            return result.features as TrackFeature[];
+        }
+
+        test('should not throw for a file with CRLF line endings', () => {
+            assert.doesNotThrow(() => parseFixture());
+        });
+
+        test('should convert the track to a single multi-point line', () => {
+            const features = parseFixture();
+
+            assert.strictEqual(features.length, 1, 'The whole file is one track segment');
+            assert.strictEqual(features[0].geometry.type, 'LineString', 'A track must become a line');
+        });
+
+        test('should keep every recorded point of the track', () => {
+            const features = parseFixture();
+
+            assert.strictEqual(features[0].geometry.coordinates.length, 1511, 'All track points are kept');
+        });
+
+        test('should place coordinates in [lon, lat] order', () => {
+            const features = parseFixture();
+            const coordinates = features[0].geometry.coordinates;
+
+            assert.deepStrictEqual(coordinates[0], [76.3301317, 26.58122]);
+            assert.deepStrictEqual(coordinates[coordinates.length - 1], [75.7929967, 26.903295]);
+        });
+
+        test('should mark the feature as a track', () => {
+            const features = parseFixture();
+
+            assert.strictEqual(features[0].properties.type, 'track');
+        });
     });
 
 });

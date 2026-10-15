@@ -146,7 +146,7 @@ suite('LayerTreeProvider', () => {
         const layers = provider.getOverlayLayers();
         assert.strictEqual(layers.length, 2);
         assert.strictEqual(layers[0].id, 'selected-file');
-        assert.strictEqual(layers[0].visible, false);
+        assert.strictEqual(layers[0].visible, true);
     });
 
     test('should load persisted overlay layers and ensure selected file layer exists', () => {

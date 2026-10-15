@@ -160,6 +160,32 @@ suite('GpxAdapter', () => {
         });
     });
 
+    suite('real-world tracks', () => {
+        const fixturePath = path.join(__dirname, '..', '..', '..', 'resources', 'test', 'test.gpx');
+
+        test('should convert the real OsmAnd track file to a line feature', async function () {
+            if (!fs.existsSync(fixturePath)) {
+this.skip();
+            }
+            const result = await gpxAdapter.toGeoJson(fixturePath);
+            const gj = result as {
+                type: string;
+                features: Array<{
+                    type: string;
+                    geometry: { type: string; coordinates: number[][] };
+                    properties: { type: string; name: string };
+                }>;
+            };
+
+            assert.strictEqual(gj.type, 'FeatureCollection');
+            assert.strictEqual(gj.features.length, 1);
+            assert.strictEqual(gj.features[0].geometry.type, 'LineString');
+            assert.strictEqual(gj.features[0].geometry.coordinates.length, 1511);
+            assert.strictEqual(gj.features[0].properties.type, 'track');
+            assert.strictEqual(gj.features[0].properties.name, 'Track segment 1');
+        });
+    });
+
     suite('canHandle', () => {
         test('should return true for .gpx', () => {
             assert.strictEqual(gpxAdapter.canHandle('.gpx'), true);

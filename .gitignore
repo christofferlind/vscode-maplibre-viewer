@@ -6,3 +6,4 @@ node_modules
 plans/
 *.vsix
 .ovsx-token
+resources/test/*

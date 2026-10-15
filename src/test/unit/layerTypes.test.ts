@@ -78,7 +78,7 @@ suite('layerTypes Type Guards', () => {
             assert.strictEqual(DEFAULT_OVERLAY_LAYERS.length, 2);
             assert.strictEqual(DEFAULT_OVERLAY_LAYERS[0].id, SELECTED_FILE_LAYER_ID);
             assert.strictEqual(DEFAULT_OVERLAY_LAYERS[0].type, 'geojson');
-            assert.strictEqual(DEFAULT_OVERLAY_LAYERS[0].visible, false);
+            assert.strictEqual(DEFAULT_OVERLAY_LAYERS[0].visible, true);
         });
         test('should define the clipboard layer id', () => {
             assert.strictEqual(CLIPBOARD_LAYER_ID, 'clipboard');
